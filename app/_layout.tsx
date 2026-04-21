@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   useFonts,
   PlusJakartaSans_400Regular,
@@ -13,6 +13,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider } from '../constants/ThemeContext';
 import { SanctuaryColors } from '../constants/theme';
+import { AnimatedSplashScreen } from '../components/AnimatedSplashScreen';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -25,9 +26,7 @@ export default function RootLayout() {
     PlusJakartaSans_800ExtraBold,
   });
 
-  useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync();
-  }, [fontsLoaded]);
+  const [splashAnimationFinished, setSplashAnimationFinished] = useState(false);
 
   if (!fontsLoaded) return null;
 
@@ -50,6 +49,9 @@ export default function RootLayout() {
           <Stack.Screen name="stats" />
           <Stack.Screen name="profile" />
         </Stack>
+        {!splashAnimationFinished && (
+          <AnimatedSplashScreen onAnimationComplete={() => setSplashAnimationFinished(true)} />
+        )}
       </ThemeProvider>
     </GestureHandlerRootView>
   );
