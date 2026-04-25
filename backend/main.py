@@ -14,6 +14,10 @@ router = SemanticRouter(
 
 def chat(user_message: str) -> str:
     result = router(user_message)
+    
+    # [DEBUG] Menampilkan rute yang dipilih oleh Semantic Router
+    route_name = result.name if result.name else "fallback (conversational)"
+    print(f"\n[ROUTE] -> {route_name.upper()}")
 
     if result.name == "guardrail":
         return HARDCODED_RESPONSE

@@ -31,7 +31,8 @@ embeddings = OllamaEmbeddings(model="nomic-embed-text-v2-moe")
 chat_history = []
 
 def retrieve_docs(query: str, k: int = 5):
-    query_embedding = embeddings.embed_query(query)
+    formatted_query = f"query: {query}"
+    query_embedding = embeddings.embed_query(formatted_query)
     result = supabase.rpc("match_documents", {
         "query_embedding": query_embedding,
         "match_threshold": 0.3,
@@ -47,8 +48,19 @@ def get_rag_response(user_message: str) -> str:
     
     context = "\n---\n".join([d["content"] for d in docs])
 
+    # [DEBUG] Tampilkan konteks yang diambil dari Supabase
+    print("\n[DEBUG] === DOKUMEN YANG DIAMBIL DARI SUPABASE ===")
+    for i, d in enumerate(docs):
+        print(f"Chunk {i+1} (Score: {d.get('similarity', 'N/A')}): {d['content'][:100]}...")
+    print("====================================================\n")
+
     prompt = f"""Gunakan konteks berikut untuk menjawab pertanyaan dalam Bahasa Indonesia.
 Jika tidak ada di konteks, katakan kamu tidak tahu.
+
+ATURAN PENTING:
+- JANGAN pernah merekomendasikan obat-obatan atau antidepresan secara spesifik.
+- Jika konteks menyebutkan obat-obatan, ganti dengan saran untuk berkonsultasi ke psikolog atau psikiater profesional.
+- Selalu ingatkan pengguna bahwa kamu bukan pengganti tenaga kesehatan profesional.
 
 Konteks:
 {context}
