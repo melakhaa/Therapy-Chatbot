@@ -1,8 +1,10 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from typing import Optional
 from main import chat, router as semantic_router
-from routes.guardrails import HARDCODED_RESPONSE
+from routes.guardrail import HARDCODED_RESPONSE
 from routes.rag import get_rag_response, retrieve_docs
 from supabase import create_client
 from dotenv import load_dotenv
@@ -13,10 +15,18 @@ supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 class ChatRequest(BaseModel):
     message: str
-    session_id: str = None
-    user_id: str = None
+    session_id: Optional[str] = None
+    user_id: Optional[str] = None
 
 class ChatResponse(BaseModel):
     response: str

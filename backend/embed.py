@@ -1,11 +1,18 @@
-import os, ollama
+import os, sys, ollama
 from docx import Document
 from docx.oxml.ns import qn
 from dotenv import load_dotenv
 from supabase import create_client
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 load_dotenv()
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY"))
+
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=500,
+    chunk_overlap=50,
+    separators=["\n\n", "\n", ". ", " ", ""]
+)
 
 def extract_text_docx(filepath):
     doc = Document(filepath)
@@ -30,20 +37,31 @@ def extract_text_docx(filepath):
 
     return "\n".join(full_text)
 
-def chunk_text(text, size=500, overlap=50):
-    chunks = []
-    i = 0
-    while i < len(text):
-        chunks.append(text[i:i+size])
-        i += size - overlap
-    return chunks
+def is_useful_chunk(chunk: str) -> bool:
+    """Filter chunk sampah: terlalu pendek atau rasio huruf terlalu rendah."""
+    text = chunk.strip()
+    if len(text) < 50:
+        return False
+    # Skip chunk yang mayoritas bukan huruf (tabel angka, simbol, dsb)
+    alpha_ratio = sum(c.isalpha() or c.isspace() for c in text) / max(len(text), 1)
+    if alpha_ratio < 0.4:
+        return False
+    return True
 
 def embed_and_upload(filepath):
     text = extract_text_docx(filepath)
-    chunks = chunk_text(text)
+    chunks = splitter.split_text(text)
     filename = os.path.basename(filepath)
 
+    uploaded = 0
+    skipped = 0
+
     for i, chunk in enumerate(chunks):
+        if not is_useful_chunk(chunk):
+            print(f"  [SKIP] chunk {i+1}: terlalu pendek atau noisy")
+            skipped += 1
+            continue
+
         res = ollama.embed(
             model="nomic-embed-text-v2-moe",
             input=f"passage: {chunk}"
@@ -56,11 +74,21 @@ def embed_and_upload(filepath):
             "metadata": {"source": filename, "chunk": i}
         }).execute()
 
-        print(f"[{filename}] chunk {i+1}/{len(chunks)}")
+        uploaded += 1
+        print(f"  [{filename}] uploaded {uploaded} (chunk {i+1}/{len(chunks)})")
+
+    print(f"  [{filename}] Selesai: {uploaded} uploaded, {skipped} skipped dari {len(chunks)} total chunks")
+
+# --clear flag: hapus semua data lama sebelum re-embed
+if "--clear" in sys.argv:
+    print("Menghapus semua data lama di tabel documents...")
+    supabase.table("documents").delete().neq("document_id", 0).execute()
+    print("Data lama dihapus!\n")
 
 # Run semua .docx di folder docs
 for filename in os.listdir("docs"):
     if filename.endswith(".docx"):
+        print(f"\nMemproses: {filename}")
         embed_and_upload(f"docs/{filename}")
 
-print("Selesai!")
+print("\nSelesai!")
