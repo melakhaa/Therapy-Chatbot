@@ -23,6 +23,7 @@ semantic_router = SemanticRouter(
 
 def chat(user_message: str) -> str:
     result = semantic_router(user_message)
+    print(f"\n---> [SEMANTIC ROUTER] Kueri masuk ke rute: {(result.name or 'conversational').upper()} <---\n")
 
     if result.name == "guardrail":
         return HARDCODED_RESPONSE

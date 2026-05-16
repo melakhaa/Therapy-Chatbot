@@ -11,6 +11,7 @@ from core.security import encrypt_text, decrypt_text
 from services.chatbot.core import chat as chat_fn, semantic_router
 from services.chatbot.guardrail import HARDCODED_RESPONSE
 from services.chatbot.rag import retrieve_docs
+import uuid
 
 load_dotenv()
 
@@ -54,6 +55,15 @@ def retrieve_rag_context(request: ChatRequest, user=Depends(get_current_user)):
         ]
     }
 
+def ensure_session_exists(session_id: str, user_id: str):
+    try:
+        supabase.table("chat_sessions").upsert({
+            "session_id": session_id,
+            "user_id": user_id
+        }).execute()
+    except Exception as e:
+        print(f"Supabase session upsert warning: {e}")
+
 @chat_router.post("/stream")
 def stream_chat_response(request: ChatRequest, user=Depends(get_current_user)):
     def generate():
@@ -75,6 +85,8 @@ def save_chat_history(request: ChatRequest, user=Depends(get_current_user)):
 
     encrypted_user_msg = encrypt_text(request.message)
     encrypted_bot_msg = encrypt_text(response_text)
+
+    ensure_session_exists(request.session_id, str(user.id))
 
     supabase.table("messages").insert({
         "session_id": request.session_id,
@@ -103,15 +115,17 @@ def chat_unified(request: ChatRequest, user=Depends(get_current_user)):
     if is_high_risk:
         response_text = HARDCODED_RESPONSE
         if request.session_id:
+            ensure_session_exists(request.session_id, str(user.id))
             supabase.table("guardrail_logs").insert({
                 "session_id": request.session_id,
-                "user_id": str(user.id),
+                # "user_id": str(user.id), # Diabaikan sementara
                 "triggered_input": request.message,
             }).execute()
     else:
         response_text = chat_fn(request.message)
 
     if request.session_id:
+        ensure_session_exists(request.session_id, str(user.id))
         supabase.table("messages").insert([
             {
                 "session_id": request.session_id,
