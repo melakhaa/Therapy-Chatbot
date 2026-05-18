@@ -1,12 +1,14 @@
-from langchain_ollama import ChatOllama, OllamaEmbeddings
-from langchain_core.messages import HumanMessage, AIMessage
-from supabase import create_client
+from huggingface_hub import InferenceClient
 from semantic_router import Route
+from supabase import create_client
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
+HF_MODEL = "SekarBestNY/llama3-mental-health-adapter"
+HF_EMBED_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+HF_TOKEN = os.getenv("HF_TOKEN")
 
 rag_route = Route(
     name="rag",
@@ -25,13 +27,24 @@ rag_route = Route(
 )
 
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY"))
-llm = ChatOllama(model="llama3.2:3b")
-embeddings = OllamaEmbeddings(model="nomic-embed-text-v2-moe")
+client = InferenceClient(model=HF_MODEL, token=HF_TOKEN)
+embed_client = InferenceClient(token=HF_TOKEN)
 
-chat_history = []
+# In-memory chat history for RAG conversation
+_rag_history: list[dict] = []
+
+
+def embed_query(text: str) -> list[float]:
+    """Embed text using HF sentence-transformers model."""
+    response = embed_client.feature_extraction(text, model=HF_EMBED_MODEL)
+    # feature_extraction returns a list or nested list — flatten to 1D
+    if isinstance(response[0], list):
+        return response[0]
+    return list(response)
+
 
 def retrieve_docs(query: str, k: int = 5):
-    query_embedding = embeddings.embed_query(query)
+    query_embedding = embed_query(query)
     result = supabase.rpc("match_documents", {
         "query_embedding": query_embedding,
         "match_threshold": 0.3,
@@ -39,27 +52,35 @@ def retrieve_docs(query: str, k: int = 5):
     }).execute()
     return result.data or []
 
+
 def get_rag_response(user_message: str) -> str:
     docs = retrieve_docs(user_message)
-    
+
     if not docs:
         return "Maaf, saya tidak menemukan informasi terkait di dokumen."
-    
+
     context = "\n---\n".join([d["content"] for d in docs])
 
-    prompt = f"""Gunakan konteks berikut untuk menjawab pertanyaan dalam Bahasa Indonesia.
-Jika tidak ada di konteks, katakan kamu tidak tahu.
+    system_prompt = (
+        "Kamu adalah asisten psikologi bernama Hana. "
+        "Gunakan konteks berikut untuk menjawab pertanyaan dalam Bahasa Indonesia. "
+        "Jika informasi tidak ada di konteks, katakan kamu tidak tahu.\n\n"
+        f"Konteks:\n{context}"
+    )
 
-Konteks:
-{context}
+    _rag_history.append({"role": "user", "content": user_message})
+    messages = [{"role": "system", "content": system_prompt}] + _rag_history
 
-Pertanyaan: {user_message}"""
+    response = client.chat.completions.create(
+        messages=messages,
+        max_tokens=512,
+        temperature=0.5,
+    )
 
-    chat_history.append(HumanMessage(content=prompt))
-    response = llm.invoke(chat_history)
-    chat_history.append(AIMessage(content=response.content))
+    reply = response.choices[0].message.content
+    _rag_history.append({"role": "assistant", "content": reply})
+    return reply
 
-    return response.content
 
 if __name__ == "__main__":
     tests = [
@@ -70,4 +91,4 @@ if __name__ == "__main__":
     ]
     for t in tests:
         print(f"User: {t}")
-        print(f"RAG: {get_rag_response(t)}\n")
+        print(f"RAG: {get_rag_response(t)}\n")

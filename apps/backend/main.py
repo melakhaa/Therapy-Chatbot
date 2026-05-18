@@ -1,19 +1,10 @@
 from semantic_router import SemanticRouter
-from semantic_router.encoders import OllamaEncoder
+from semantic_router.encoders import HuggingFaceEncoder
 from routes.guardrail import guardrail_route, HARDCODED_RESPONSE
 from routes.conversational import conversational_route, get_conversational_response
 from routes.rag import rag_route, get_rag_response
 
-try:
-    encoder = OllamaEncoder(name="nomic-embed-text-v2-moe")
-except Exception as e:
-    print(f"Warning: Ollama not found. Using mock encoder. Error: {e}")
-    class MockEncoder:
-        def __call__(self, text):
-            class Result:
-                def __init__(self): self.embedding = [0]*768
-            return Result()
-    encoder = MockEncoder()
+encoder = HuggingFaceEncoder(name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 
 router = SemanticRouter(
     routes=[guardrail_route, conversational_route, rag_route],
