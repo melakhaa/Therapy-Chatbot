@@ -1,4 +1,4 @@
-# Sanctuary 🌿
+# Sanctuary
 
 > An AI-powered mental health support system for students and counselors.
 
