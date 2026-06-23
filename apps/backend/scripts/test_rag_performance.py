@@ -43,7 +43,7 @@ def test_rag_performance():
                 print("   [!] Tidak ada dokumen yang ditemukan (Similarity < 0.3)")
             else:
                 for j, doc in enumerate(docs, 1):
-                    # Biasanya RPC Supabase match_documents mereturn kolom 'similarity'
+                     # Biasanya RPC Supabase match_documents mereturn kolom 'similarity'
                     similarity = doc.get("similarity", "N/A")
                     if isinstance(similarity, float):
                         similarity = f"{similarity:.4f}"
