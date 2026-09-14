@@ -167,9 +167,17 @@ export const BorderRadius = {
 };
 
 // ── Stress Level Helpers ──────────────────────────────────────
+// Supportive labels - non-clinical, actionable language
 export const StressLevel = {
   getColor:   (l: number) => (l <= 3 ? Colors.stressLow  : l <= 6 ? Colors.stressMid  : Colors.stressHigh),
   getBgColor: (l: number) => (l <= 3 ? Colors.stressLowBg : l <= 6 ? Colors.stressMidBg : Colors.stressHighBg),
-  getLabel:   (l: number) => (l <= 3 ? 'Baik' : l <= 6 ? 'Perlu Perhatian' : l <= 8 ? 'Cukup Berat' : 'Butuh Bantuan'),
+  getLabel:   (l: number) => (l <= 3 ? 'Kondisi Baik' : l <= 6 ? 'Butuh Perhatian' : l <= 8 ? 'Cukup Berat' : 'Butuh Dukungan'),
   getEmoji:   (l: number) => (l <= 3 ? '🌿' : l <= 6 ? '🌤️' : l <= 8 ? '⛈️' : '🆘'),
+  
+  // New supportive variants for chat room
+  getSupportiveLabel: (l: number) => (l <= 3 ? 'Kondisi Baik' : l <= 6 ? 'Butuh Perhatian Ekstra' : 'Butuh Dukungan Sekarang'),
+  getSupportiveMessage: (l: number) => 
+    l <= 3 ? 'Kamu terlihat cukup tenang hari ini. Lanjutkan cerita kalau mau.'
+    : l <= 6 ? 'Sepertinya hari ini agak berat. Itu wajar kok. Mau coba latihan napas?'
+    : 'Kamu tidak sendirian. Ada yang bisa bantu. Tekan tombol di bawah atau lanjut cerita.',
 };

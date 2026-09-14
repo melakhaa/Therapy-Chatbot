@@ -44,6 +44,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
     user_id: Optional[str] = None
+    history: Optional[list] = None
 
 @guardrail_router.post("/check")
 def check_safety_guardrail(request: ChatRequest):
@@ -85,41 +86,87 @@ def stream_chat_response(request: ChatRequest, background_tasks: BackgroundTasks
                     "session_id": request.session_id,
                     "triggered_input": request.message,
                 }).execute()
+                supabase.table("messages").insert([
+                    {
+                        "session_id": request.session_id,
+                        "user_id": str(user.id),
+                        "role": "user",
+                        "content": encrypt_text(request.message),
+                        "route_used": route,
+                    },
+                    {
+                        "session_id": request.session_id,
+                        "user_id": str(user.id),
+                        "role": "assistant",
+                        "content": encrypt_text(HARDCODED_RESPONSE),
+                        "route_used": route,
+                    },
+                ]).execute()
             yield f"data: {json.dumps({'done': True, 'is_high_risk': True, 'route': 'guardrail'})}\n\n"
             return
 
-        # Pick stream generator berdasarkan route
-        if route == "rag":
-            token_gen = stream_rag_response(request.message)
-        else:
-            token_gen = stream_conversational_response(request.message)
+        # Ambil riwayat chat sebelumnya agar AI mengingat konteks percakapan
+        conv_history = []
+        if request.history:
+            conv_history = [
+                {"role": m.get("role", "user"), "content": m.get("content", "")}
+                for m in request.history
+                if m.get("content")
+            ]
+        elif request.session_id:
+            try:
+                res = (
+                    supabase.table("messages")
+                    .select("role, content, created_at")
+                    .eq("session_id", request.session_id)
+                    .order("created_at")
+                    .limit(20)
+                    .execute()
+                )
+                if res.data:
+                    for m in res.data:
+                        try:
+                            decrypted = decrypt_text(m["content"])
+                        except Exception:
+                            decrypted = m["content"]
+                        conv_history.append({"role": m["role"], "content": decrypted})
+            except Exception as e:
+                print(f"Error loading chat history: {e}")
 
-        full_response = []
-        for token in token_gen:
-            full_response.append(token)
-            yield f"data: {json.dumps({'token': token})}\n\n"
-
-        # Save history setelah stream selesai
         if request.session_id:
             _ensure_session(request.session_id, str(user.id))
             background_tasks.add_task(_generate_session_title, request.session_id, request.message)
-            complete_text = "".join(full_response)
-            supabase.table("messages").insert([
-                {
-                    "session_id": request.session_id,
-                    "user_id": str(user.id),
-                    "role": "user",
-                    "content": encrypt_text(request.message),
-                    "route_used": route,
-                },
-                {
+            # Simpan pesan user di awal
+            supabase.table("messages").insert({
+                "session_id": request.session_id,
+                "user_id": str(user.id),
+                "role": "user",
+                "content": encrypt_text(request.message),
+                "route_used": route,
+            }).execute()
+
+        # Pick stream generator berdasarkan route dengan menyertakan history
+        if route == "rag":
+            token_gen = stream_rag_response(request.message, history=conv_history)
+        else:
+            token_gen = stream_conversational_response(request.message, history=conv_history)
+
+        full_response = []
+        try:
+            for token in token_gen:
+                full_response.append(token)
+                yield f"data: {json.dumps({'token': token})}\n\n"
+        finally:
+            # Save history bot message (bahkan saat stream terputus)
+            if request.session_id and len(full_response) > 0:
+                complete_text = "".join(full_response)
+                supabase.table("messages").insert({
                     "session_id": request.session_id,
                     "user_id": str(user.id),
                     "role": "assistant",
                     "content": encrypt_text(complete_text),
                     "route_used": route,
-                },
-            ]).execute()
+                }).execute()
 
         yield f"data: {json.dumps({'done': True, 'is_high_risk': False, 'route': route})}\n\n"
 
@@ -180,6 +227,33 @@ def chat_unified(request: ChatRequest, user=Depends(get_current_user)):
     route = route_result.name or "conversational"
     is_high_risk = route == "guardrail"
 
+    conv_history = []
+    if request.history:
+        conv_history = [
+            {"role": m.get("role", "user"), "content": m.get("content", "")}
+            for m in request.history
+            if m.get("content")
+        ]
+    elif request.session_id:
+        try:
+            res = (
+                supabase.table("messages")
+                .select("role, content, created_at")
+                .eq("session_id", request.session_id)
+                .order("created_at")
+                .limit(20)
+                .execute()
+            )
+            if res.data:
+                for m in res.data:
+                    try:
+                        decrypted = decrypt_text(m["content"])
+                    except Exception:
+                        decrypted = m["content"]
+                    conv_history.append({"role": m["role"], "content": decrypted})
+        except Exception:
+            pass
+
     if is_high_risk:
         response_text = HARDCODED_RESPONSE
         if request.session_id:
@@ -189,7 +263,7 @@ def chat_unified(request: ChatRequest, user=Depends(get_current_user)):
                 "triggered_input": request.message,
             }).execute()
     else:
-        response_text = chat_fn(request.message)
+        response_text = chat_fn(request.message, history=conv_history)
 
     if request.session_id:
         _ensure_session(request.session_id, str(user.id))

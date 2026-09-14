@@ -28,17 +28,51 @@ def _calc_severity(score: int) -> str:
     return "severe"
 
 
+from pydantic import Field, field_validator
+import uuid
+
+
 # ── Schema ───────────────────────────────────────────────────────────────────
 
 class AnswerItem(BaseModel):
-    question_id: int
-    score: int  # 0–3
+    question_id: int = Field(ge=1, le=100, description="Question identifier")
+    score: int = Field(ge=0, le=3, description="Score 0-3 per PHQ-9/GAD-7")
+
+    @field_validator("question_id")
+    @classmethod
+    def validate_question_id(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("question_id must be positive")
+        return v
 
 
 class AssessmentRequest(BaseModel):
-    answers: List[AnswerItem]
+    answers: List[AnswerItem] = Field(min_length=1, max_length=50)
     instrument_type: Literal["PHQ-9", "GAD-7", "SRQ", "custom"] = "PHQ-9"
-    session_id: Optional[str] = None
+    session_id: Optional[str] = Field(
+        None,
+        pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        description="UUID v4 session identifier"
+    )
+
+    @field_validator("answers")
+    @classmethod
+    def validate_answers(cls, v: List[AnswerItem]) -> List[AnswerItem]:
+        # Check for duplicate question_ids
+        question_ids = [a.question_id for a in v]
+        if len(question_ids) != len(set(question_ids)):
+            raise ValueError("Duplicate question_ids found in answers")
+        return v
+
+    @field_validator("session_id")
+    @classmethod
+    def validate_session_id(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            try:
+                uuid.UUID(v, version=4)
+            except ValueError:
+                raise ValueError("session_id must be a valid UUID v4")
+        return v
 
 
 class NotifyRiskRequest(BaseModel):

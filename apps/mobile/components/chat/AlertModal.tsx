@@ -14,9 +14,9 @@ interface Props {
 }
 
 const CONTACTS = [
-  { name: 'Into The Light', phone: '119 ext 8' },
-  { name: 'Hotline Sehat Jiwa', phone: '1500-454' },
-  { name: 'Yayasan Pulih', phone: '021-788-42580' },
+  { name: 'Into The Light Indonesia', phone: '119 ext 8' },
+  { name: 'Yayasan Pulih', phone: '(021) 788-42580' },
+  { name: 'IGD Rumah Sakit Terdekat', phone: '118' },
 ];
 
 export const AlertModal: React.FC<Props> = ({ visible, stressLevel, onDismiss, onConfirmReport }) => {
@@ -52,7 +52,7 @@ export const AlertModal: React.FC<Props> = ({ visible, stressLevel, onDismiss, o
           {/* Body */}
           <View style={styles.body}>
             <Text style={[styles.bodyText, { color: colors.textSecondary }]}>
-              Kamu tidak sendirian. Al Sahabat mendeteksi kondisi yang mungkin memerlukan
+              Kamu tidak sendirian. Sanctuary mendeteksi kondisi yang mungkin memerlukan
               dukungan lebih. Berikut kontak yang bisa dihubungi:
             </Text>
 

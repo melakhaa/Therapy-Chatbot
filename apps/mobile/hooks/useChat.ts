@@ -12,6 +12,8 @@ export interface UseChatReturn {
   stressLevel: number;
   showAlert: boolean;
   closeAlert: () => void;
+  setShowAlert: (v: boolean) => void;
+  setAlertTriggered: (v: boolean) => void;
   quickReplies: string[];
   showQuickReplies: boolean;
   sendMessage: (text: string) => void;
@@ -49,10 +51,20 @@ export function useChat(initialSessionId?: string): UseChatReturn {
   const [showQuickReplies, setShowQuickReplies] = useState(true);
   const [isHighRisk, setIsHighRisk]     = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isSending, setIsSending]       = useState(false);
 
-  const sessionId      = useRef(initialSessionId || generateSessionId()).current;
+  const sessionIdRef      = useRef(initialSessionId || generateSessionId());
   const sendBtnScale   = useRef(new Animated.Value(1)).current;
   const abortStreamRef = useRef<(() => void) | null>(null);
+
+  // Keep sessionIdRef in sync with initialSessionId prop changes
+  useEffect(() => {
+    if (initialSessionId) {
+      sessionIdRef.current = initialSessionId;
+    }
+  }, [initialSessionId]);
+
+  const sessionId = sessionIdRef.current;
 
   // ── Add AI message ─────────────────────────────────────────────
   const addAI = useCallback((text: string) => {
@@ -68,7 +80,7 @@ export function useChat(initialSessionId?: string): UseChatReturn {
       setIsLoadingHistory(true);
       apiGetChatHistory(initialSessionId)
         .then((res) => {
-          const histMessages = res.messages.map((m: any) => ({
+          const histMessages: Message[] = res.messages.map((m: any): Message => ({
             id: m.id || `hist-${m.created_at}`,
             text: m.content,
             sender: m.role === 'user' ? 'user' : 'ai',
@@ -98,6 +110,7 @@ export function useChat(initialSessionId?: string): UseChatReturn {
     const level = analyzeStress(messages);
     setStressLevel(level);
 
+    // Trigger alert when stress goes high
     if (level >= 7 && !alertTriggered) {
       const t = setTimeout(() => {
         setShowAlert(true);
@@ -105,12 +118,19 @@ export function useChat(initialSessionId?: string): UseChatReturn {
       }, 900);
       return () => clearTimeout(t);
     }
+
+    // Reset alertTriggered when stress drops below threshold
+    if (level < 7 && alertTriggered) {
+      setAlertTriggered(false);
+    }
   }, [messages, alertTriggered]);
 
-  // ── Upgrade quick replies on mid-stress ───────────────────────
+  // ── Upgrade/downgrade quick replies on stress change ───────────────────────
   useEffect(() => {
     if (stressLevel >= 4 && messages.length > 3) {
       setQuickReplies(QUICK_REPLIES.mid);
+    } else if (stressLevel < 4) {
+      setQuickReplies(QUICK_REPLIES.initial);
     }
   }, [stressLevel, messages.length]);
 
@@ -118,20 +138,21 @@ export function useChat(initialSessionId?: string): UseChatReturn {
   // ── Send message → SSE stream ─────────────────────────────────
   const sendMessage = useCallback(
     (text: string) => {
-      if (!text.trim()) return;
+      const trimmed = text.trim();
+      if (!trimmed) return;
 
-      // Abort any existing stream
+      // Abort previous in-flight stream so we can start fresh with the latest message
       abortStreamRef.current?.();
 
       const userMsg: Message = {
-        id: `user-${Date.now()}`,
-        text: text.trim(),
+        id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        text: trimmed,
         sender: 'user',
         timestamp: new Date(),
       };
 
-      // Create empty AI placeholder that we'll fill token-by-token
-      const aiMsgId = `ai-${Date.now()}`;
+      // Create new empty AI placeholder for the response
+      const aiMsgId = `ai-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       const aiPlaceholder: Message = {
         id: aiMsgId,
         text: '',
@@ -139,10 +160,24 @@ export function useChat(initialSessionId?: string): UseChatReturn {
         timestamp: new Date(),
       };
 
-      setMessages((prev) => [...prev, userMsg, aiPlaceholder]);
+      // Clean existing messages: keep any previous message that has text
+      const previousValidMessages = messages.filter(
+        (m) => !(m.sender === 'ai' && m.text.trim() === '')
+      );
+
+      // Construct history array from all prior messages for LLM context
+      const historyPayload = previousValidMessages
+        .filter((m) => m.text.trim().length > 0)
+        .map((m) => ({
+          role: m.sender === 'user' ? ('user' as const) : ('assistant' as const),
+          content: m.text,
+        }));
+
+      setMessages([...previousValidMessages, userMsg, aiPlaceholder]);
       setInputText('');
       setIsTyping(true);
       setShowQuickReplies(false);
+      setIsSending(true);
 
       // Send button bounce
       Animated.sequence([
@@ -150,9 +185,13 @@ export function useChat(initialSessionId?: string): UseChatReturn {
         Animated.spring(sendBtnScale, { toValue: 1, useNativeDriver: true }),
       ]).start();
 
-      // Start SSE stream
+      // Start SSE stream with full history
       const abort = apiChatStream(
-        { message: text.trim(), session_id: sessionId },
+        {
+          message: trimmed,
+          session_id: sessionId,
+          history: historyPayload,
+        },
         (token) => {
           setIsTyping(false); // Hide typing dots once first token arrives
           setMessages((prev) =>
@@ -165,6 +204,7 @@ export function useChat(initialSessionId?: string): UseChatReturn {
         (meta) => {
           setIsTyping(false);
           setShowQuickReplies(true);
+          setIsSending(false);
           abortStreamRef.current = null;
           if (meta.is_high_risk) {
             setIsHighRisk(true);
@@ -173,23 +213,32 @@ export function useChat(initialSessionId?: string): UseChatReturn {
           }
         },
         // onError: fallback message
-        () => {
+        (err) => {
+          console.error('Chat stream error:', err);
           setMessages((prev) =>
             prev.map((m) =>
               m.id === aiMsgId
-                ? { ...m, text: 'Maaf, aku sedang tidak bisa dihubungi. Coba lagi sebentar ya 🙏' }
+                ? { ...m, text: m.text || 'Maaf, aku sedang tidak bisa dihubungi. Coba lagi sebentar ya 🙏' }
                 : m
             )
           );
           setIsTyping(false);
           setShowQuickReplies(true);
+          setIsSending(false);
           abortStreamRef.current = null;
         },
+        {
+          maxRetries: 3,
+          baseRetryDelayMs: 1000,
+          onRetry: (attempt, error) => {
+            console.warn(`Chat stream retry ${attempt}/3:`, error.message);
+          },
+        }
       );
 
       abortStreamRef.current = abort;
     },
-    [sendBtnScale, sessionId]
+    [sendBtnScale, sessionId, messages]
   );
 
   // ── Report confirmed ──────────────────────────────────────────
@@ -208,6 +257,8 @@ export function useChat(initialSessionId?: string): UseChatReturn {
     stressLevel,
     showAlert,
     closeAlert: () => setShowAlert(false),
+    setShowAlert,
+    setAlertTriggered,
     quickReplies,
     showQuickReplies,
     sendMessage,

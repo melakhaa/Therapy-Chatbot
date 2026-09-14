@@ -3,6 +3,7 @@ from semantic_router.encoders import OllamaEncoder
 from services.chatbot.guardrail import guardrail_route, HARDCODED_RESPONSE
 from services.chatbot.conversational import conversational_route, get_conversational_response
 from services.chatbot.rag import rag_route, get_rag_response
+from typing import List, Optional
 
 try:
     encoder = OllamaEncoder(name="nomic-embed-text-v2-moe")
@@ -21,17 +22,17 @@ semantic_router = SemanticRouter(
     auto_sync="local"
 )
 
-def chat(user_message: str) -> str:
+def chat(user_message: str, history: Optional[List[dict]] = None) -> str:
     result = semantic_router(user_message)
 
     if result.name == "guardrail":
         return HARDCODED_RESPONSE
     elif result.name == "conversational":
-        return get_conversational_response(user_message)
+        return get_conversational_response(user_message, history)
     elif result.name == "rag":
-        return get_rag_response(user_message)
+        return get_rag_response(user_message, history)
     else:
-        return get_conversational_response(user_message)
+        return get_conversational_response(user_message, history)
 
 # Test
 if __name__ == "__main__":

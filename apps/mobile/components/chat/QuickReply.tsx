@@ -1,7 +1,6 @@
-// components/chat/QuickReply.tsx
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { Typography, Spacing, BorderRadius } from '@prototype/ui-shared';
+import { Spacing, BorderRadius } from '@prototype/ui-shared';
 import { useTheme } from '@prototype/ui-shared';
 
 interface Props { options: string[]; onSelect: (option: string) => void }
@@ -10,34 +9,46 @@ export const QuickReply: React.FC<Props> = ({ options, onSelect }) => {
   const { colors } = useTheme();
 
   return (
-    <View style={styles.wrap}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        {options.map((opt, i) => (
-          <TouchableOpacity
-            key={i}
-            style={[styles.chip, { borderColor: colors.primary + '50', backgroundColor: colors.primaryContainer + '30' }]}
-            onPress={() => onSelect(opt)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.chipText, { color: colors.primary }]}>{opt}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </View>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={[s.row, { paddingHorizontal: Spacing.md }]}
+      style={s.wrap}
+    >
+      {options.map((opt, i) => (
+        <TouchableOpacity
+          key={i}
+          style={[
+            s.chip,
+            {
+              borderColor: colors.outlineVariant,
+              backgroundColor: colors.surfaceContainerLowest,
+            },
+          ]}
+          onPress={() => onSelect(opt)}
+          activeOpacity={0.7}
+        >
+          <Text style={[s.chipText, { color: colors.onSurface }]}>{opt}</Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
   );
 };
 
-const styles = StyleSheet.create({
-  wrap: { paddingBottom: Spacing.sm },
-  row:  { paddingHorizontal: Spacing.base, gap: Spacing.sm, flexDirection: 'row' },
+const s = StyleSheet.create({
+  wrap: { paddingBottom: 0 },
+  row: { gap: Spacing.xs + 2, flexDirection: 'row', alignItems: 'center' },
   chip: {
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 3,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
-  chipText: { fontSize: Typography.sm, fontFamily: 'PlusJakartaSans_600SemiBold' },
+  chipText: {
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans_500Medium',
+    letterSpacing: 0.1,
+  },
 });
 
 export default QuickReply;
-

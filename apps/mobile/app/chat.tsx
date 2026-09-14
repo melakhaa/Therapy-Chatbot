@@ -39,6 +39,8 @@ export default function ChatScreen() {
     sendMessage,
     sendBtnScale,
     isLoadingHistory,
+    setShowAlert,
+    setAlertTriggered,
   } = useChat(initialSessionId);
 
   useEffect(() => {
@@ -49,66 +51,64 @@ export default function ChatScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[s.container, { backgroundColor: colors.background }]}
+      style={[s.root, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
     >
-      {/* ── Glass Header ── */}
+      {/* ── Header: flows in document order, not absolute ── */}
       <View
         style={[
           s.header,
           {
             paddingTop: insets.top + Spacing.sm,
-            backgroundColor: colors.background + 'D0',
-            borderBottomColor: colors.outlineVariant + '30',
-          }
+            backgroundColor: colors.background,
+            borderBottomColor: colors.outlineVariant + '25',
+          },
         ]}
       >
-        {/* Nav row */}
-        <View style={s.navRow}>
-          <TouchableOpacity
-            style={[s.backBtn, { backgroundColor: colors.surfaceContainerLow }]}
-            onPress={() => {
-              if (router.canGoBack()) router.back();
-              else router.replace('/home');
-            }}
+        <TouchableOpacity
+          style={[s.iconBtn, { backgroundColor: colors.surfaceContainerLow }]}
+          onPress={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace('/home');
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={18} color={colors.onSurface} />
+        </TouchableOpacity>
+
+        <View style={s.navCenter}>
+          <LinearGradient
+            colors={[colors.primary, colors.primaryDim]}
+            style={s.navAvatar}
           >
-            <Ionicons name="arrow-back" size={18} color={colors.onSurface} />
-          </TouchableOpacity>
-
-          <View style={s.navCenter}>
-            <View style={s.navLogoRow}>
-              <LinearGradient
-                colors={[colors.primary, colors.primaryDim]}
-                style={s.navAvatar}
-              >
-                <Ionicons name="leaf-outline" size={14} color="#fff" />
-              </LinearGradient>
-              <Text style={[s.navBrand, { color: colors.onSurface }]}>Sanctuary</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity>
-            <Ionicons name="settings-outline" size={20} color={colors.onSurfaceVariant} />
-          </TouchableOpacity>
+            <Ionicons name="leaf-outline" size={11} color="#fff" />
+          </LinearGradient>
+          <Text style={[s.navBrand, { color: colors.onSurface }]}>Sanctuary</Text>
+          <View style={[s.onlineDot, { backgroundColor: colors.stressLow }]} />
         </View>
 
-        {/* Conversation title section */}
-        <View style={s.titleSection}>
-          <Text style={[s.convTitle, { color: colors.onSurface }]}>Dialogue with Sanctuary AI</Text>
-          <Text style={[s.convSub, { color: colors.onSurfaceVariant }]}>
-            Ruang yang tenang untuk merefleksikan pikiran dan perasaanmu.
-          </Text>
-        </View>
+        <TouchableOpacity style={s.iconBtn} activeOpacity={0.7}>
+          <Ionicons name="ellipsis-horizontal" size={18} color={colors.onSurfaceVariant} />
+        </TouchableOpacity>
       </View>
 
-      {/* ── Stress Bar ── */}
-      <StressBar level={stressLevel} />
+      {/* ── Wellness indicator: normal flow, not absolute ── */}
+      <StressBar
+        level={stressLevel}
+        onSupportPress={() => {
+          if (stressLevel >= 7) {
+            setShowAlert(true);
+            setAlertTriggered(true);
+          } else {
+            router.push('/journal');
+          }
+        }}
+      />
 
       {/* ── Message List ── */}
       {isLoadingHistory ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={{ color: colors.onSurfaceVariant, marginBottom: 8, fontFamily: 'PlusJakartaSans_500Medium' }}>Memuat riwayat chat...</Text>
-        </View>
+        <LoadingState color={colors.onSurfaceVariant} />
       ) : (
         <FlatList
           ref={listRef}
@@ -122,52 +122,63 @@ export default function ChatScreen() {
         />
       )}
 
-      {/* ── Quick Replies ── */}
-      {showQuickReplies && messages.length < 16 && (
-        <QuickReply
-          options={quickReplies}
-          onSelect={(t) => { sendMessage(t); Keyboard.dismiss(); }}
-        />
-      )}
-
-      {/* ── Input Bar ── */}
+      {/* ── Bottom: Quick Replies + Input Bar (fused, no gap) ── */}
       <View
         style={[
-          s.inputBar,
+          s.bottomContainer,
           {
-            paddingBottom: insets.bottom + 12,
-            backgroundColor: colors.background + 'F2',
+            paddingBottom: insets.bottom + Spacing.sm,
+            backgroundColor: colors.background,
             borderTopColor: colors.outlineVariant + '20',
-          }
+          },
         ]}
       >
-        <View style={[s.inputWrap, { backgroundColor: colors.surfaceContainerLow }]}>
-          <TextInput
-            style={[s.textInput, { color: colors.onSurface }]}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Ceritakan perasaanmu..."
-            placeholderTextColor={colors.outline + '70'}
-            multiline
-            maxLength={500}
+        {showQuickReplies && messages.length < 16 && (
+          <QuickReply
+            options={quickReplies}
+            onSelect={(t) => { sendMessage(t); Keyboard.dismiss(); }}
           />
-        </View>
+        )}
 
-        <Animated.View style={{ transform: [{ scale: sendBtnScale }] }}>
-          <TouchableOpacity
-            onPress={() => sendMessage(inputText)}
-            disabled={!canSend}
-            activeOpacity={0.8}
-            style={s.sendWrap}
+        <View style={s.inputRow}>
+          <View
+            style={[
+              s.inputPill,
+              {
+                backgroundColor: colors.surfaceContainerLow,
+                borderColor: colors.outlineVariant + '60',
+              },
+            ]}
           >
-            <LinearGradient
-              colors={canSend ? [colors.primary, colors.primaryDim] : [colors.surfaceContainerHigh, colors.surfaceContainerHigh]}
-              style={s.sendBtn}
+            <TextInput
+              style={[s.textInput, { color: colors.onSurface }]}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Tulis sesuatu..."
+              placeholderTextColor={colors.outline}
+              multiline
+              maxLength={500}
+            />
+          </View>
+
+          <Animated.View style={{ transform: [{ scale: sendBtnScale }] }}>
+            <TouchableOpacity
+              onPress={() => sendMessage(inputText)}
+              disabled={!canSend}
+              activeOpacity={0.8}
+              style={[
+                s.sendBtn,
+                { backgroundColor: canSend ? colors.primary : colors.surfaceContainerHigh },
+              ]}
             >
-              <Ionicons name="send" size={16} color={canSend ? '#fff' : colors.onSurfaceVariant} />
-            </LinearGradient>
-          </TouchableOpacity>
-        </Animated.View>
+              <Ionicons
+                name="arrow-up"
+                size={18}
+                color={canSend ? '#fff' : colors.onSurfaceVariant}
+              />
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
       </View>
 
       <AlertModal
@@ -180,87 +191,109 @@ export default function ChatScreen() {
   );
 }
 
-/* ── Empty state ── */
+/* ── Loading skeleton ── */
+const LoadingState: React.FC<{ color: string }> = ({ color }) => (
+  <View style={s.centered}>
+    <Text style={[s.loadingTxt, { color }]}>Memuat riwayat...</Text>
+  </View>
+);
+
+/* ── Empty state: editorial, left-aligned, generous whitespace ── */
 const EmptyState: React.FC = () => {
   const { colors } = useTheme();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(16)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 500, delay: 100, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 500, delay: 100, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
   return (
-    <View style={s.empty}>
-      <View style={[s.emptyIcon, { backgroundColor: colors.primaryContainer + '50' }]}>
-        <Ionicons name="chatbubble-ellipses-outline" size={32} color={colors.primary} />
+    <Animated.View
+      style={[
+        s.empty,
+        { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+      ]}
+    >
+      <View style={[s.emptyAvatar, { backgroundColor: colors.primaryContainer }]}>
+        <Ionicons name="leaf-outline" size={22} color={colors.primary} />
       </View>
-      <Text style={[s.emptyTitle, { color: colors.onSurface }]}>Selamat datang di Sanctuary</Text>
-      <Text style={[s.emptySub, { color: colors.onSurfaceVariant }]}>
-        Ceritakan apapun — AI siap mendengarkan dengan penuh empati.
+      <Text style={[s.emptyTitle, { color: colors.onSurface }]}>
+        Ruang Refleksimu
       </Text>
-    </View>
+      <Text style={[s.emptySub, { color: colors.onSurfaceVariant }]}>
+        Ceritakan apapun. Sanctuary mendengarkan dengan penuh empati, tanpa penghakiman.
+      </Text>
+    </Animated.View>
   );
 };
 
-/* ── Styles ── */
 const s = StyleSheet.create({
-  container: { flex: 1 },
+  root: { flex: 1 },
 
-  // Header
+  /* Header — normal document flow */
   header: {
-    borderBottomWidth: 1,
-  },
-  navRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.base,
-    paddingBottom: 12,
-    gap: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    gap: Spacing.sm,
   },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 18,
+  iconBtn: {
+    width: 36, height: 36,
+    borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
   },
-  navCenter: { flex: 1, alignItems: 'center' },
-  navLogoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  navCenter: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
   navAvatar: {
-    width: 28, height: 28, borderRadius: 14,
+    width: 22, height: 22,
+    borderRadius: 11,
     alignItems: 'center', justifyContent: 'center',
   },
-  navBrand: { fontSize: 16, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.3 },
-
-  // Conversation title
-  titleSection: {
-    paddingHorizontal: Spacing.xl,
-    paddingTop: 4,
-    paddingBottom: 20,
+  navBrand: {
+    fontSize: 15,
+    fontFamily: 'PlusJakartaSans_700Bold',
+    letterSpacing: -0.2,
   },
-  convTitle: {
-    fontSize: 24,
-    fontFamily: 'PlusJakartaSans_800ExtraBold',
-    letterSpacing: -0.6,
-    marginBottom: 4,
-  },
-  convSub: {
-    fontSize: 13,
-    fontFamily: 'PlusJakartaSans_400Regular',
-    lineHeight: 20,
+  onlineDot: {
+    width: 7, height: 7,
+    borderRadius: 3.5,
   },
 
-  // Messages
+  /* Message list */
   msgList: {
-    paddingVertical: 20,
+    paddingVertical: Spacing.sm,
     flexGrow: 1,
   },
 
-  // Input bar
-  inputBar: {
+  /* Bottom container: chips + input, no gap between them */
+  bottomContainer: {
+    borderTopWidth: 1,
+    paddingTop: Spacing.xs,
+  },
+  inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: Spacing.base,
-    paddingTop: 12,
-    borderTopWidth: 1,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.xs,
     gap: Spacing.sm,
   },
-  inputWrap: {
+  inputPill: {
     flex: 1,
     borderRadius: 20,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Platform.OS === 'ios' ? 11 : 7,
     maxHeight: 120,
   },
   textInput: {
@@ -270,44 +303,48 @@ const s = StyleSheet.create({
     maxHeight: 100,
     padding: 0, margin: 0,
   },
-  sendWrap: {
-    width: 48, height: 48, borderRadius: 24,
-    overflow: 'hidden',
-    shadowColor: '#496175',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
   sendBtn: {
-    width: 48, height: 48,
+    width: 44, height: 44,
+    borderRadius: 22,
     alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
   },
 
-  // Empty
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 40,
-    paddingTop: 40,
-    gap: 12,
-  },
-  emptyIcon: {
-    width: 80, height: 80, borderRadius: 40,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 8,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontFamily: 'PlusJakartaSans_700Bold',
-    textAlign: 'center',
-  },
-  emptySub: {
+  /* Loading */
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingTxt: {
     fontSize: 14,
     fontFamily: 'PlusJakartaSans_400Regular',
-    textAlign: 'center',
-    lineHeight: 22,
+    letterSpacing: 0.5,
+  },
+
+  /* Empty state — left-aligned editorial */
+  empty: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xxl,
+    paddingBottom: Spacing.lg,
+    gap: Spacing.md,
+  },
+  emptyAvatar: {
+    width: 48, height: 48,
+    borderRadius: 24,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: Spacing.xs,
+  },
+  emptyTitle: {
+    fontSize: 28,
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
+    letterSpacing: -0.8,
+    lineHeight: 34,
+  },
+  emptySub: {
+    fontSize: 15,
+    fontFamily: 'PlusJakartaSans_400Regular',
+    lineHeight: 24,
+    maxWidth: '88%',
   },
 });
-

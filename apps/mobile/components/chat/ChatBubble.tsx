@@ -1,15 +1,8 @@
-// components/chat/ChatBubble.tsx
-// Pixel-perfect matching Sanctuary HTML mockup:
-// AI:   [avatar] [ETHEREAL AI · HH:MM]  ← meta row
-//                [bubble: bg surfaceContainerLow, radius xl, bottom-left sharp]
-// User:          [HH:MM · YOU]           ← meta row right-aligned
-//                [bubble: bg white, shadow, radius xl, bottom-right sharp]
-
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@prototype/ui-shared';
-import type { Message, MessageSender } from '@prototype/utils';
+import type { Message } from '@prototype/utils';
 
 interface Props { message: Message; index: number }
 
@@ -21,12 +14,12 @@ export const ChatBubble: React.FC<Props> = ({ message }) => {
   const { colors } = useTheme();
 
   const opacity = useRef(new Animated.Value(0)).current;
-  const y       = useRef(new Animated.Value(10)).current;
+  const y       = useRef(new Animated.Value(8)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }),
-      Animated.timing(y,       { toValue: 0, duration: 250, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.timing(y,       { toValue: 0, duration: 220, useNativeDriver: true }),
     ]).start();
   }, []);
 
@@ -36,16 +29,11 @@ export const ChatBubble: React.FC<Props> = ({ message }) => {
     return (
       <Animated.View style={[s.rowUser, { opacity, transform: [{ translateY: y }] }]}>
         <View style={s.groupUser}>
-          {/* Meta row: time · YOU */}
-          <View style={s.metaUser}>
-            <Text style={[s.metaTime, { color: colors.outline }]}>{fmt(message.timestamp)}</Text>
-            <View style={[s.metaDot, { backgroundColor: colors.outlineVariant }]} />
-            <Text style={[s.metaSender, { color: colors.onSurfaceVariant }]}>KAMU</Text>
-          </View>
-          {/* Bubble */}
+          {/* Bubble first, time below */}
           <View style={[s.userBubble, { backgroundColor: colors.surfaceContainerLowest }]}>
             <Text style={[s.bubbleTxt, { color: colors.onSurface }]}>{message.text}</Text>
           </View>
+          <Text style={[s.metaTime, { color: colors.outline }]}>{fmt(message.timestamp)}</Text>
         </View>
       </Animated.View>
     );
@@ -54,110 +42,85 @@ export const ChatBubble: React.FC<Props> = ({ message }) => {
   return (
     <Animated.View style={[s.rowAI, { opacity, transform: [{ translateY: y }] }]}>
       {/* Small avatar */}
-      <View style={[s.aiAvatar, { backgroundColor: colors.primaryContainer + '50' }]}>
-        <Ionicons name="leaf-outline" size={14} color={colors.primary} />
+      <View style={[s.aiAvatar, { backgroundColor: colors.primaryContainer }]}>
+        <Ionicons name="leaf-outline" size={13} color={colors.primary} />
       </View>
 
       <View style={s.groupAI}>
-        {/* Meta row: SANCTUARY AI · time */}
-        <View style={s.metaAI}>
-          <Text style={[s.metaSender, { color: colors.primary }]}>SANCTUARY AI</Text>
-          <View style={[s.metaDot, { backgroundColor: colors.outlineVariant }]} />
-          <Text style={[s.metaTime, { color: colors.outline }]}>{fmt(message.timestamp)}</Text>
-        </View>
-        {/* Bubble */}
         <View style={[s.aiBubble, { backgroundColor: colors.surfaceContainerLow }]}>
           <Text style={[s.bubbleTxt, { color: colors.onSurface }]}>{message.text}</Text>
         </View>
+        <Text style={[s.metaTime, { color: colors.outline }]}>{fmt(message.timestamp)}</Text>
       </View>
     </Animated.View>
   );
 };
 
 const s = StyleSheet.create({
-  /* User row */
+  /* User row — right-aligned */
   rowUser: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    paddingHorizontal: 20,
-    marginBottom: 24,
+    paddingHorizontal: 16,
+    marginBottom: 14,
   },
   groupUser: {
     alignItems: 'flex-end',
-    maxWidth: '85%',
-    gap: 6,
-  },
-  metaUser: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    justifyContent: 'flex-end',
+    maxWidth: '82%',
+    gap: 4,
   },
 
-  /* AI row */
+  /* AI row — left-aligned with avatar */
   rowAI: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    marginBottom: 24,
+    paddingHorizontal: 16,
+    marginBottom: 14,
     gap: 10,
   },
   aiAvatar: {
-    width: 32, height: 32, borderRadius: 16,
+    width: 30, height: 30,
+    borderRadius: 15,
     alignItems: 'center', justifyContent: 'center',
-    marginTop: 20, // align with bubble (below meta row)
+    marginTop: 2,
     flexShrink: 0,
   },
   groupAI: {
     alignItems: 'flex-start',
     flex: 1,
-    gap: 6,
-  },
-  metaAI: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
 
-  /* Meta shared */
-  metaSender: {
-    fontSize: 10,
-    fontFamily: 'PlusJakartaSans_700Bold',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
+  /* Timestamp — below each bubble, minimal */
   metaTime: {
     fontSize: 11,
     fontFamily: 'PlusJakartaSans_400Regular',
-  },
-  metaDot: {
-    width: 3, height: 3, borderRadius: 1.5,
+    letterSpacing: 0.2,
   },
 
   /* Bubbles */
   userBubble: {
-    borderRadius: 20,
+    borderRadius: 18,
     borderBottomRightRadius: 4,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     shadowColor: '#2b3437',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   aiBubble: {
-    borderRadius: 20,
+    borderRadius: 18,
     borderBottomLeftRadius: 4,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   bubbleTxt: {
     fontSize: 15,
     fontFamily: 'PlusJakartaSans_400Regular',
-    lineHeight: 24,
+    lineHeight: 23,
   },
 });
 
 export default ChatBubble;
-

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BottomNav, FadeIn } from '../components/ui';
 import { useTheme, useAuth } from '@prototype/ui-shared';
 import { Spacing, BorderRadius } from '@prototype/ui-shared';
-import { apiSaveJournal } from '@prototype/api-client';
+import { apiSaveJournal, apiGetJournals } from '@prototype/api-client';
 
 
 const { width } = Dimensions.get('window');
@@ -42,6 +42,20 @@ export default function HomeScreen() {
   const [selectedMood, setSelectedMood] = useState<'Calm' | 'Anxious' | 'Focused' | 'Tired' | null>(null);
   const [journalText, setJournalText] = useState('');
   const [isSavingJournal, setIsSavingJournal] = useState(false);
+  const [journals, setJournals] = useState<any[]>([]);
+
+  const fetchJournals = useCallback(async () => {
+    try {
+      const res = await apiGetJournals(30, 0);
+      setJournals(res.journals || []);
+    } catch (err) {
+      console.warn('Failed to load journals for home:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchJournals();
+  }, [fetchJournals]);
 
   const handleSaveJournal = async () => {
     if (!journalText.trim() || !selectedMood) {
@@ -54,6 +68,7 @@ export default function HomeScreen() {
       Alert.alert('Tersimpan', 'Jurnal kamu berhasil disimpan.');
       setJournalText('');
       setSelectedMood(null);
+      await fetchJournals();
     } catch (err: any) {
       Alert.alert('Gagal', err.message || 'Gagal menyimpan jurnal.');
     } finally {
@@ -61,17 +76,93 @@ export default function HomeScreen() {
     }
   };
 
-  const calmW  = useRef(new Animated.Value(0)).current;
-  const focusW = useRef(new Animated.Value(0)).current;
+  const weeklyData = React.useMemo(() => {
+    const daysShort = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+    const today = new Date();
+    const daysList = [];
+    const counts: Record<string, number> = { Calm: 0, Focused: 0, Tired: 0, Anxious: 0 };
+    let totalRecorded = 0;
 
-  useEffect(() => {
-    Animated.delay(600).start(() => {
-      Animated.parallel([
-        Animated.timing(calmW,  { toValue: 0.85, duration: 900, useNativeDriver: false }),
-        Animated.timing(focusW, { toValue: 0.64, duration: 900, useNativeDriver: false }),
-      ]).start();
-    });
-  }, []);
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const isToday = i === 0;
+
+      const dayJournals = journals.filter((j: any) => j.created_at?.startsWith(dateStr));
+      let dominantMood: 'Calm' | 'Focused' | 'Tired' | 'Anxious' | null = null;
+      let score = 0;
+
+      if (dayJournals.length > 0) {
+        const dayCounts: Record<string, number> = {};
+        dayJournals.forEach((j: any) => {
+          if (j.mood) {
+            dayCounts[j.mood] = (dayCounts[j.mood] || 0) + 1;
+            if (counts[j.mood] !== undefined) {
+              counts[j.mood]++;
+              totalRecorded++;
+            }
+          }
+        });
+        dominantMood = Object.keys(dayCounts).sort((a, b) => dayCounts[b] - dayCounts[a])[0] as any;
+        if (dominantMood === 'Calm') score = 95;
+        else if (dominantMood === 'Focused') score = 80;
+        else if (dominantMood === 'Tired') score = 55;
+        else if (dominantMood === 'Anxious') score = 35;
+      }
+
+      daysList.push({
+        dayName: isToday ? 'Hari ini' : daysShort[d.getDay()],
+        dateNum: d.getDate(),
+        isToday,
+        mood: dominantMood,
+        score,
+      });
+    }
+
+    let dominantTendency = 'Belum Ada Data';
+    let tendencyColor = colors.primary;
+    let tendencyIcon: any = 'leaf-outline';
+    let tendencyInsight = 'Mulai catat perasaanmu di bagian Self-Journaling di atas untuk melihat dinamika emosimu.';
+
+    if (totalRecorded > 0) {
+      const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      const top = sorted[0];
+      if (top && top[1] > 0) {
+        if (top[0] === 'Calm') {
+          dominantTendency = 'Dominan Tenang';
+          tendencyColor = '#4D9B6F';
+          tendencyIcon = 'leaf-outline';
+          tendencyInsight = 'Kondisi emosimu cenderung stabil dan damai dalam 7 hari ini. Teruskan ritme positif ini!';
+        } else if (top[0] === 'Focused') {
+          dominantTendency = 'Fokus & Terarah';
+          tendencyColor = '#496175';
+          tendencyIcon = 'disc-outline';
+          tendencyInsight = 'Pikiranmu produktif dan jernih. Jangan lupa sisihkan waktu rehat di sela aktivitas.';
+        } else if (top[0] === 'Tired') {
+          dominantTendency = 'Kecenderungan Lelah';
+          tendencyColor = '#D4A843';
+          tendencyIcon = 'battery-charging-outline';
+          tendencyInsight = 'Ada tanda kelelahan fisik/mental yang terkumpul. Prioritaskan tidur cukup malam ini.';
+        } else if (top[0] === 'Anxious') {
+          dominantTendency = 'Kecenderungan Cemas';
+          tendencyColor = '#9f403d';
+          tendencyIcon = 'cloud-outline';
+          tendencyInsight = 'Tingkat kecemasanmu sedang meningkat. Coba latihan napas atau ceritakan ke Sanctuary AI.';
+        }
+      }
+    }
+
+    return {
+      daysList,
+      counts,
+      totalRecorded,
+      dominantTendency,
+      tendencyColor,
+      tendencyIcon,
+      tendencyInsight,
+    };
+  }, [journals, colors]);
 
   const cardW = (width - Spacing.base * 2 - Spacing.base) / 2;
 
@@ -273,41 +364,175 @@ export default function HomeScreen() {
           </View>
         </FadeIn>
 
-        {/* ── Progress Section ── */}
+        {/* ── Dinamika & Kecenderungan Mood Section ── */}
         <FadeIn delay={320}>
-          <View style={[s.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Text style={[s.sectionEyebrow, { color: colors.outline }]}>PROGRESS PERAKUAN</Text>
+          <View style={[s.card, { backgroundColor: colors.surfaceContainerLowest, padding: 20 }]}>
+            {/* Header row */}
+            <View style={s.moodHeaderRow}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={[s.sectionEyebrow, { color: colors.outline, marginBottom: 2 }]}>
+                  DINAMIKA & TREN EMOSI
+                </Text>
+                <Text style={[s.moodSectionTitle, { color: colors.onSurface }]}>
+                  Kondisi 7 Hari Terakhir
+                </Text>
+              </View>
+              <View
+                style={[
+                  s.moodBadge,
+                  {
+                    backgroundColor: weeklyData.tendencyColor + '18',
+                    borderColor: weeklyData.tendencyColor + '40',
+                  },
+                ]}
+              >
+                <Ionicons name={weeklyData.tendencyIcon} size={13} color={weeklyData.tendencyColor} />
+                <Text style={[s.moodBadgeText, { color: weeklyData.tendencyColor }]}>
+                  {weeklyData.dominantTendency}
+                </Text>
+              </View>
+            </View>
 
-            {[
-              { label: 'Ketenangan', anim: calmW, pct: '85%' },
-              { label: 'Fokus/Hubungan', anim: focusW, pct: '64%' },
-            ].map((item, i) => (
-              <View key={i} style={[s.progressItem, i > 0 && { marginTop: Spacing.base }]}>
-                <View style={s.progressMeta}>
-                  <Text style={[s.progressLabel, { color: colors.onSurface }]}>{item.label}</Text>
-                  <Text style={[s.progressPct, { color: colors.primary }]}>{item.pct}</Text>
-                </View>
-                <View style={[s.progressTrack, { backgroundColor: colors.surfaceContainerHigh }]}>
-                  <Animated.View
+            {/* Insight Box */}
+            <View
+              style={[
+                s.insightBox,
+                {
+                  backgroundColor: colors.surfaceContainerLow,
+                  borderColor: colors.outlineVariant + '30',
+                },
+              ]}
+            >
+              <View style={[s.insightIconWrap, { backgroundColor: weeklyData.tendencyColor + '22' }]}>
+                <Ionicons name={weeklyData.tendencyIcon} size={18} color={weeklyData.tendencyColor} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[s.insightTitle, { color: colors.onSurface }]}>
+                  Kecenderungan Mood
+                </Text>
+                <Text style={[s.insightDesc, { color: colors.onSurfaceVariant }]}>
+                  {weeklyData.tendencyInsight}
+                </Text>
+              </View>
+            </View>
+
+            {/* Grafik Dinamika Mood (7 Hari) */}
+            <View style={s.chartSection}>
+              <View style={s.chartHeaderRow}>
+                <Text style={[s.chartLabel, { color: colors.onSurfaceVariant }]}>
+                  Fluktuasi Harian
+                </Text>
+                <Text style={[s.chartSubLabel, { color: colors.outline }]}>
+                  {weeklyData.totalRecorded > 0 ? `${weeklyData.totalRecorded} catatan minggu ini` : 'Belum ada data'}
+                </Text>
+              </View>
+
+              <View style={s.barsContainer}>
+                {weeklyData.daysList.map((item, idx) => {
+                  const hasData = item.mood !== null;
+                  const barColor =
+                    item.mood === 'Calm'
+                      ? '#4D9B6F'
+                      : item.mood === 'Focused'
+                      ? '#496175'
+                      : item.mood === 'Tired'
+                      ? '#D4A843'
+                      : item.mood === 'Anxious'
+                      ? '#9f403d'
+                      : colors.outlineVariant + '40';
+                  const barHeight = hasData ? Math.max(22, (item.score / 100) * 76) : 8;
+
+                  return (
+                    <View key={idx} style={s.barCol}>
+                      {/* Mood dot on top */}
+                      <View
+                        style={[
+                          s.barDot,
+                          {
+                            backgroundColor: hasData ? barColor : 'transparent',
+                          },
+                        ]}
+                      />
+
+                      {/* Bar Pillar */}
+                      <View style={[s.barTrack, { backgroundColor: colors.surfaceContainerHigh }]}>
+                        <View
+                          style={[
+                            s.barFill,
+                            {
+                              height: barHeight,
+                              backgroundColor: barColor,
+                              opacity: hasData ? 1 : 0.35,
+                            },
+                          ]}
+                        />
+                      </View>
+
+                      {/* Day Label */}
+                      <Text
+                        style={[
+                          s.barDayLabel,
+                          {
+                            color: item.isToday ? colors.primary : colors.onSurfaceVariant,
+                            fontFamily: item.isToday ? 'PlusJakartaSans_700Bold' : 'PlusJakartaSans_500Medium',
+                          },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {item.dayName}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Mood breakdown chips */}
+            <View style={s.breakdownRow}>
+              {[
+                { label: 'Tenang', key: 'Calm', color: '#4D9B6F' },
+                { label: 'Fokus', key: 'Focused', color: '#496175' },
+                { label: 'Lelah', key: 'Tired', color: '#D4A843' },
+                { label: 'Cemas', key: 'Anxious', color: '#9f403d' },
+              ].map((m) => {
+                const count = weeklyData.counts[m.key] || 0;
+                return (
+                  <View
+                    key={m.key}
                     style={[
-                      s.progressFill,
+                      s.breakdownPill,
                       {
-                        backgroundColor: colors.primary,
-                        width: item.anim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+                        backgroundColor: colors.surfaceContainerLow,
+                        borderColor: colors.outlineVariant + '25',
                       },
                     ]}
-                  />
-                </View>
-              </View>
-            ))}
+                  >
+                    <View style={[s.miniColorDot, { backgroundColor: m.color }]} />
+                    <Text style={[s.breakdownText, { color: colors.onSurfaceVariant }]}>
+                      {m.label} ({count})
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
 
+            {/* Detail Report CTA */}
             <TouchableOpacity
-              style={[s.reportBtn, { borderColor: colors.outlineVariant + '60' }]}
+              style={[
+                s.reportBtn,
+                {
+                  borderColor: colors.outlineVariant + '50',
+                  backgroundColor: colors.surfaceContainerLow,
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                },
+              ]}
               onPress={() => router.push('/stats')}
               activeOpacity={0.75}
             >
-              <Text style={[s.reportBtnText, { color: colors.onSurfaceVariant }]}>
-                Lihat Laporan Detail
+              <Ionicons name="stats-chart-outline" size={15} color={colors.primary} style={{ marginRight: 6 }} />
+              <Text style={[s.reportBtnText, { color: colors.primary }]}>
+                Buka Analisis & Statistik Lengkap →
               </Text>
             </TouchableOpacity>
           </View>
@@ -517,18 +742,144 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
 
-  // Progress section
-  progressItem: {},
-  progressMeta: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  progressLabel: { fontSize: 12, fontFamily: 'PlusJakartaSans_700Bold' },
-  progressPct:   { fontSize: 12, fontFamily: 'PlusJakartaSans_700Bold' },
-  progressTrack: { height: 6, borderRadius: 999, overflow: 'hidden' },
-  progressFill:  { height: '100%', borderRadius: 999 },
-  reportBtn: {
-    marginTop: 18, borderWidth: 1, borderRadius: 16,
-    paddingVertical: 12, alignItems: 'center',
+  // Mood dynamics & tendency section
+  moodHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
   },
-  reportBtnText: { fontSize: 12, fontFamily: 'PlusJakartaSans_700Bold' },
+  moodSectionTitle: {
+    fontSize: 16,
+    fontFamily: 'PlusJakartaSans_700Bold',
+    letterSpacing: -0.2,
+  },
+  moodBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  moodBadgeText: {
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans_700Bold',
+    letterSpacing: 0.1,
+  },
+  insightBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  insightIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  insightTitle: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans_700Bold',
+    marginBottom: 2,
+  },
+  insightDesc: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans_400Regular',
+    lineHeight: 18,
+  },
+  chartSection: {
+    marginBottom: 14,
+  },
+  chartHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  chartLabel: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+  },
+  chartSubLabel: {
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans_400Regular',
+  },
+  barsContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    height: 115,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  barCol: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    height: '100%',
+  },
+  barDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    marginBottom: 4,
+  },
+  barTrack: {
+    width: 24,
+    height: 80,
+    borderRadius: 8,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  barFill: {
+    width: '100%',
+    borderRadius: 8,
+  },
+  barDayLabel: {
+    fontSize: 10,
+    marginTop: 6,
+    letterSpacing: -0.2,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 14,
+  },
+  breakdownPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  miniColorDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  breakdownText: {
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans_500Medium',
+  },
+  reportBtn: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  reportBtnText: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans_700Bold',
+  },
 
   // Journal Button & Input
   journalBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },

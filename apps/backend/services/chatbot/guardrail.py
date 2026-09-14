@@ -4,6 +4,7 @@ from semantic_router.encoders import OllamaEncoder
 from supabase import create_client
 from dotenv import load_dotenv
 import os
+import re
 
 load_dotenv()
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY"))
@@ -42,6 +43,38 @@ HARDCODED_HOTLINES = [
     {"nama": "Yayasan Pulih", "nomor": "(021) 788-42580"},
     {"nama": "IGD Rumah Sakit Terdekat", "nomor": "118"},
 ]
+
+GUARDRAIL_KEYWORDS = [
+    "bunuh diri", "mau mati", "ingin mati", "mengakhiri hidup", "tidak mau hidup",
+    "menyakiti diri", "luka diri", "self harm", "memotong diri", "minum obat banyak",
+    "overdosis", "mau bunuh", "ingin bunuh", "menghilang selamanya", "tidak ada gunanya",
+    "putus asa total", "krisis suicida", "ingin meninggal", "pilih mati",
+    "cara bunuh diri", "cara mati", "mencari cara mati", "persiapan bunuh diri",
+]
+
+def check_guardrail_keywords(text: str) -> bool:
+    """Keyword-based safety net for guardrail detection.
+    Returns True if high-risk keywords detected.
+    """
+    text_lower = text.lower()
+    for keyword in GUARDRAIL_KEYWORDS:
+        if re.search(rf'\b{re.escape(keyword)}\b', text_lower):
+            return True
+    return False
+
+
+def check_guardrail(text: str, semantic_result_name: str = None) -> tuple[bool, str]:
+    """
+    Combined guardrail check: semantic router + keyword fallback.
+    Returns (is_high_risk, route_name).
+    """
+    if semantic_result_name == "guardrail":
+        return True, "guardrail"
+    
+    if check_guardrail_keywords(text):
+        return True, "guardrail_keyword"
+    
+    return False, semantic_result_name or "conversational"
 
 
 def get_hotlines_from_db():

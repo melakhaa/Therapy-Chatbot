@@ -13,7 +13,7 @@ export const StressBar: React.FC<Props> = ({ level }) => {
   }, [clamped]);
 
   const color = StressLevel.getColor(clamped);
-  const label = StressLevel.getLabel(clamped);
+  const label = StressLevel.getSupportiveLabel(clamped);
   const emoji = StressLevel.getEmoji(clamped);
   const width = anim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
 
@@ -21,7 +21,7 @@ export const StressBar: React.FC<Props> = ({ level }) => {
     <View style={styles.wrap}>
       <View style={styles.row}>
         <Text style={styles.emoji}>{emoji}</Text>
-        <Text style={styles.label}> Status</Text>
+        <Text style={styles.label}> Kondisi Mental</Text>
         <View style={{ flex: 1 }} />
         <View style={[styles.badge, { backgroundColor: StressLevel.getBgColor(clamped) }]}>
           <View style={[styles.dot, { backgroundColor: color }]} />
