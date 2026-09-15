@@ -1,4 +1,4 @@
-# Sanctuary
+# Therapy-Chatbot
 
 > An AI-powered mental health support system for students and counselors.
 
@@ -63,8 +63,8 @@
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/prototype.git
-cd prototype
+git clone https://github.com/melakhaa/Therapy-Chatbot.git
+cd Therapy-Chatbot
 ```
 
 ### 2. Infrastructure Setup (Supabase Local)
@@ -97,7 +97,7 @@ npm install
 ```bash
 cd apps/backend
 venv\Scripts\activate
-uvicorn api:app --reload --port 8000
+uvicorn main:app --reload --port 8000
 ```
 
 ### Start Mobile App
@@ -115,7 +115,7 @@ npm run dev
 ## Project Structure
 
 ```
-prototype/
+Therapy-Chatbot/
 ├── apps/
 │   ├── mobile/           # Expo Mobile App
 │   ├── dashboard/        # Next.js Web Dashboard
