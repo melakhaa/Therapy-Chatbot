@@ -1,5 +1,5 @@
 from langchain_ollama import ChatOllama, OllamaEmbeddings
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage
 from supabase import create_client
 from semantic_router import Route
 import os
@@ -28,8 +28,6 @@ supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY
 llm = ChatOllama(model="llama3.2:3b")
 embeddings = OllamaEmbeddings(model="nomic-embed-text-v2-moe")
 
-chat_history = []
-
 def retrieve_docs(query: str, k: int = 5):
     query_embedding = embeddings.embed_query(query)
     result = supabase.rpc("match_documents", {
@@ -40,6 +38,7 @@ def retrieve_docs(query: str, k: int = 5):
     return result.data or []
 
 def get_rag_response(user_message: str) -> str:
+    # ponytail: stateless per request, no chat memory. Load last N messages from `messages` by session_id if context needed.
     docs = retrieve_docs(user_message)
     
     if not docs:
@@ -55,9 +54,7 @@ Konteks:
 
 Pertanyaan: {user_message}"""
 
-    chat_history.append(HumanMessage(content=prompt))
-    response = llm.invoke(chat_history)
-    chat_history.append(AIMessage(content=response.content))
+    response = llm.invoke([HumanMessage(content=prompt)])
 
     return response.content
 
