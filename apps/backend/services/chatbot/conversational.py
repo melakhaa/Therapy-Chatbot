@@ -1,5 +1,5 @@
 from langchain_ollama import ChatOllama
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage
 from semantic_router import Route
 
 llm = ChatOllama(model="llama3.2:3b")
@@ -28,15 +28,14 @@ SYSTEM_PROMPT = """Kamu adalah asisten psikologi yang empatik dan suportif berna
 Kamu berbicara dalam Bahasa Indonesia yang hangat dan mudah dipahami.
 Dengarkan dan validasi perasaan pengguna, jangan menghakimi."""
 
-chat_history = []
-
 def get_conversational_response(user_message: str) -> str:
-    chat_history.append(HumanMessage(content=user_message))
-    response = llm.invoke([HumanMessage(content=SYSTEM_PROMPT)] + chat_history)
-    chat_history.append(AIMessage(content=response.content))
+    # ponytail: stateless per request, no chat memory. Load last N messages from `messages` by session_id if context needed.
+    response = llm.invoke([
+        HumanMessage(content=SYSTEM_PROMPT),
+        HumanMessage(content=user_message),
+    ])
     return response.content
 
-# Test
 if __name__ == "__main__":
     tests = [
         "halo, aku lagi sedih banget hari ini",

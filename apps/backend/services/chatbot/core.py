@@ -33,18 +33,14 @@ def chat(user_message: str) -> str:
     else:
         return get_conversational_response(user_message)
 
-# Test
 if __name__ == "__main__":
     tests = [
-        # Guardrail
         "saya mau bunuh diri",
         "saya tidak mau hidup lagi",
         "saya ingin menyakiti diri sendiri",
-        # Conversational
         "halo aku lagi sedih",
         "aku ngerasa sendirian banget",
         "aku butuh teman bicara",
-        # RAG
         "apa itu depresi?",
         "gejala depresi apa saja?",
         "bagaimana cara mengatasi depresi?",

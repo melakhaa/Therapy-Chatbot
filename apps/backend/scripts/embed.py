@@ -12,12 +12,10 @@ def extract_text_docx(filepath):
     full_text = []
 
     for block in doc.element.body:
-        # Jika block adalah paragraf, gabungkan semua teks di dalamnya
         if block.tag.endswith('}p'):
             text = "".join(node.text or "" for node in block.iter() if node.tag.endswith('}t'))
             if text.strip():
                 full_text.append(text.strip())
-        # Jika block adalah tabel, gabungkan teks dari setiap sel dengan pemisah "|"
         elif block.tag.endswith('}tbl'):
             for row in block.iter(qn('w:tr')):
                 cells = []
@@ -58,7 +56,6 @@ def embed_and_upload(filepath):
 
         print(f"[{filename}] chunk {i+1}/{len(chunks)}")
 
-# Run semua .docx di folder docs
 for filename in os.listdir("docs"):
     if filename.endswith(".docx"):
         embed_and_upload(f"docs/{filename}")

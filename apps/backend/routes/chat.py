@@ -7,7 +7,7 @@ from auth import get_current_user
 from dotenv import load_dotenv
 import os, json
 
-from core.security import encrypt_text, decrypt_text
+from core.security import encrypt_text
 from services.chatbot.core import chat as chat_fn, semantic_router
 from services.chatbot.guardrail import HARDCODED_RESPONSE
 from services.chatbot.rag import retrieve_docs
@@ -16,9 +16,6 @@ load_dotenv()
 
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY"))
 
-router = APIRouter(prefix="/chat" if False else "", tags=["Chat"])
-
-# Sub-routers dibagi prefix agar tidak tumpang tindih
 guardrail_router = APIRouter(prefix="/guardrail", tags=["Guardrail"])
 router_router = APIRouter(prefix="/router", tags=["Router"])
 rag_router = APIRouter(prefix="/rag", tags=["RAG"])

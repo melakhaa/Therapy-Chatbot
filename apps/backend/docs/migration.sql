@@ -1,26 +1,26 @@
--- =========================================================
--- Sanctuary — Migration SQL (sesuai ERD)
--- Jalankan di Supabase Dashboard → SQL Editor
--- =========================================================
--- Tabel existing yang DIJAGA: documents, messages, chat_sessions, guardrail_logs
--- Tabel BARU: users, assessments, jadwal_konsultasi, booking_konsultasi, hotline
--- =========================================================
 
--- Extensions
+
+
+
+
+
+
+
+
 create extension if not exists vector;
 create extension if not exists pgcrypto;
 
 
--- =========================================================
--- ── TABLE: users
--- Custom user profile, linked ke Supabase Auth
--- role: mahasiswa | konselor | admin | pemangku_jabatan
--- =========================================================
+
+
+
+
+
 create table if not exists users (
   user_id     uuid primary key references auth.users(id) on delete cascade,
   nama        varchar(100)  not null,
   email       varchar(100)  not null unique,
-  nim         varchar(14),                          -- hanya mahasiswa
+  nim         varchar(14),                          
   role        varchar(20)   not null default 'mahasiswa'
                 check (role in ('mahasiswa', 'konselor', 'admin', 'pemangku_jabatan')),
   created_at  timestamptz   default now()
@@ -34,7 +34,7 @@ create policy "admin_manage_all_users"  on users for all using (
   exists (select 1 from users u where u.user_id = auth.uid() and u.role in ('admin', 'pemangku_jabatan'))
 );
 
--- Auto-sync saat user Supabase Auth dibuat
+
 create or replace function sync_auth_user_to_users()
 returns trigger language plpgsql security definer as $$
 begin
@@ -57,16 +57,16 @@ create trigger on_auth_user_created
   for each row execute function sync_auth_user_to_users();
 
 
--- =========================================================
--- ── TABLE: assessments
--- =========================================================
+
+
+
 create table if not exists assessments (
   assessment_id    uuid         primary key default gen_random_uuid(),
   user_id          uuid         not null references users(user_id) on delete cascade,
-  instrument_type  varchar(20)  not null,   -- e.g. 'PHQ-9', 'GAD-7', 'SRQ'
-  answers          jsonb        not null,   -- [{question_id, score}]
+  instrument_type  varchar(20)  not null,   
+  answers          jsonb        not null,   
   score            int          not null,
-  severity         varchar(20)  not null,   -- 'minimal' | 'mild' | 'moderate' | 'severe'
+  severity         varchar(20)  not null,   
   taken_at         timestamptz  default now()
 );
 
@@ -86,10 +86,10 @@ create policy "konselor_admin_read_assessments" on assessments
   );
 
 
--- =========================================================
--- ── TABLE: jadwal_konsultasi
--- Slot jadwal yang dibuka oleh konselor
--- =========================================================
+
+
+
+
 create table if not exists jadwal_konsultasi (
   jadwal_id     uuid        primary key default gen_random_uuid(),
   konselor_id   uuid        not null references users(user_id) on delete cascade,
@@ -122,10 +122,10 @@ create policy "mahasiswa_view_tersedia_jadwal" on jadwal_konsultasi
   for select using (status = 'tersedia');
 
 
--- =========================================================
--- ── TABLE: booking_konsultasi
--- Booking mahasiswa ke jadwal konselor
--- =========================================================
+
+
+
+
 create table if not exists booking_konsultasi (
   booking_id  uuid        primary key default gen_random_uuid(),
   jadwal_id   uuid        not null references jadwal_konsultasi(jadwal_id) on delete restrict,
@@ -169,7 +169,7 @@ create policy "admin_manage_all_booking" on booking_konsultasi
             and u.role in ('admin', 'pemangku_jabatan'))
   );
 
--- Trigger: jadwal → 'dipesan' saat di-booking
+
 create or replace function mark_jadwal_dipesan()
 returns trigger language plpgsql as $$
 begin
@@ -183,7 +183,7 @@ create trigger booking_mark_jadwal
   after insert on booking_konsultasi
   for each row execute function mark_jadwal_dipesan();
 
--- Trigger: kembalikan jadwal ke 'tersedia' jika booking dibatalkan
+
 create or replace function restore_jadwal_on_cancel()
 returns trigger language plpgsql as $$
 begin
@@ -200,9 +200,9 @@ create trigger booking_restore_jadwal
   for each row execute function restore_jadwal_on_cancel();
 
 
--- =========================================================
--- ── TABLE: hotline (sesuai ERD: singular, bukan hotlines)
--- =========================================================
+
+
+
 create table if not exists hotline (
   hotline_id  uuid         primary key default gen_random_uuid(),
   nama        varchar(100) not null,
@@ -218,7 +218,7 @@ create policy "admin_manage_hotline"  on hotline for all using (
   exists (select 1 from users u where u.user_id = auth.uid() and u.role = 'admin')
 );
 
--- Seed data awal
+
 insert into hotline (nama, nomor, deskripsi) values
   ('Into The Light Indonesia', '119 ext 8',      'Layanan crisis center nasional'),
   ('Yayasan Pulih',            '(021) 788-42580', 'Konseling psikologis'),
@@ -226,11 +226,11 @@ insert into hotline (nama, nomor, deskripsi) values
 on conflict do nothing;
 
 
--- =========================================================
--- ── MIGRATE: existing tables — tambah FK ke users
--- =========================================================
 
--- chat_sessions.user_id → users.user_id (FK belum ada)
+
+
+
+
 alter table chat_sessions
   drop constraint if exists chat_sessions_user_id_fkey;
 alter table chat_sessions
@@ -238,8 +238,8 @@ alter table chat_sessions
     foreign key (user_id) references users(user_id) on delete cascade
     not valid;
 
--- messages.session_id → chat_sessions.session_id (FK check)
--- Sudah ada dari gambar ERD (garis relasi), tambahkan jika belum
+
+
 alter table messages
   drop constraint if exists messages_session_id_fkey;
 alter table messages
@@ -247,7 +247,7 @@ alter table messages
     foreign key (session_id) references chat_sessions(session_id) on delete cascade
     not valid;
 
--- guardrail_logs.session_id → chat_sessions.session_id
+
 alter table guardrail_logs
   drop constraint if exists guardrail_logs_session_id_fkey;
 alter table guardrail_logs
@@ -255,20 +255,20 @@ alter table guardrail_logs
     foreign key (session_id) references chat_sessions(session_id) on delete cascade
     not valid;
 
--- Tambah kolom yang belum ada di existing tables
+
 alter table chat_sessions  add column if not exists title     text;
 alter table messages       add column if not exists user_id   uuid references users(user_id) on delete set null;
 
 
--- =========================================================
--- ── TABLE: journals (Self-Journaling)
--- Catatan harian mahasiswa, opsional mood tag
--- =========================================================
+
+
+
+
 create table if not exists journals (
   journal_id  uuid        primary key default gen_random_uuid(),
   user_id     uuid        not null references users(user_id) on delete cascade,
   content     text        not null,
-  mood        varchar(20),           -- 'Calm' | 'Anxious' | 'Focused' | 'Tired'
+  mood        varchar(20),           
   created_at  timestamptz default now(),
   updated_at  timestamptz default now()
 );
@@ -286,9 +286,9 @@ create trigger journals_updated_at
   for each row execute function set_updated_at();
 
 
--- =========================================================
--- ── UPDATE: match_documents (pakai document_id sesuai existing)
--- =========================================================
+
+
+
 drop function if exists match_documents(vector, double precision, integer);
 
 create or replace function match_documents(

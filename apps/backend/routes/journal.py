@@ -12,8 +12,6 @@ router = APIRouter(prefix="/journal", tags=["Journal"])
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY"))
 
 
-# ── Schema ────────────────────────────────────────────────────────────────────
-
 class SaveJournalRequest(BaseModel):
     content: str
     mood: Optional[Literal["Calm", "Anxious", "Focused", "Tired"]] = None
@@ -24,11 +22,8 @@ class UpdateJournalRequest(BaseModel):
     mood: Optional[Literal["Calm", "Anxious", "Focused", "Tired"]] = None
 
 
-# ── POST /journal — simpan jurnal ─────────────────────────────────────────────
-
 @router.post("", status_code=status.HTTP_201_CREATED)
 def save_journal(request: SaveJournalRequest, user=Depends(get_current_user)):
-    """Simpan catatan jurnal harian mahasiswa."""
     if not request.content.strip():
         raise HTTPException(status_code=400, detail="Konten jurnal tidak boleh kosong")
 
@@ -44,11 +39,8 @@ def save_journal(request: SaveJournalRequest, user=Depends(get_current_user)):
     return {"journal": result.data[0], "message": "Jurnal berhasil disimpan"}
 
 
-# ── GET /journal — ambil semua jurnal user ────────────────────────────────────
-
 @router.get("")
 def get_journals(user=Depends(get_current_user), limit: int = 20, offset: int = 0):
-    """Ambil daftar jurnal milik user yang login, terbaru di atas."""
     result = supabase.table("journals").select(
         "journal_id, content, mood, created_at, updated_at"
     ).eq("user_id", str(user.id)).order(
@@ -58,11 +50,8 @@ def get_journals(user=Depends(get_current_user), limit: int = 20, offset: int = 
     return {"journals": result.data or [], "total": len(result.data or [])}
 
 
-# ── GET /journal/today — jurnal hari ini ──────────────────────────────────────
-
 @router.get("/today")
 def get_today_journal(user=Depends(get_current_user)):
-    """Ambil jurnal hari ini (jika ada)."""
     from datetime import date
     today = date.today().isoformat()
     result = supabase.table("journals").select(
@@ -74,15 +63,12 @@ def get_today_journal(user=Depends(get_current_user)):
     return {"journal": result.data[0] if result.data else None}
 
 
-# ── PATCH /journal/{id} — update jurnal ──────────────────────────────────────
-
 @router.patch("/{journal_id}")
 def update_journal(
     journal_id: str,
     request: UpdateJournalRequest,
     user=Depends(get_current_user),
 ):
-    """Update isi atau mood jurnal yang sudah ada."""
     update_data = {}
     if request.content is not None:
         update_data["content"] = request.content.strip()
@@ -101,11 +87,8 @@ def update_journal(
     return {"journal": result.data[0], "message": "Jurnal diperbarui"}
 
 
-# ── DELETE /journal/{id} ──────────────────────────────────────────────────────
-
 @router.delete("/{journal_id}", status_code=status.HTTP_200_OK)
 def delete_journal(journal_id: str, user=Depends(get_current_user)):
-    """Hapus jurnal milik user."""
     result = supabase.table("journals").delete().eq(
         "journal_id", journal_id
     ).eq("user_id", str(user.id)).execute()

@@ -1,6 +1,4 @@
 from semantic_router import Route
-from semantic_router import SemanticRouter
-from semantic_router.encoders import OllamaEncoder
 from supabase import create_client
 from dotenv import load_dotenv
 import os
@@ -45,7 +43,6 @@ HARDCODED_HOTLINES = [
 
 
 def get_hotlines_from_db():
-    """CB-03 — Ambil dari tabel hotline (ERD: singular, kolom nama/nomor)."""
     try:
         result = supabase.table("hotline").select("nama, nomor, deskripsi").execute()
         if result.data:
@@ -53,40 +50,3 @@ def get_hotlines_from_db():
     except Exception:
         pass
     return HARDCODED_HOTLINES
-
-
-def init_guardrail_router():
-    encoder = OllamaEncoder(base_url="http://localhost:11434", name="nomic-embed-text-v2-moe")
-    router = SemanticRouter(
-        routes=[guardrail_route],
-        encoder=encoder,
-        auto_sync="local"
-    )
-    return router
-
-# test
-# if __name__ == "__main__":
-#     from semantic_router import SemanticRouter
-#     from semantic_router.encoders import OllamaEncoder
-
-#     encoder = OllamaEncoder(base_url="http://localhost:11434", name="nomic-embed-text-v2-moe")
-#     router = SemanticRouter(routes=[guardrail_route], encoder=encoder)
-
-#     router = SemanticRouter(
-#         routes=[guardrail_route], 
-#         encoder=encoder,
-#         auto_sync="local" 
-#     )
-    
-
-    
-#     tests = [
-#         "saya mau bunuh diri",
-#         "apa itu depresi?",
-#         "saya sedih banget hari ini",
-#         "saya tidak mau hidup lagi",
-#     ]
-
-#     for t in tests:
-#         result = router(t)
-#         print(f"[{result.name}] {t}")
