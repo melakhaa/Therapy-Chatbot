@@ -8,10 +8,12 @@ own handler.
 
 ```
 user message
-   → semantic_router(message)          core.py
-       ├─ "guardrail"      → HARDCODED_RESPONSE             guardrail.py
-       ├─ "conversational" → LLM reply                      conversational.py
-       └─ "rag"            → retrieve_docs() → LLM answer   rag.py
+   → semantic_router(message)          core.py  (the only entry point)
+       ├─ is_crisis(message)?  ────────→ "guardrail"   <-- deterministic, runs FIRST
+       └─ embedding match
+           ├─ "guardrail"      → HARDCODED_RESPONSE             guardrail.py
+           ├─ "conversational" → LLM reply                      conversational.py
+           └─ "rag"            → retrieve_docs() → LLM answer   rag.py
 ```
 
 `core.py` builds the single router and exposes `chat(user_message)`:
@@ -26,6 +28,32 @@ semantic_router = SemanticRouter(
 
 Speech-to-intent calls are `semantic_router(message)` → `.name` is the matched route
 (falls back to `"conversational"` when `None`).
+
+## Crisis detection is NOT left to the router
+
+`guardrail.is_crisis()` is a normalized keyword check that runs **before** the embedding
+match. All four route decisions in `routes/chat.py` import `semantic_router` from
+`core.py`, which is the wrapper function — so the keyword net cannot be bypassed.
+
+The router alone is not a safety boundary. In testing it missed:
+
+- "aku udah minum obat banyak"
+- "aku pegang pisau sekarang"
+- "aku mau loncat dari gedung"
+
+and all three were handled as ordinary conversation by the LLM, with no hotline card and
+nothing written to `guardrail_logs`. Embedding distance is not a safety property.
+
+Rules when touching this:
+
+- New crisis wording goes in **both** `CRISIS_PHRASES` in `guardrail.py` and the
+  `guardrail_route` utterances. The keyword list matches exact wording (including slang
+  and punctuation variants); utterances help the fuzzy matcher with paraphrases.
+- Bias toward matching. A false positive shows a student the hotline card — harmless.
+  A false negative means a student in crisis is talking to an LLM.
+- Keep the battery in `scripts/api_smoke.py` green; it asserts every crisis phrasing is
+  flagged, that the reply is the fixed hotline text, and that ordinary distress still
+  reaches the normal path.
 
 ## Defining a route
 
