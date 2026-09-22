@@ -86,6 +86,14 @@ cp .env.example .env
 ```
 *Fill `JWT_SECRET` and `ENCRYPTION_KEY` in `.env` (generation commands are in the file).*
 
+Seed local dev accounts (idempotent — the first admin can't be created through the API):
+
+```bash
+venv/bin/python scripts/seed_dev_users.py
+```
+*Log in as `admin@example.com` / `admin1234`, `konselor@example.com` / `konselor1234`, or
+`mahasiswa@example.com` / `mahasiswa1234`.*
+
 ### 4. Application Setup
 
 ```bash
