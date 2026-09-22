@@ -39,6 +39,20 @@ cd apps/dashboard && npm run dev                              # Expo web
 
 Also start `ollama serve` for chat/embeddings ([ollama-conventions.md](ollama-conventions.md)).
 
+## Tests
+
+Both need the stack running and clean up after themselves (no test framework, no CI).
+
+```bash
+# RLS isolation + auth functions, against the live DB
+docker exec -i -e PGPASSWORD=sanctuary_app sanctuary-db \
+  psql -v ON_ERROR_STOP=1 -U sanctuary_app -d sanctuary < db/test_rls.sql
+
+# end-to-end API check: auth, assessments, journals, jadwal/booking, dashboard,
+# chat (real Ollama), RLS isolation. Exits non-zero on failure.
+cd apps/backend && venv/bin/python scripts/api_smoke.py
+```
+
 ## Repo-wide conventions
 
 - TypeScript for all JS ([typescript-conventions.md](typescript-conventions.md)); Python 3.12 for the backend ([python-conventions.md](python-conventions.md)).
