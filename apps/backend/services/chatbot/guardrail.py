@@ -1,10 +1,6 @@
 from semantic_router import Route
-from supabase import create_client
-from dotenv import load_dotenv
-import os
 
-load_dotenv()
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY"))
+from core.db import query
 
 guardrail_route = Route(
     name="guardrail",
@@ -44,9 +40,9 @@ HARDCODED_HOTLINES = [
 
 def get_hotlines_from_db():
     try:
-        result = supabase.table("hotline").select("nama, nomor, deskripsi").execute()
-        if result.data:
-            return result.data
+        rows = query("select nama, nomor, deskripsi from hotline")
+        if rows:
+            return rows
     except Exception:
         pass
     return HARDCODED_HOTLINES

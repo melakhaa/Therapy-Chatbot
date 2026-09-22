@@ -1,16 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional, Literal
-from supabase import create_client
-from auth import get_current_user
-from dotenv import load_dotenv
-import os
+from psycopg.types.json import Jsonb
 
-load_dotenv()
+from auth import get_current_user
+from core.db import query
 
 router = APIRouter(prefix="/assessment", tags=["Assessment"])
-
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY"))
 
 SEVERITY_THRESHOLDS = {
     "minimal":  (0,  4),
@@ -54,18 +50,17 @@ def submit_self_assessment(
     severity = _calc_severity(score)
     answers_payload = [a.model_dump() for a in request.answers]
 
-    result = supabase.table("assessments").insert({
-        "user_id": str(user.id),
-        "instrument_type": request.instrument_type,
-        "answers": answers_payload,
-        "score": score,
-        "severity": severity,
-    }).execute()
+    rows = query(
+        "insert into assessments (user_id, instrument_type, answers, score, severity) "
+        "values (%s, %s, %s, %s, %s) returning assessment_id",
+        (user.id, request.instrument_type, Jsonb(answers_payload), score, severity),
+        user_id=user.id,
+    )
 
-    if not result.data:
+    if not rows:
         raise HTTPException(status_code=500, detail="Gagal menyimpan hasil asesmen")
 
-    assessment_id = result.data[0]["assessment_id"]
+    assessment_id = rows[0]["assessment_id"]
 
     if severity in ("severe", "moderate"):
         _log_high_risk(
@@ -97,10 +92,13 @@ def send_high_risk_notification(request: NotifyRiskRequest):
 
 @router.get("/history")
 def get_assessment_history(user=Depends(get_current_user)):
-    result = supabase.table("assessments").select(
-        "assessment_id, instrument_type, score, severity, taken_at"
-    ).eq("user_id", str(user.id)).order("taken_at", desc=True).execute()
-    return {"assessments": result.data or []}
+    rows = query(
+        "select assessment_id, instrument_type, score, severity, taken_at "
+        "from assessments where user_id = %s order by taken_at desc",
+        (user.id,),
+        user_id=user.id,
+    )
+    return {"assessments": rows}
 
 
 def _log_high_risk(
@@ -109,8 +107,8 @@ def _log_high_risk(
     session_id: Optional[str] = None,
     assessment_id: Optional[str] = None,
 ):
-    supabase.table("guardrail_logs").insert({
-        "user_id": user_id,
-        "session_id": session_id,
-        "triggered_input": f"[ASSESSMENT] score={score}, assessment_id={assessment_id}",
-    }).execute()
+    query(
+        "insert into guardrail_logs (user_id, session_id, triggered_input) values (%s, %s, %s)",
+        (user_id, session_id, f"[ASSESSMENT] score={score}, assessment_id={assessment_id}"),
+        user_id=user_id,
+    )

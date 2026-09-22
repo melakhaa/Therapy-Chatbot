@@ -2,19 +2,17 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
-from supabase import create_client
-from auth import get_current_user
 from dotenv import load_dotenv
-import os, json
+import json
 
+from auth import get_current_user
 from core.security import encrypt_text
+from core.db import db
 from services.chatbot.core import chat as chat_fn, semantic_router
 from services.chatbot.guardrail import HARDCODED_RESPONSE
 from services.chatbot.rag import retrieve_docs
 
 load_dotenv()
-
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY"))
 
 guardrail_router = APIRouter(prefix="/guardrail", tags=["Guardrail"])
 router_router = APIRouter(prefix="/router", tags=["Router"])
@@ -70,24 +68,15 @@ def save_chat_history(request: ChatRequest, user=Depends(get_current_user)):
     route_used = result.name or "conversational"
     response_text = chat_fn(request.message)
 
-    encrypted_user_msg = encrypt_text(request.message)
-    encrypted_bot_msg = encrypt_text(response_text)
-
-    supabase.table("messages").insert({
-        "session_id": request.session_id,
-        "user_id": str(user.id),
-        "role": "user",
-        "content": encrypted_user_msg,
-        "route_used": route_used,
-    }).execute()
-
-    supabase.table("messages").insert({
-        "session_id": request.session_id,
-        "user_id": str(user.id),
-        "role": "assistant",
-        "content": encrypted_bot_msg,
-        "route_used": route_used,
-    }).execute()
+    with db(user.id) as conn:
+        conn.executemany(
+            "insert into messages (session_id, user_id, role, content, route_used) "
+            "values (%s, %s, %s, %s, %s)",
+            [
+                (request.session_id, user.id, "user", encrypt_text(request.message), route_used),
+                (request.session_id, user.id, "assistant", encrypt_text(response_text), route_used),
+            ],
+        )
 
     return {"status": "saved", "route": route_used, "response": response_text}
 
@@ -100,31 +89,25 @@ def chat_unified(request: ChatRequest, user=Depends(get_current_user)):
     if is_high_risk:
         response_text = HARDCODED_RESPONSE
         if request.session_id:
-            supabase.table("guardrail_logs").insert({
-                "session_id": request.session_id,
-                "user_id": str(user.id),
-                "triggered_input": request.message,
-            }).execute()
+            with db(user.id) as conn:
+                conn.execute(
+                    "insert into guardrail_logs (session_id, user_id, triggered_input) "
+                    "values (%s, %s, %s)",
+                    (request.session_id, user.id, request.message),
+                )
     else:
         response_text = chat_fn(request.message)
 
     if request.session_id:
-        supabase.table("messages").insert([
-            {
-                "session_id": request.session_id,
-                "user_id": str(user.id),
-                "role": "user",
-                "content": encrypt_text(request.message),
-                "route_used": route,
-            },
-            {
-                "session_id": request.session_id,
-                "user_id": str(user.id),
-                "role": "assistant",
-                "content": encrypt_text(response_text),
-                "route_used": route,
-            },
-        ]).execute()
+        with db(user.id) as conn:
+            conn.executemany(
+                "insert into messages (session_id, user_id, role, content, route_used) "
+                "values (%s, %s, %s, %s, %s)",
+                [
+                    (request.session_id, user.id, "user", encrypt_text(request.message), route),
+                    (request.session_id, user.id, "assistant", encrypt_text(response_text), route),
+                ],
+            )
 
     return {
         "response": response_text,
