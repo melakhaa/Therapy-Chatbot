@@ -2,7 +2,7 @@
 
 The project uses **LangChain only as an LLM/message adapter** — `langchain-core` for messages and
 `langchain-ollama` for the local model. There are **no chains, agents, retrievers, or vector-store
-abstractions**; RAG retrieval is done manually against Supabase.
+abstractions**; RAG retrieval is done manually with SQL against PostgreSQL + pgvector.
 
 ## Packages
 
@@ -34,8 +34,7 @@ llm.invoke([HumanMessage(content=prompt)]).content
 ## Rules
 
 - Do not introduce LCEL chains or LangGraph; the codebase deliberately keeps calls direct and stateless.
-- Keep generation local (Ollama). No hosted providers (the README's "LiteLLM" is not in the code or
-  `requirements.txt`).
+- Keep generation local (Ollama). No hosted providers.
 - Guardrail/crisis messages never reach LangChain or the LLM.
 
 Related: [ollama-conventions.md](ollama-conventions.md), [semantic-router-conventions.md](semantic-router-conventions.md).

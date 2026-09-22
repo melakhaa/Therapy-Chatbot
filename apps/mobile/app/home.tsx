@@ -9,7 +9,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -129,8 +129,8 @@ export default function HomeScreen() {
           <View style={[s.card, { backgroundColor: colors.surfaceContainerLowest }]}>
             <Text style={[s.sectionEyebrow, { color: colors.outline }]}>MINDFUL QUOTE</Text>
             <View style={s.quoteBgWrapper}>
-              <Ionicons
-                name="quotes"
+              <MaterialCommunityIcons
+                name="format-quote-open"
                 size={64}
                 color={colors.primary + '15'}
                 style={s.quoteBgIcon}
@@ -163,8 +163,8 @@ export default function HomeScreen() {
         <FadeIn delay={280}>
           <View style={[s.card, { backgroundColor: colors.surfaceContainerLowest }]}>
             <View style={s.quoteBgWrapper}>
-              <Ionicons
-                name="quotes"
+              <MaterialCommunityIcons
+                name="format-quote-open"
                 size={64}
                 color={colors.primary + '15'}
                 style={s.quoteBgIcon}

@@ -2,10 +2,11 @@ import os, ollama
 from docx import Document
 from docx.oxml.ns import qn
 from dotenv import load_dotenv
-from supabase import create_client
+from psycopg.types.json import Jsonb
+
+from core.db import query
 
 load_dotenv()
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY"))
 
 def extract_text_docx(filepath):
     doc = Document(filepath)
@@ -48,11 +49,10 @@ def embed_and_upload(filepath):
         )
         embedding = res["embeddings"][0]
 
-        supabase.table("documents").insert({
-            "content": chunk,
-            "embedding": embedding,
-            "metadata": {"source": filename, "chunk": i}
-        }).execute()
+        query(
+            "insert into documents (content, embedding, metadata) values (%s, %s::vector, %s)",
+            (chunk, str(embedding), Jsonb({"source": filename, "chunk": i})),
+        )
 
         print(f"[{filename}] chunk {i+1}/{len(chunks)}")
 

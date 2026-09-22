@@ -1,8 +1,7 @@
 # Ollama & LLM conventions
 
 All generation and embeddings run **locally via Ollama** through `langchain-ollama`
-(and the raw `ollama` client for ingestion). No hosted LLM provider, despite "LiteLLM"
-appearing in the README.
+(and the raw `ollama` client for ingestion). No hosted LLM provider.
 
 ## Models
 
@@ -35,8 +34,8 @@ chunks at `size=500 / overlap=50`, embeds, and inserts into the `documents` tabl
 cd apps/backend && python scripts/embed.py
 ```
 
-Retrieval is `supabase.rpc("match_documents", {query_embedding, match_threshold: 0.3, match_count: 5})`
-— see [supabase-conventions.md](supabase-conventions.md).
+Retrieval is `select * from match_documents(%s::vector, 0.3, k)` through `core/db.py`
+— see [postgresql-conventions.md](postgresql-conventions.md).
 
 ## Conventions
 

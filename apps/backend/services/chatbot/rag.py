@@ -1,12 +1,8 @@
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_core.messages import HumanMessage
-from supabase import create_client
 from semantic_router import Route
-import os
-from dotenv import load_dotenv
 
-load_dotenv()
-
+from core.db import query
 
 rag_route = Route(
     name="rag",
@@ -24,18 +20,15 @@ rag_route = Route(
     ]
 )
 
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY"))
 llm = ChatOllama(model="llama3.2:3b")
 embeddings = OllamaEmbeddings(model="nomic-embed-text-v2-moe")
 
-def retrieve_docs(query: str, k: int = 5):
-    query_embedding = embeddings.embed_query(query)
-    result = supabase.rpc("match_documents", {
-        "query_embedding": query_embedding,
-        "match_threshold": 0.3,
-        "match_count": k
-    }).execute()
-    return result.data or []
+def retrieve_docs(text: str, k: int = 5):
+    query_embedding = embeddings.embed_query(text)
+    return query(
+        "select * from match_documents(%s::vector, %s, %s)",
+        (str(query_embedding), 0.3, k),
+    )
 
 def get_rag_response(user_message: str) -> str:
     # ponytail: stateless per request, no chat memory. Load last N messages from `messages` by session_id if context needed.

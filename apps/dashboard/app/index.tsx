@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, TextInput,
-  Pressable, ActivityIndicator, Animated, useRef,
+  Pressable, ActivityIndicator, Animated,
 } from 'react-native';
 import { router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -30,7 +30,7 @@ export default function LoginScreen() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiLogin(email.trim(), password);
+      const data = await apiLogin({ email: email.trim(), password });
       const role = data.user.role;
       if (role === 'admin' || role === 'pemangku_jabatan' || role === 'konselor') {
         router.replace('/(dashboard)');
@@ -135,6 +135,9 @@ export default function LoginScreen() {
   );
 }
 
+// react-native-web honours CSS transitions even though RN's ViewStyle type
+// does not declare them. Spreading keeps the rest of this sheet type-checked.
+const webTransition: any = { transition: 'all 0.2s' };
 const s = StyleSheet.create({
   root: { flex: 1, flexDirection: 'row', backgroundColor: C.bg },
 
@@ -187,7 +190,7 @@ const s = StyleSheet.create({
   btn: {
     backgroundColor: C.primary, borderRadius: 10,
     paddingVertical: 15, alignItems: 'center',
-    marginTop: 4, transition: 'all 0.2s' as any,
+    marginTop: 4, ...webTransition,
   },
   btnTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
   hint: { fontSize: 11, color: C.muted, textAlign: 'center', marginTop: 20 },

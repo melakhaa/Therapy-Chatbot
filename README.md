@@ -5,7 +5,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Expo](https://img.shields.io/badge/Expo-54-000020?style=flat&logo=expo)](https://expo.dev/)
 [![React Native](https://img.shields.io/badge/React_Native-0.74-61DAFB?style=flat&logo=react)](https://reactnative.dev/)
-[![Supabase](https://img.shields.io/badge/Supabase-Local-3ECF8E?style=flat&logo=supabase)](https://supabase.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 
 ## Features
@@ -37,7 +37,7 @@
 ### Monorepo Structure
 
 - **`apps/mobile`**: Expo React Native application.
-- **`apps/dashboard`**: Next.js web application.
+- **`apps/dashboard`**: Expo Router web application (react-native-web).
 - **`apps/backend`**: FastAPI (Python 3.12) services.
 - **`packages/api-client`**: Shared TypeScript SDK for API communication.
 - **`packages/ui-shared`**: Shared hooks, context, and Sanctuary Design System.
@@ -46,17 +46,17 @@
 ### Backend & AI
 
 - **FastAPI**: High-performance Python web framework.
-- **Supabase**: PostgreSQL database, Auth, and Vector storage.
+- **PostgreSQL 17 + pgvector**: Database, row-level security, and vector storage (Docker).
+- **psycopg 3**: Parameterized SQL access, no ORM.
 - **Semantic Router**: Decision layer for LLM message routing.
-- **LiteLLM**: Unified interface for various LLM providers.
-- **Ollama**: Local embedding generation.
+- **Ollama**: Local LLM generation and embeddings.
 
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) (v20 or higher)
-- [Python](https://www.python.org/) (v3.12 or higher)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Required for local Supabase)
-- [Ollama](https://ollama.com/) (For local embeddings)
+- [Python](https://www.python.org/) (v3.12 — required, the AI stack has no 3.13/3.14 wheels)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Required for local PostgreSQL)
+- [Ollama](https://ollama.com/) (For local LLM + embeddings)
 
 ## Installation
 
@@ -67,22 +67,32 @@ git clone https://github.com/melakhaa/Therapy-Chatbot.git
 cd Therapy-Chatbot
 ```
 
-### 2. Infrastructure Setup (Supabase Local)
+### 2. Infrastructure Setup (Local PostgreSQL)
 
 ```bash
-npx supabase start
+docker compose up -d
 ```
-*Note: Make sure Docker is running. This will provide your local `API_URL` and `SERVICE_ROLE_KEY`.*
+*Note: Make sure Docker is running. This starts PostgreSQL 17 + pgvector and applies
+`db/init/*.sql` on first boot. pgAdmin is at http://localhost:5050.*
 
 ### 3. Backend Setup
 
 ```bash
 cd apps/backend
-python -m venv venv
-venv\Scripts\activate
+# Python 3.12 required — semantic-router has no 3.13/3.14 wheels
+uv venv --python 3.12 venv && source venv/bin/activate   # or: python3.12 -m venv venv
 pip install -r requirements.txt
+cp .env.example .env
 ```
-*Configure `.env` with the keys from step 2.*
+*Fill `JWT_SECRET` and `ENCRYPTION_KEY` in `.env` (generation commands are in the file).*
+
+Seed local dev accounts (idempotent — the first admin can't be created through the API):
+
+```bash
+venv/bin/python scripts/seed_dev_users.py
+```
+*Log in as `admin@example.com` / `admin1234`, `konselor@example.com` / `konselor1234`, or
+`mahasiswa@example.com` / `mahasiswa1234`.*
 
 ### 4. Application Setup
 
@@ -96,8 +106,7 @@ npm install
 ### Start Backend
 ```bash
 cd apps/backend
-venv\Scripts\activate
-uvicorn main:app --reload --port 8000
+venv/bin/uvicorn main:app --reload --port 8000
 ```
 
 ### Start Mobile App
@@ -118,13 +127,14 @@ npm run dev
 Therapy-Chatbot/
 ├── apps/
 │   ├── mobile/           # Expo Mobile App
-│   ├── dashboard/        # Next.js Web Dashboard
+│   ├── dashboard/        # Expo Router Web Dashboard
 │   └── backend/          # FastAPI Python Server
 ├── packages/
 │   ├── api-client/       # Shared Fetch Wrappers
 │   ├── ui-shared/        # Theme, Hooks, Components
 │   └── utils/            # Helper Functions
-├── supabase/             # Local Docker & Migration Config
+├── db/                   # Schema, auth SQL, RLS self-check
+├── docker-compose.yml    # PostgreSQL 17 + pgvector + pgAdmin
 └── package.json          # Root Workspace Config
 ```
 
@@ -133,6 +143,7 @@ Therapy-Chatbot/
 | Command | Description |
 |---------|-------------|
 | `npm install` | Install all workspace dependencies |
-| `npx supabase start` | Start local development environment |
-| `npx supabase stop` | Stop local services |
-| `npx supabase status` | Check local service credentials |
+| `docker compose up -d` | Start local PostgreSQL + pgAdmin |
+| `docker compose down` | Stop local services |
+| `docker compose down -v` | Stop and wipe local data (re-applies `db/init`) |
+| `venv/bin/uvicorn main:app --reload` | Run the backend (from `apps/backend`) |

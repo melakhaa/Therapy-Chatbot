@@ -1,16 +1,16 @@
 # PostgreSQL conventions
 
-Database is **PostgreSQL 17** hosted by Supabase (local Docker). Access is through the Supabase
-client / JS SDK, **no ORM** — see [supabase-conventions.md](supabase-conventions.md). Vector
-similarity uses the **pgvector** extension.
+Database is **PostgreSQL 17 + pgvector**, run locally by Docker (`docker-compose.yml`). Access is
+through **psycopg 3 with hand-written SQL, no ORM**. Schema, RLS, and pgvector topics live here;
+container lifecycle is in [docker-conventions.md](docker-conventions.md).
 
-## Schema sources
+## Schema source of truth
 
-- **`apps/backend/docs/migration.sql`** — current reference DDL. Creates `users`, `assessments`,
-  `jadwal_konsultasi`, `booking_konsultasi`, `hotline`, `journals` + `match_documents()`.
-- **`apps/backend/docs/schema.sql`** — stale draft using `profiles`/`operator`/`consultations`.
-  Do not treat as source of truth.
-- `messages`, `guardrail_logs`, `documents` are used by code but absent from `migration.sql`.
+- **`db/init/01_schema.sql`** — tables, indexes, RLS policies, `match_documents()`.
+- **`db/init/02_auth.sql`** — `sanctuary_app` role, `password_hash`, `password_resets`,
+  `auth_lookup()`, `set_password()`.
+- Applied by `docker compose up` on an empty volume, in filename order. There is no migration
+  framework: to change the schema, edit the file and `docker compose down -v && docker compose up -d`.
 
 ## Extensions
 
@@ -19,33 +19,79 @@ create extension if not exists vector;     -- pgvector, documents.embedding
 create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
 ```
 
+## Tables
+
+| Table | Purpose |
+|-------|---------|
+| `users` | Account + `role` + `password_hash` (oauth was removed with Supabase) |
+| `assessments` | PHQ-9 / GAD-7 / SRQ results, `score`, `severity` |
+| `guardrail_logs` | High-risk trigger log (chat + assessments) |
+| `messages` | Encrypted chat turns (`route_used`); `session_id` is client-generated text |
+| `documents` | RAG chunks: `content`, `embedding vector(768)`, `metadata` |
+| `hotline` | Crisis contact list |
+| `journals` | Private student journal entries |
+| `jadwal_konsultasi` | Counselor availability slots |
+| `booking_konsultasi` | Student bookings |
+| `password_resets` | OTP reset codes (bcrypt hash, 15 min expiry) |
+
 ## Conventions
 
 - `snake_case` for every table and column.
-- Primary keys: Surrogate UUIDs with table-prefixed names (`assessment_id`, `journal_id`,
-  `booking_id`, `log_id`, `user_id`).
-- Timestamps: `timestamptz default now()`; mutable rows get an `updated_at` maintained by a
-  `set_updated_at()` trigger (defined in the SQL file).
+- Primary keys: surrogate UUIDs with table-prefixed names (`assessment_id`, `journal_id`,
+  `booking_id`, `log_id`, `user_id`, `message_id`), `default gen_random_uuid()`.
+- Timestamps: `timestamptz default now()`; mutable rows use `updated_at` maintained by a
+  `set_updated_at()` trigger.
 - Enumerated columns use `check` constraints, e.g. `role in (...)`, `severity in (...)`.
-  Values: roles `mahasiswa | konselor | admin | pemangku_jabatan`, severity
-  `minimal | mild | moderate | severe`.
-- Auth linkage: `users` mirrors `auth.users`; a `handle_new_user()` trigger populates the profile
-  on signup (pattern present in the draft SQL).
-- Row Level Security is enabled per table with policies scoped by `auth.uid()` and role from the JWT.
-- Vector search: `documents.content`, `documents.embedding vector`, `documents.metadata jsonb`;
-  queries via the `match_documents(query_embedding, match_threshold, match_count)` function.
+  Roles `mahasiswa | konselor | admin | pemangku_jabatan`; severity `minimal | mild | moderate | severe`.
+- `users` is the root identity table; child tables reference `users(user_id)`. There is no
+  `auth.users`.
+- Booking side effects (`jadwal` → `dipesan` / back to `tersedia`) are `SECURITY DEFINER` triggers,
+  because the student who books cannot update the counselor's slot row directly.
+- Vector search: `documents.content`, `documents.embedding vector(768)`, `documents.metadata jsonb`;
+  HNSW index; queries via `match_documents(query_embedding, match_threshold, match_count)`.
+
+## Row Level Security
+
+- RLS is enabled on every table. The backend connects as the **non-superuser** role
+  `sanctuary_app`; `sanctuary` is a superuser and bypasses RLS entirely, so never point
+  `DATABASE_URL` at it.
+- Request identity is set per transaction by `core/db.py`:
+  ```python
+  with db(user.id) as conn:          # conn = one transaction, RLS identity set
+      conn.execute("...", (...))
+  ```
+  which runs `select set_config('app.current_user_id', <uuid>, true)`.
+- Policies read it through `app_user_id()`; policies that need a role call
+  `current_user_role()`, which is `SECURITY DEFINER` to avoid infinite recursion on `users`.
+- Anonymous requests have an empty setting, so `app_user_id()` is `NULL` and only `using (true)`
+  policies (public `hotline`, `documents` reads, `password_resets`) match.
+- **Never build SQL by string concatenation.** Pass parameters (`%s`); `ORDER BY`/column names must
+  come from a fixed whitelist, never from request data.
 
 ## Query patterns (from Python)
 
 ```python
-supabase.table("assessments").select("assessment_id, score, severity") \
-    .eq("user_id", str(user.id)).order("taken_at", desc=True).range(offset, offset + limit - 1).execute()
+from core.db import query
+
+query(
+    "select assessment_id, instrument_type, score, severity, taken_at "
+    "from assessments where user_id = %s order by taken_at desc",
+    (user.id,),
+    user_id=user.id,
+)
 ```
 
-- Build filters with chained `.eq()/.gte()/.order()/.range()`; never string-concatenate SQL.
-- Count with `.select("log_id", count="exact")` then `.count`.
+- `query()` / `execute()` each open their own transaction. Use `with db(user_id) as conn:` when
+  several statements must share one transaction (multi-row inserts).
+- Wrap dict/list values for `jsonb` columns in `psycopg.types.json.Jsonb`.
+- Vector parameters are passed as `str(embedding)` and cast in SQL: `%s::vector`.
 
-## Migrations
+## Self-check
 
-No migration framework in use. Schema changes are hand-written SQL under `apps/backend/docs/` and
-applied via `npx supabase db reset` (re-applies files) or the Supabase SQL editor.
+`db/test_rls.sql` asserts RLS isolation, anonymous lockout, and the auth functions against the
+running database. Run it after any schema or policy change:
+
+```bash
+docker exec -i -e PGPASSWORD=sanctuary_app sanctuary-db \
+  psql -v ON_ERROR_STOP=1 -U sanctuary_app -d sanctuary < db/test_rls.sql
+```

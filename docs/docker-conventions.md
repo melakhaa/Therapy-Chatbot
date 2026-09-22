@@ -1,31 +1,46 @@
 # Docker conventions
 
-Docker is used for **one purpose only: running the local Supabase stack**. There is no
-`Dockerfile` or `docker-compose.yml` in the repo — the Supabase CLI manages the containers
-(Postgres, PostgREST, GoTrue/Auth, Storage, Kong, etc.).
+Docker runs **one thing: the local PostgreSQL 17 + pgvector database**, plus pgAdmin as an optional
+GUI. `docker-compose.yml` at the repo root is the whole configuration — there is no `Dockerfile`.
 
-## Rules
+## Services
 
-- Docker Desktop must be running before `npx supabase start`.
-- Drive everything through the Supabase CLI; do not `docker run`/`docker compose` services by hand.
-- Don't commit container artifacts or local volumes; they live outside the repo under Supabase's
-  local data dir and are gitignored.
-- Default local ports (from `supabase/config.toml`): API `54321`, Postgres `54322`, shadow DB `54320`,
-  pooler `54329` (disabled). Postgres major version `17`.
-- `supabase/config.toml` is the source of truth for the local environment (schemas, TLS, migrations,
-  seed). Migrations have `schema_paths = []` and seed is `./seed.sql`.
+| Service | Image | Port | Notes |
+|---------|-------|------|-------|
+| `db` | `pgvector/pgvector:pg17` | `5432` | user/db `sanctuary` (superuser), data in the `pgdata` volume |
+| `pgadmin` | `dpage/pgadmin4` | `5050` | `admin@example.com` / `admin`; the `Sanctuary local` server is pre-registered by `db/pgadmin/servers.json` |
+
+pgAdmin rejects reserved TLDs, so use a normal-looking email — `.local` makes the container
+crash-loop at startup. It connects to the DB with host `db` (container DNS), never `localhost`,
+and as `sanctuary` so it bypasses RLS and can show every row.
 
 ## Commands
 
 ```bash
-npx supabase start     # boot containers (Docker required)
-npx supabase status    # show API URL + anon/service keys for .env
-npx supabase stop      # stop containers
-npx supabase db reset  # recreate DB: re-apply migrations + seed
+cd Therapy-Chatbot
+docker compose up -d          # start db + pgAdmin
+docker compose ps             # status
+docker compose logs db        # init output, SQL errors
+docker compose down           # stop, keep data
+docker compose down -v        # stop and wipe the volume
 ```
 
-## Env wiring
+## Init scripts
 
-`status` prints `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_KEY` used by the backend
-`.env` ([security-conventions.md](security-conventions.md)) and the `EXPO_PUBLIC_*` vars in
-`apps/mobile/.env`.
+`db/init/*.sql` is mounted read-only at `/docker-entrypoint-initdb.d` and executed **once**, in
+filename order, only when the `pgdata` volume is empty:
+
+- `01_schema.sql` — tables, indexes, RLS, `match_documents()`
+- `02_auth.sql` — `sanctuary_app` role, password storage, reset table, `auth_lookup()`
+
+To re-apply them after editing: `docker compose down -v && docker compose up -d`. This destroys all
+data, which is fine locally.
+
+## Roles
+
+- `sanctuary` — the compose superuser. Used by pgAdmin, by `psql` for admin work, and to own the
+  schema. **Bypasses RLS.**
+- `sanctuary_app` — non-superuser, created by `02_auth.sql`, granted CRUD on `public`. This is what
+  the backend connects as, so RLS is actually enforced ([postgresql-conventions.md](postgresql-conventions.md)).
+
+Do not commit container artifacts or local volumes; the named volume lives outside the repo.

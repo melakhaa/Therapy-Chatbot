@@ -1,6 +1,8 @@
+from dataclasses import dataclass
+
 from semantic_router import SemanticRouter
 from semantic_router.encoders import OllamaEncoder
-from services.chatbot.guardrail import guardrail_route, HARDCODED_RESPONSE
+from services.chatbot.guardrail import guardrail_route, HARDCODED_RESPONSE, is_crisis
 from services.chatbot.conversational import conversational_route, get_conversational_response
 from services.chatbot.rag import rag_route, get_rag_response
 
@@ -15,11 +17,28 @@ except Exception as e:
             return Result()
     encoder = MockEncoder()
 
-semantic_router = SemanticRouter(
+_router = SemanticRouter(
     routes=[guardrail_route, conversational_route, rag_route],
     encoder=encoder,
     auto_sync="local"
 )
+
+
+@dataclass
+class RouteResult:
+    name: str | None
+
+
+def semantic_router(message: str) -> RouteResult:
+    """Route a message, checking crisis phrases deterministically before the fuzzy match.
+
+    Every route decision in the API goes through here, so the keyword net cannot be
+    bypassed by a paraphrase the router fails to match (see guardrail.is_crisis).
+    """
+    if is_crisis(message):
+        return RouteResult(name="guardrail")
+    return _router(message)
+
 
 def chat(user_message: str) -> str:
     result = semantic_router(user_message)
