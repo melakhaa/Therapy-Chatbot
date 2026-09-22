@@ -10,9 +10,14 @@ docker compose down           # stop (keep data)
 docker compose down -v        # stop and wipe data (re-runs db/init on next up)
 ```
 
-- pgAdmin: http://localhost:5050 — `admin@example.com` / `admin`.
-  Add a server with host `db`, user `sanctuary`, password `sanctuary`
-  (from inside pgAdmin use host `db`, not `localhost`).
+- pgAdmin: http://localhost:5050 — `admin@example.com` / `admin`. The server
+  **Sanctuary local** is pre-registered (`db/pgadmin/servers.json`) and auto-connects, so you can
+  browse immediately: `Servers → Sanctuary local → Databases → sanctuary → Schemas → public →
+  Tables`. Right-click a table → **View/Edit Data → All Rows**.
+  It connects as `sanctuary` (superuser, bypasses RLS) so you see every row. Connecting as
+  `sanctuary_app` would show almost nothing, because pgAdmin never sets `app.current_user_id`.
+  `db/pgadmin/pgpass` holds that local password in plain text — it is the same dev-only
+  credential already in `docker-compose.yml`, not a secret.
 - Backend connects as the **non-superuser** role so RLS applies:
 
 ```

@@ -8,10 +8,11 @@ GUI. `docker-compose.yml` at the repo root is the whole configuration — there 
 | Service | Image | Port | Notes |
 |---------|-------|------|-------|
 | `db` | `pgvector/pgvector:pg17` | `5432` | user/db `sanctuary` (superuser), data in the `pgdata` volume |
-| `pgadmin` | `dpage/pgadmin4` | `5050` | `admin@example.com` / `admin`; server host `db` |
+| `pgadmin` | `dpage/pgadmin4` | `5050` | `admin@example.com` / `admin`; the `Sanctuary local` server is pre-registered by `db/pgadmin/servers.json` |
 
 pgAdmin rejects reserved TLDs, so use a normal-looking email — `.local` makes the container
-crash-loop at startup.
+crash-loop at startup. It connects to the DB with host `db` (container DNS), never `localhost`,
+and as `sanctuary` so it bypasses RLS and can show every row.
 
 ## Commands
 
