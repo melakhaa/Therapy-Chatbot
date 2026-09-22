@@ -141,6 +141,24 @@ create policy "konselor_update_booking" on booking_konsultasi
 create policy "admin_manage_all_booking" on booking_konsultasi
   for all using (current_user_role() in ('admin', 'pemangku_jabatan'));
 
+-- A student must still see the slot behind their own booking once it stops being
+-- 'tersedia', otherwise /booking/saya joins to nothing and re-booking returns 404
+-- instead of 409.
+--
+-- SECURITY DEFINER on purpose: the konselor booking policies read jadwal_konsultasi,
+-- so a plain subquery here creates a policy recursion cycle between the two tables.
+-- Declared after booking_konsultasi because a SQL body is validated at creation.
+create or replace function has_booking_for(p_jadwal_id uuid)
+returns boolean language sql security definer set search_path = public stable as $$
+  select exists (
+    select 1 from booking_konsultasi b
+    where b.jadwal_id = p_jadwal_id and b.user_id = app_user_id()
+  );
+$$;
+
+create policy "mahasiswa_view_own_booked_jadwal" on jadwal_konsultasi
+  for select using (has_booking_for(jadwal_id));
+
 -- Booking side effects are system state: SECURITY DEFINER so a mahasiswa's insert
 -- can flip the counselor's slot even though they cannot update it directly.
 create or replace function mark_jadwal_dipesan()

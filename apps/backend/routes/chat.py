@@ -69,7 +69,7 @@ def save_chat_history(request: ChatRequest, user=Depends(get_current_user)):
     response_text = chat_fn(request.message)
 
     with db(user.id) as conn:
-        conn.executemany(
+        conn.cursor().executemany(
             "insert into messages (session_id, user_id, role, content, route_used) "
             "values (%s, %s, %s, %s, %s)",
             [
@@ -100,7 +100,7 @@ def chat_unified(request: ChatRequest, user=Depends(get_current_user)):
 
     if request.session_id:
         with db(user.id) as conn:
-            conn.executemany(
+            conn.cursor().executemany(
                 "insert into messages (session_id, user_id, role, content, route_used) "
                 "values (%s, %s, %s, %s, %s)",
                 [

@@ -28,11 +28,14 @@ def db(user_id: str | None = None):
 
 
 def query(sql: str, params: tuple = (), user_id: str | None = None) -> list[dict]:
+    """Run a statement and return rows. Returns [] for statements without a result set."""
     with db(user_id) as conn:
-        return conn.execute(sql, params).fetchall()
+        cur = conn.execute(sql, params)
+        return cur.fetchall() if cur.description else []
 
 
 def execute(sql: str, params: tuple = (), user_id: str | None = None):
+    """Run a statement; returns rows when it has a result set, otherwise None."""
     with db(user_id) as conn:
         cur = conn.execute(sql, params)
         return cur.fetchall() if cur.description else None
