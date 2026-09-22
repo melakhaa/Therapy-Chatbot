@@ -1,7 +1,11 @@
 // utils/stressDetection.ts
 // Pure function — no side effects. Takes message list, returns 0–10 stress score.
 
-import type { Message } from '../components/chat/ChatBubble';
+/** Minimal shape this module needs, so the shared package does not import from an app. */
+export interface StressMessage {
+  sender: 'user' | 'ai';
+  text: string;
+}
 
 const KEYWORDS = {
   high: [
@@ -19,7 +23,7 @@ const KEYWORDS = {
 };
 
 /** Returns stress level 0–10 based on the last 5 user messages. */
-export function analyzeStress(messages: Message[]): number {
+export function analyzeStress(messages: StressMessage[]): number {
   const userTexts = messages
     .filter((m) => m.sender === 'user')
     .map((m) => m.text.toLowerCase());

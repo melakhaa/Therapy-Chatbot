@@ -91,6 +91,9 @@ export default function DashboardLayout() {
   );
 }
 
+// react-native-web honours CSS transitions even though RN's ViewStyle type
+// does not declare them. Spreading keeps the rest of this sheet type-checked.
+const webTransition: any = { transition: 'all 0.2s' };
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -131,7 +134,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 6,
-    transition: 'all 0.2s' as any,
+    ...webTransition,
   },
   navItemActive: {
     backgroundColor: Colors.sidebarActiveItem,
