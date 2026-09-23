@@ -118,7 +118,7 @@ npx expo start
 ### Start Dashboard
 ```bash
 cd apps/dashboard
-npm run dev
+npx expo start --web
 ```
 
 ## Project Structure
