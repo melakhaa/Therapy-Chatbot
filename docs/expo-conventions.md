@@ -4,8 +4,7 @@ Two apps, both TypeScript, both on **Expo SDK 54** with **expo-router**:
 
 - `apps/mobile` — Expo React Native 0.81, student app (`newArchEnabled: false`).
 - `apps/dashboard` — Expo rendered for web via `react-native-web` (`newArchEnabled: true`,
-  `web.output: "static"`). The README calls it "Next.js"; the code is Expo web, run with
-  `expo start --web`.
+  `web.output: "static"`). Expo web, run with `expo start --web`.
 
 Core React Native rules live in [react-native-conventions.md](react-native-conventions.md); routing in
 [expo-router-conventions.md](expo-router-conventions.md).
@@ -61,7 +60,7 @@ Core React Native rules live in [react-native-conventions.md](react-native-conve
 
 ```bash
 cd apps/mobile     && npx expo start   # a = Android, i = iOS, w = web
-cd apps/dashboard  && npm run dev      # expo web
+cd apps/dashboard  && npx expo start --web   # expo web
 ```
 
 ## Monorepo gotcha

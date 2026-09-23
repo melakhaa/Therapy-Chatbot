@@ -34,7 +34,13 @@ See [docker-conventions.md](docker-conventions.md) and [postgresql-conventions.m
 docker compose up -d                                          # database
 cd apps/backend   && venv/bin/uvicorn main:app --reload       # FastAPI :8000
 cd apps/mobile    && npx expo start                           # Expo (mobile)
-cd apps/dashboard && npm run dev                              # Expo web
+cd apps/dashboard && npx expo start --web                     # Expo web
+```
+
+Seed dev accounts once the DB is up (idempotent; the first admin can't be created via the API):
+
+```bash
+cd apps/backend && venv/bin/python scripts/seed_dev_users.py
 ```
 
 Also start `ollama serve` for chat/embeddings ([ollama-conventions.md](ollama-conventions.md)).
@@ -70,5 +76,4 @@ cd apps/backend && venv/bin/python scripts/api_smoke.py
 - The backend connects as `sanctuary_app` (non-superuser) so RLS applies. Pointing `DATABASE_URL` at
   `sanctuary` silently disables every policy — see [security-conventions.md](security-conventions.md).
 - `db/test_rls.sql` is the RLS/auth self-check; run it after schema or policy changes.
-- Dashboard is Expo Router web, not Next.js, despite the README ([expo-conventions.md](expo-conventions.md)).
 - No Ollama → zero-vector mock encoder, degraded chatbot answers.
