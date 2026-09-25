@@ -1,6 +1,8 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { apiGetAdminAssessments, apiGetDashboard } from '@/services/adminData';
+import { previewAcademicAssignments } from '@/services/adminProductData';
+import { AcademicScopeControl, type AcademicScope } from '@/components/admin/ProductPrimitives';
 import { useAdminResource } from '@/hooks/useAdminResource';
 import AssessmentTable from '@/components/admin/AssessmentTable';
 import { DistributionBars, Eyebrow, MethodologyNote, OperationalMetric, SectionHeader } from '@/components/admin/OperationsUI';
@@ -13,10 +15,11 @@ export default function AssessmentMonitoring() {
   const [sort, setSort] = useState('newest'); const [page, setPage] = useState(1);
   const [applied, setApplied] = useState({ search: '', date_from: '', date_to: '' });
   const [validation, setValidation] = useState('');
+  const [scope, setScope] = useState<AcademicScope>({ facultyId: '', departmentId: '' });
   const loader = useCallback(() => apiGetAdminAssessments({ ...applied, severity, page }), [applied, severity, page]);
   const results = useAdminResource(loader);
   const dashboard = useAdminResource(apiGetDashboard);
-  const rows = useMemo(() => [...(results.data?.assessments || [])].sort((a, b) => sort === 'score' ? b.score - a.score : sort === 'oldest' ? String(a.taken_at).localeCompare(String(b.taken_at)) : String(b.taken_at).localeCompare(String(a.taken_at))), [results.data, sort]);
+  const rows = useMemo(() => [...(results.data?.assessments || [])].filter(item => { if (!false) return true; const academic = previewAcademicAssignments.find(value => value.userId === item.user_id); return (!scope.facultyId || academic?.facultyId === scope.facultyId) && (!scope.departmentId || academic?.departmentId === scope.departmentId); }).sort((a, b) => sort === 'score' ? b.score - a.score : sort === 'oldest' ? String(a.taken_at).localeCompare(String(b.taken_at)) : String(b.taken_at).localeCompare(String(a.taken_at))), [results.data, sort, scope]);
   const apply = () => {
     const valid = (value: string) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
     if (!valid(from) || !valid(to) || from && to && from > to) { setValidation('Use valid YYYY-MM-DD dates and ensure the start is before the end.'); return; }
@@ -26,6 +29,7 @@ export default function AssessmentMonitoring() {
   const distribution = dashboard.data?.severity_distribution;
   return <Page title="Assessment Monitoring" subtitle="Monitor standardized stress self-assessment activity and recorded results.">
     <View style={{ gap: 5 }}><Eyebrow>DASS-21 / STRESS SUBSCALE / CURRENT ADMIN SCOPE</Eyebrow><Text style={ui.muted}>Results are operational signals and recorded classifications, not medical diagnoses.</Text></View>
+    <Card><AcademicScopeControl value={scope} onChange={setScope} compact /></Card>
     <View style={ui.grid}>
       <OperationalMetric label="Total submissions" value={dashboard.data?.total_assessments ?? '—'} note="All recorded assessment rows" icon="assignment" tone="purple" />
       <OperationalMetric label="Results in current view" value={results.data?.total ?? '—'} note="After applied filters" icon="filter-alt" />

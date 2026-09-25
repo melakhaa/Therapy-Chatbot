@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { apiGetUserAssessments, apiGetUserBookings, apiGetUserDetail } from '@/services/adminData';
+import { previewAcademicAssignments, previewDepartments, previewFaculties } from '@/services/adminProductData';
 import { useAdminResource } from '@/hooks/useAdminResource';
 import AssessmentTable from './AssessmentTable';
 import { Eyebrow, LabelValue, OperationalMetric, SectionHeader } from './OperationsUI';
@@ -15,11 +16,14 @@ export default function StudentDetailV2() {
   const assessments = useAdminResource(useCallback(() => apiGetUserAssessments(id, assessmentPage), [id, assessmentPage]), !!id);
   const bookings = useAdminResource(useCallback(() => apiGetUserBookings(id, bookingPage), [id, bookingPage]), !!id && (tab === 'counseling' || tab === 'overview'));
   const user = profile.data?.user; const latest = assessments.data?.assessments[0];
+  const academic = previewAcademicAssignments.find(item => item.userId === id);
+  const faculty = previewFaculties.find(item => item.id === academic?.facultyId)?.name;
+  const department = previewDepartments.find(item => item.id === academic?.departmentId)?.name;
   const compatible = useMemo(() => (assessments.data?.assessments || []).filter(item => item.instrument_type === latest?.instrument_type && item.taken_at).slice().reverse(), [assessments.data, latest]);
   const maxScore = Math.max(1, ...compatible.map(item => item.score));
   return <Page title="Student Detail" subtitle="Confidential operational view · identity, recorded assessments, and authorized counseling history." action={<Button label="Back to students" icon="arrow-back" tone="quiet" onPress={() => router.push('/students' as Href)} />}>
     {profile.loading ? <LoadingState /> : profile.error ? <ErrorState message={profile.error} retry={profile.reload} /> : user && <Card><View style={[ui.row, { justifyContent: 'space-between' }]}><View style={[ui.row, { flex: 1, flexWrap: 'nowrap' }]}><Avatar name={user.nama} /><View style={{ flex: 1, gap: 3 }}><Eyebrow>CONFIDENTIAL STUDENT RECORD</Eyebrow><Text style={{ color: c.text, fontSize: 22, fontWeight: '800' }}>{user.nama}</Text><Text selectable style={ui.muted}>{user.email}</Text></View></View><Badge value={user.role} /></View><View style={[ui.row, { gap: 28 }]}><LabelValue label="NIM" value={user.nim || '—'} /><LabelValue label="Registered" value={formatDate(user.created_at)} /><LabelValue label="Record ID" value={user.user_id.slice(0, 8)} /></View></Card>}
-    <FilterControl label="Student workspace" value={tab} onChange={setTab} options={[{ value: 'overview', label: 'Overview' }, { value: 'assessments', label: 'Assessments' }, { value: 'counseling', label: 'Counseling' }]} />
+    {user && <Card title="Academic affiliation" subtitle={false ? "Synthetic local preview metadata" : "Backend integration pending"}><View style={ui.grid}><LabelValue label="Faculty" value={false ? faculty || "—" : "Belum tersedia"} /><LabelValue label="Department" value={false ? department || "—" : "Belum tersedia"} /></View></Card>}`r`n    <FilterControl label="Student workspace" value={tab} onChange={setTab} options={[{ value: 'overview', label: 'Overview' }, { value: 'assessments', label: 'Assessments' }, { value: 'counseling', label: 'Counseling' }]} />
     {tab === 'overview' && <>
       <View style={ui.grid}>
         <OperationalMetric label="Assessment records" value={assessments.data?.total ?? '—'} note="Recorded submissions for this student" icon="assignment" tone="purple" />

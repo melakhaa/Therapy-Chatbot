@@ -5,10 +5,12 @@ import { apiGetDashboard } from '@/services/adminData';
 import { apiGetAttention, apiMarkAttentionRead } from '@/services/operationsData';
 import { errorMessage, useAdminResource } from '@/hooks/useAdminResource';
 import { OperationalMetric, SectionHeader, SignalCard } from '@/components/admin/OperationsUI';
+import { AcademicScopeControl, type AcademicScope } from '@/components/admin/ProductPrimitives';
 import { Badge, Button, Card, DataTable, ErrorState, FilterControl, LoadingState, Notice, Page, Pagination, formatDate, ui } from '@/components/ui';
 
 export default function AttentionMonitoring() {
   const [signal, setSignal] = useState(''); const [unread, setUnread] = useState(false); const [page, setPage] = useState(1);
+  const [scope, setScope] = useState<AcademicScope>({ facultyId: '', departmentId: '' });
   const loader = useCallback(() => apiGetAttention({ signal, unread_only: unread, page }), [signal, unread, page]);
   const resource = useAdminResource(loader); const dashboard = useAdminResource(apiGetDashboard);
   const [busy, setBusy] = useState(''); const [error, setError] = useState('');
@@ -18,6 +20,7 @@ export default function AttentionMonitoring() {
   const markRead = async (id: string) => { setBusy(id); setError(''); try { await apiMarkAttentionRead(id); resource.reload(); } catch (caught) { setError(errorMessage(caught)); } finally { setBusy(''); } };
   return <Page title="High-Risk Monitoring" subtitle="Separate assessment signals from Safety Guardrail events without exposing private content.">
     <Notice danger>Confidential operational metadata only. Raw chat messages, journals, guardrail trigger text, and assessment answers are never shown here.</Notice>
+    <Card><AcademicScopeControl value={scope} onChange={setScope} compact /></Card>
     <View style={ui.grid}>
       <OperationalMetric label="Assessment signals" value={assessmentCount} note="Elevated recorded assessment events" icon="assignment-late" tone="amber" />
       <OperationalMetric label="Safety signals" value={safetyCount} note="Safety Guardrail events" icon="health-and-safety" tone="red" />
