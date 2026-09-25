@@ -4,6 +4,13 @@ from semantic_router import Route
 
 from core.db import query
 
+# nomic-embed-text-v2-moe expects task prefixes; query and document must use their
+# matching pair or similarity silently degrades. Single source of truth for the
+# router (core.py), the RAG query path, and scripts/embed.py.
+EMBED_MODEL = "nomic-embed-text-v2-moe"
+QUERY_PREFIX = "search_query: "
+DOCUMENT_PREFIX = "search_document: "
+
 rag_route = Route(
     name="rag",
     utterances=[
@@ -21,10 +28,10 @@ rag_route = Route(
 )
 
 llm = ChatOllama(model="llama3.2:3b")
-embeddings = OllamaEmbeddings(model="nomic-embed-text-v2-moe")
+embeddings = OllamaEmbeddings(model=EMBED_MODEL)
 
 def retrieve_docs(text: str, k: int = 5):
-    query_embedding = embeddings.embed_query(text)
+    query_embedding = embeddings.embed_query(f"{QUERY_PREFIX}{text}")
     return query(
         "select * from match_documents(%s::vector, %s, %s)",
         (str(query_embedding), 0.3, k),
