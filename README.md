@@ -14,7 +14,7 @@
 
 - **AI Chatbot**: Intelligent mental health companion using Semantic Router + RAG for context-aware support.
 - **Automatic Stress Detection**: Real-time analysis of chat messages to detect emotional distress.
-- **Clinical Assessments**: Self-service PHQ-9, GAD-7, and SRQ tests with immediate results.
+- **Clinical Assessments**: Self-service DASS-21 test with immediate results.
 - **Self-Journaling**: Private mood tracking and daily reflections.
 - **Secure Auth**: OTP-based password recovery and secure authentication.
 
