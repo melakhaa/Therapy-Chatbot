@@ -1,9 +1,13 @@
 import { Platform } from 'react-native';
 import { getToken, saveToken, saveUser } from './storage';
 
-export const API_BASE_URL = __DEV__
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || (__DEV__
   ? (Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000')
-  : 'https://your-production-url.com';
+  : 'https://your-production-url.com');
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) { super(message); this.name = 'ApiError'; }
+}
 
 interface FetchOptions extends RequestInit {
   auth?: boolean;
@@ -34,7 +38,7 @@ export async function apiFetch<T = unknown>(
       const err = await res.json();
       detail = err.detail || JSON.stringify(err);
     } catch {}
-    throw new Error(detail);
+    throw new ApiError(res.status, detail);
   }
 
   return res.json() as Promise<T>;
