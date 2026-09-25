@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { Spacing, BorderRadius } from '@prototype/ui-shared';
-import { useTheme } from '@prototype/ui-shared';
+import { useTheme, Neu } from '@prototype/ui-shared';
 
 interface Props { options: string[]; onSelect: (option: string) => void }
 
@@ -16,37 +16,32 @@ export const QuickReply: React.FC<Props> = ({ options, onSelect }) => {
       style={s.wrap}
     >
       {options.map((opt, i) => (
-        <TouchableOpacity
+        <Pressable
           key={i}
-          style={[
-            s.chip,
-            {
-              borderColor: colors.outlineVariant,
-              backgroundColor: colors.surfaceContainerLowest,
-            },
-          ]}
+          style={({ pressed }) => [s.chip, { backgroundColor: colors.background, boxShadow: pressed ? Neu.inset : Neu.raisedSm }]}
           onPress={() => onSelect(opt)}
-          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityHint="Kirim sebagai pesan"
         >
-          <Text style={[s.chipText, { color: colors.onSurface }]}>{opt}</Text>
-        </TouchableOpacity>
+          <Text style={[s.chipText, { color: colors.primary }]}>{opt}</Text>
+        </Pressable>
       ))}
     </ScrollView>
   );
 };
 
 const s = StyleSheet.create({
-  wrap: { paddingBottom: 0 },
-  row: { gap: Spacing.xs + 2, flexDirection: 'row', alignItems: 'center' },
+  wrap: { flexGrow: 0 },
+  row: { paddingVertical: 10, gap: Spacing.sm + 2, flexDirection: 'row', alignItems: 'center' },
   chip: {
-    borderWidth: 1,
     borderRadius: BorderRadius.full,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
   },
   chipText: {
-    fontSize: 13,
-    fontFamily: 'PlusJakartaSans_500Medium',
+    fontSize: 14,
+    fontFamily: 'PlusJakartaSans_600SemiBold',
     letterSpacing: 0.1,
   },
 });

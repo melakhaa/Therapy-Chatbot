@@ -1,45 +1,37 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Animated,
-  Dimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { apiGetJournals } from '@prototype/api-client';
 
-import { BottomNav, FadeIn } from '../components/ui';
-import { useTheme } from '@prototype/ui-shared';
-import { Typography, Spacing, BorderRadius } from '@prototype/ui-shared';
+import { BottomNav, FadeIn, NeuView, Button, ScreenHeader, IconButton } from '../components/ui';
+import { useTheme, Neu } from '@prototype/ui-shared';
+import { MOODS, Mood, moodOf } from '../constants/moods';
 
-const { width } = Dimensions.get('window');
+type Day = { day: string; score: number; mood: Mood | null };
 
-const INIT_WEEK = Array(7).fill({ day: '-', score: 0 });
-const MAX_SCORE = 100;
-const CHART_H   = 100;
+const INIT_WEEK: Day[] = Array(7).fill({ day: '-', score: 0, mood: null });
+const CHART_H = 100;
+const SCORE: Record<string, number> = { Calm: 100, Focused: 80, Tired: 50, Anxious: 30 };
 
 // weekOffset: 0 = minggu ini, -1 = minggu lalu, dst.
 function getWeekRange(weekOffset: number) {
   const today = new Date();
   const start = new Date(today);
   start.setDate(today.getDate() - 6 + weekOffset * 7);
+  start.setHours(0, 0, 0, 0);
   const end = new Date(today);
   end.setDate(today.getDate() + weekOffset * 7);
+  end.setHours(23, 59, 59, 999);
   return { start, end };
 }
 
 function formatWeekLabel(weekOffset: number) {
-  if (weekOffset === 0) return 'Minggu Ini';
-  if (weekOffset === -1) return 'Minggu Lalu';
+  if (weekOffset === 0) return '7 hari terakhir';
+  if (weekOffset === -1) return 'Minggu lalu';
   const { start, end } = getWeekRange(weekOffset);
-  const fmt = (d: Date) =>
-    d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+  const fmt = (d: Date) => d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
@@ -49,344 +41,224 @@ export default function StatsScreen() {
 
   const [weekOffset, setWeekOffset] = React.useState(0);
   const [allJournals, setAllJournals] = React.useState<any[]>([]);
-  const [weekData, setWeekData] = React.useState<{day: string, score: number}[]>(INIT_WEEK);
-  const [moodCounts, setMoodCounts] = React.useState({
-    calm: 0, focused: 0, tired: 0, anxious: 0, total: 0
-  });
+  const [weekData, setWeekData] = React.useState<Day[]>(INIT_WEEK);
+  const [counts, setCounts] = React.useState<Record<Mood, number>>({ Calm: 0, Focused: 0, Tired: 0, Anxious: 0 });
+  const [total, setTotal] = React.useState(0);
   const barAnims = useRef(INIT_WEEK.map(() => new Animated.Value(0))).current;
 
-  // Fetch once
   useEffect(() => {
-    async function loadData() {
-      try {
-        const res = await apiGetJournals(200, 0);
-        setAllJournals(res.journals || []);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    loadData();
+    apiGetJournals(200, 0)
+      .then((res) => setAllJournals(res.journals || []))
+      .catch((e) => console.error(e));
   }, []);
 
-  // Recompute whenever journals or weekOffset changes
   const computeStats = useCallback(() => {
-    const journals = allJournals;
-    if (journals.length === 0 && allJournals.length === 0) return;
-
     const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
     const today = new Date();
-    const newWeekData: {day: string, score: number}[] = [];
+    const next: Day[] = [];
 
     for (let i = 6; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(today.getDate() - i + weekOffset * 7);
       const dateStr = d.toISOString().split('T')[0];
+      const dayJournals = allJournals.filter((j: any) => j.created_at.startsWith(dateStr));
 
-      const dayJournals = journals.filter((j: any) => j.created_at.startsWith(dateStr));
-
-      let totalScore = 0;
+      let score = 0;
+      let mood: Mood | null = null;
       if (dayJournals.length > 0) {
-        dayJournals.forEach((j: any) => {
-          if (j.mood === 'Calm') totalScore += 100;
-          else if (j.mood === 'Focused') totalScore += 80;
-          else if (j.mood === 'Tired') totalScore += 50;
-          else if (j.mood === 'Anxious') totalScore += 30;
-          else totalScore += 70;
-        });
-        totalScore = Math.round(totalScore / dayJournals.length);
-      } else {
-        totalScore = 0;
+        score = Math.round(dayJournals.reduce((a: number, j: any) => a + (SCORE[j.mood] ?? 70), 0) / dayJournals.length);
+        const tally: Record<string, number> = {};
+        dayJournals.forEach((j: any) => j.mood && (tally[j.mood] = (tally[j.mood] || 0) + 1));
+        mood = (Object.keys(tally).sort((a, b) => tally[b] - tally[a])[0] as Mood) ?? null;
       }
-
-      newWeekData.push({ day: days[d.getDay()], score: totalScore });
+      next.push({ day: days[d.getDay()], score, mood });
     }
+    setWeekData(next);
 
-    setWeekData(newWeekData);
-
-    // Mood distribution for selected week
     const { start, end } = getWeekRange(weekOffset);
-    const endMidnight = new Date(end);
-    endMidnight.setHours(23, 59, 59, 999);
-
-    const periodJournals = journals.filter((j: any) => {
+    const period = allJournals.filter((j: any) => {
       const d = new Date(j.created_at);
-      return d >= start && d <= endMidnight;
+      return d >= start && d <= end;
     });
+    const c: Record<Mood, number> = { Calm: 0, Focused: 0, Tired: 0, Anxious: 0 };
+    period.forEach((j: any) => { if (j.mood in c) c[j.mood as Mood]++; });
+    setCounts(c);
+    setTotal(period.length);
 
-    let calm = 0, focus = 0, tired = 0, anxious = 0;
-    periodJournals.forEach((j: any) => {
-      if (j.mood === 'Calm') calm++;
-      else if (j.mood === 'Focused') focus++;
-      else if (j.mood === 'Tired') tired++;
-      else if (j.mood === 'Anxious') anxious++;
-    });
-
-    setMoodCounts({
-      calm, focused: focus, tired, anxious,
-      total: periodJournals.length
-    });
-
-    // Reset & animate bars
-    barAnims.forEach(a => a.setValue(0));
-    const animations = barAnims.map((anim, idx) =>
-      Animated.timing(anim, {
-        toValue: newWeekData[idx].score / MAX_SCORE,
-        duration: 500,
-        delay: 60 * idx,
-        useNativeDriver: false,
-      })
-    );
-    Animated.parallel(animations).start();
+    barAnims.forEach((a) => a.setValue(0));
+    Animated.parallel(
+      barAnims.map((anim, idx) =>
+        Animated.timing(anim, { toValue: next[idx].score / 100, duration: 500, delay: 60 * idx, useNativeDriver: false }),
+      ),
+    ).start();
   }, [allJournals, weekOffset]);
 
   useEffect(() => {
     computeStats();
   }, [computeStats]);
 
-  const overallScore = React.useMemo(() => {
-    const nonZero = weekData.filter(d => d.score > 0);
-    if (nonZero.length === 0) return 0;
-    return Math.round(nonZero.reduce((a, b) => a + b.score, 0) / nonZero.length);
-  }, [weekData]);
+  const dominant = React.useMemo(() => {
+    const top = (Object.entries(counts) as [Mood, number][]).sort((a, b) => b[1] - a[1])[0];
+    return top && top[1] > 0 ? moodOf(top[0]) : undefined;
+  }, [counts]);
 
-  const getScoreColor = (s: number) =>
-    s >= 75 ? colors.stressLow : s >= 50 ? colors.stressMid : colors.stressHigh;
-
-  // Dynamic Recommendation based on mood counts of the week
   const recommendation = React.useMemo(() => {
-    if (moodCounts.total === 0) {
-      return {
-        title: 'Mulai Menulis Jurnal',
-        text: 'Kamu belum menulis jurnal minggu ini. Tulis jurnal pertamamu hari ini untuk memantau emosi dan mendapatkan rekomendasi personal.',
-        btnText: 'Tulis Jurnal Sekarang',
-        action: () => router.push('/home'),
-        icon: 'book-outline',
-      };
+    switch (dominant?.key) {
+      case 'Anxious':
+        return {
+          title: 'Tenangkan pikiranmu',
+          text: 'Kecemasanmu cukup sering muncul pekan ini. Coba perlambat ritme harimu dan ceritakan apa yang kamu rasakan.',
+          btn: 'Cerita ke Sajiwa', to: '/chat', icon: 'chatbubble-ellipses-outline',
+        };
+      case 'Tired':
+        return {
+          title: 'Pulihkan energimu',
+          text: 'Kamu sering merasa lelah pekan ini. Coba tidur lebih awal atau lakukan aktivitas ringan seperti jalan santai.',
+          btn: 'Cerita ke Sajiwa', to: '/chat', icon: 'moon-outline',
+        };
+      case 'Focused':
+        return {
+          title: 'Fokus dan produktif',
+          text: 'Pekan ini kamu cukup fokus. Jaga stamina mental dengan jeda singkat 5 menit di sela aktivitas.',
+          btn: 'Refleksi dengan Sajiwa', to: '/chat', icon: 'disc-outline',
+        };
+      case 'Calm':
+        return {
+          title: 'Pertahankan ketenanganmu',
+          text: 'Kondisimu cenderung stabil pekan ini. Luangkan waktu untuk bersantai dan bersyukur setiap hari.',
+          btn: 'Tulis jurnal', to: '/journal', icon: 'leaf-outline',
+        };
+      default:
+        return {
+          title: 'Mulai menulis jurnal',
+          text: 'Belum ada jurnal di periode ini. Catat perasaanmu untuk melihat polanya di sini.',
+          btn: 'Tulis jurnal sekarang', to: '/journal', icon: 'book-outline',
+        };
     }
+  }, [dominant]);
 
-    const { calm, focused, tired, anxious } = moodCounts;
-    const maxVal = Math.max(calm, focused, tired, anxious);
-
-    if (maxVal === 0) {
-      return {
-        title: 'Mulai Menulis Jurnal',
-        text: 'Kamu belum menulis jurnal minggu ini. Tulis jurnal pertamamu hari ini untuk memantau emosi dan mendapatkan rekomendasi personal.',
-        btnText: 'Tulis Jurnal Sekarang',
-        action: () => router.push('/home'),
-        icon: 'book-outline',
-      };
-    }
-
-    if (anxious === maxVal) {
-      return {
-        title: 'Tenangkan Pikiranmu',
-        text: 'Tingkat kecemasanmu agak tinggi minggu ini. Mari tarik napas dalam-dalam, perlambat ritme harimu, dan bagikan apa yang kamu rasakan kepada AI companion kami.',
-        btnText: 'Mulai Sesi Konseling',
-        action: () => router.push('/chat'),
-        icon: 'chatbubble-ellipses-outline',
-      };
-    }
-    if (tired === maxVal) {
-      return {
-        title: 'Pulihkan Energimu',
-        text: 'Kamu merasa lelah minggu ini. Coba luangkan waktu untuk tidur lebih awal atau lakukan aktivitas ringan yang menyegarkan pikiran seperti jalan santai.',
-        btnText: 'Bicara dengan Sanctuary',
-        action: () => router.push('/chat'),
-        icon: 'moon-outline',
-      };
-    }
-    if (focused === maxVal) {
-      return {
-        title: 'Fokus & Produktif',
-        text: 'Minggu ini kamu sangat fokus dan produktif! Untuk menjaga stamina mental, pastikan kamu mengambil jeda singkat 5 menit di sela aktivitas.',
-        btnText: 'Refleksi dengan AI',
-        action: () => router.push('/chat'),
-        icon: 'locate-outline',
-      };
-    }
-    // calm is maxVal
-    return {
-      title: 'Pertahankan Ketenanganmu',
-      text: 'Kondisimu sangat stabil dan tenang minggu ini. Pertahankan ketenangan ini dengan meluangkan waktu bersantai dan bersyukur setiap hari.',
-      btnText: 'Lakukan Sesi Lanjutan',
-      action: () => router.push('/chat'),
-      icon: 'water-outline',
-    };
-  }, [moodCounts]);
+  const chartLabel =
+    'Grafik suasana hati: ' +
+    weekData.map((d) => d.day + ' ' + (moodOf(d.mood)?.label ?? 'tidak ada catatan')).join(', ');
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[s.container, { backgroundColor: colors.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + Spacing.xl }]}
+        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 120 }]}
       >
-        {/* Header */}
-        <FadeIn delay={0}>
-          <View style={styles.header}>
-            <View>
-              <Text style={[styles.title, { color: colors.onSurface }]}>Laporan</Text>
-              <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-                Gambaran kondisi mentalmu
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.historyBtn, { borderColor: colors.outlineVariant + '60' }]}
-              onPress={() => router.push('/journal-history')}
-            >
-              <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
-              <Text style={[styles.historyBtnText, { color: colors.textSecondary }]}>Riwayat</Text>
-            </TouchableOpacity>
-          </View>
-        </FadeIn>
+        <ScreenHeader
+          back
+          title="Laporan mingguan"
+          subtitle="Pola suasana hati dari jurnalmu."
+          right={<IconButton icon="time-outline" label="Riwayat jurnal" color={colors.primary} onPress={() => router.push('/journal-history')} />}
+        />
 
-        {/* Week Navigator */}
+        {/* Week navigator */}
         <FadeIn delay={40}>
-          <View style={[styles.weekNav, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <TouchableOpacity
-              style={[styles.weekNavBtn, { opacity: 1 }]}
-              onPress={() => setWeekOffset(prev => prev - 1)}
-            >
-              <Ionicons name="chevron-back" size={18} color={colors.primary} />
-            </TouchableOpacity>
-
-            <View style={styles.weekNavCenter}>
-              <Text style={[styles.weekNavLabel, { color: colors.onSurface }]}>
-                {formatWeekLabel(weekOffset)}
-              </Text>
+          <NeuView radius={22} style={s.weekNav}>
+            <IconButton icon="chevron-back" label="Minggu sebelumnya" color={colors.primary} onPress={() => setWeekOffset((p) => p - 1)} />
+            <View style={s.weekNavCenter}>
+              <Text style={[s.weekNavLabel, { color: colors.onSurface }]}>{formatWeekLabel(weekOffset)}</Text>
               {weekOffset < 0 && (
-                <TouchableOpacity onPress={() => setWeekOffset(0)}>
-                  <Text style={[styles.weekNavBack, { color: colors.primary }]}>Kembali ke minggu ini</Text>
-                </TouchableOpacity>
+                <Text
+                  style={[s.weekNavBack, { color: colors.primary }]}
+                  onPress={() => setWeekOffset(0)}
+                  accessibilityRole="button"
+                >
+                  Kembali ke minggu ini
+                </Text>
               )}
             </View>
+            <IconButton
+              icon="chevron-forward"
+              label="Minggu berikutnya"
+              color={weekOffset >= 0 ? colors.textMuted : colors.primary}
+              onPress={() => weekOffset < 0 && setWeekOffset((p) => p + 1)}
+              style={weekOffset >= 0 ? { opacity: 0.5 } : undefined}
+            />
+          </NeuView>
+        </FadeIn>
 
-            <TouchableOpacity
-              style={[styles.weekNavBtn, { opacity: weekOffset >= 0 ? 0.3 : 1 }]}
-              onPress={() => weekOffset < 0 && setWeekOffset(prev => prev + 1)}
-              disabled={weekOffset >= 0}
-            >
-              <Ionicons name="chevron-forward" size={18} color={colors.primary} />
-            </TouchableOpacity>
+        {/* Overview: counts, not a pseudo-clinical score */}
+        <FadeIn delay={80}>
+          <View style={[s.overviewCard, { backgroundColor: colors.primary, boxShadow: Neu.raised }]}>
+            <View style={s.overviewBlob} />
+            <Text style={s.overviewValue}>{total}</Text>
+            <Text style={s.overviewLabel}>catatan jurnal</Text>
+            <Text style={s.overviewSub}>
+              {dominant ? `Paling sering merasa ${dominant.label.toLowerCase()}` : 'Belum ada catatan di periode ini'}
+            </Text>
           </View>
         </FadeIn>
 
-        {/* Overview Card */}
-        <FadeIn delay={80}>
-          <LinearGradient
-            colors={[colors.primary, colors.primaryDim]}
-            style={styles.overviewCard}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <View style={styles.overviewBlob} />
-            <View>
-              <Text style={styles.overviewLabel}>SKOR KESEJAHTERAAN</Text>
-              <Text style={styles.overviewScore}>{overallScore}</Text>
-              <Text style={styles.overviewSub}>dari 100 poin</Text>
-            </View>
-            <View style={styles.overviewRight}>
-              <View style={styles.overviewBadge}>
-                <Ionicons name="journal-outline" size={16} color={colors.primary} />
-                <Text style={[styles.overviewBadgeText, { color: colors.primary }]}>
-                  {moodCounts.total} jurnal
-                </Text>
-              </View>
-              <Text style={styles.overviewRightSub}>{formatWeekLabel(weekOffset)}</Text>
-            </View>
-          </LinearGradient>
-        </FadeIn>
-
-        {/* Bar Chart */}
+        {/* Daily chart */}
         <FadeIn delay={150}>
-          <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Text style={[styles.sectionLabel, { color: colors.outline }]}>MOOD HARIAN</Text>
-            <View style={styles.chart}>
+          <NeuView radius={24} style={s.card}>
+            <Text style={[s.sectionLabel, { color: colors.onSurface }]}>Suasana hati harian</Text>
+            <View style={s.chart} accessible accessibilityLabel={chartLabel}>
               {weekData.map((d, i) => (
-                <View key={i} style={styles.barContainer}>
-                  <View style={[styles.barTrack, { backgroundColor: colors.surfaceContainerHigh }]}>
+                <View key={i} style={s.barContainer}>
+                  <View style={[s.barTrack, { backgroundColor: colors.background, boxShadow: Neu.inset }]}>
                     <Animated.View
                       style={[
-                        styles.barFill,
+                        s.barFill,
                         {
-                          backgroundColor: d.score > 0 ? getScoreColor(d.score) : colors.outlineVariant + '40',
-                          height: barAnims[i].interpolate({
-                            inputRange: [0, 1],
-                            outputRange: ['0%', '100%'],
-                          }),
+                          backgroundColor: moodOf(d.mood)?.color ?? 'transparent',
+                          height: barAnims[i].interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
                         },
                       ]}
                     />
                   </View>
-                  <Text style={[styles.barDay, { color: colors.textMuted }]}>{d.day}</Text>
-                  <Text style={[styles.barScore, { color: colors.textSecondary }]}>
-                    {d.score > 0 ? d.score : '-'}
-                  </Text>
+                  <Text style={[s.barDay, { color: colors.onSurfaceVariant }]}>{d.day}</Text>
                 </View>
               ))}
             </View>
-          </View>
+          </NeuView>
         </FadeIn>
 
-        {/* Mood Distribution */}
+        {/* Distribution */}
         <FadeIn delay={220}>
-          <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Text style={[styles.sectionLabel, { color: colors.outline }]}>DISTRIBUSI MOOD</Text>
-            {moodCounts.total === 0 ? (
-              <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                Tidak ada jurnal di periode ini
-              </Text>
+          <NeuView radius={24} style={s.card}>
+            <Text style={[s.sectionLabel, { color: colors.onSurface }]}>Distribusi suasana hati</Text>
+            {total === 0 ? (
+              <Text style={[s.emptyText, { color: colors.onSurfaceVariant }]}>Tidak ada jurnal di periode ini.</Text>
             ) : (
-              [
-                { label: 'Calm',    icon: 'water-outline',   count: moodCounts.calm,    color: colors.primary },
-                { label: 'Focused', icon: 'locate-outline',  count: moodCounts.focused, color: colors.tertiary },
-                { label: 'Tired',   icon: 'moon-outline',    count: moodCounts.tired,   color: '#7A5C3A' },
-                { label: 'Anxious', icon: 'warning-outline', count: moodCounts.anxious, color: colors.stressHigh },
-              ].map((item, i) => {
-                const pct = moodCounts.total > 0 ? (item.count / moodCounts.total) * 100 : 0;
-                return (
-                  <View key={i} style={[styles.aspectRow, i > 0 && { borderTopColor: colors.outlineVariant + '30', borderTopWidth: 1 }]}>
-                    <View style={[styles.aspectIcon, { backgroundColor: item.color + '18' }]}>
-                      <Ionicons name={item.icon as any} size={18} color={item.color} />
-                    </View>
-                    <View style={{ flex: 1, gap: 4 }}>
-                      <View style={styles.aspectMeta}>
-                        <Text style={[styles.aspectLabel, { color: colors.onSurface }]}>{item.label}</Text>
-                        <Text style={[styles.aspectScore, { color: item.color }]}>{item.count} kali</Text>
-                      </View>
-                      <View style={[styles.aspectTrack, { backgroundColor: colors.surfaceContainerHigh }]}>
-                        <View style={[styles.aspectFill, { backgroundColor: item.color, width: `${pct}%` }]} />
+              <View style={{ gap: 18 }}>
+                {MOODS.map((m) => {
+                  const count = counts[m.key];
+                  const pct = (count / total) * 100;
+                  return (
+                    <View key={m.key} style={s.distRow} accessible accessibilityLabel={`${m.label}, ${count} kali`}>
+                      <Ionicons name={m.icon} size={20} color={m.color} />
+                      <View style={{ flex: 1, gap: 6 }}>
+                        <View style={s.distMeta}>
+                          <Text style={[s.distLabel, { color: colors.onSurface }]}>{m.label}</Text>
+                          <Text style={[s.distCount, { color: m.color }]}>{count}×</Text>
+                        </View>
+                        <View style={[s.distTrack, { backgroundColor: colors.background, boxShadow: Neu.inset }]}>
+                          <View style={[s.distFill, { backgroundColor: m.color, width: `${pct}%` }]} />
+                        </View>
                       </View>
                     </View>
-                  </View>
-                );
-              })
+                  );
+                })}
+              </View>
             )}
-          </View>
+          </NeuView>
         </FadeIn>
 
         {/* Recommendation */}
         <FadeIn delay={290}>
-          <View style={[styles.recCard, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant + '40' }]}>
-            <View style={styles.recHeader}>
-              <View style={[styles.recIconWrap, { backgroundColor: colors.primaryContainer }]}>
-                <Ionicons name={recommendation.icon as any} size={16} color={colors.primary} />
-              </View>
-              <Text style={[styles.recTitle, { color: colors.primary }]}>{recommendation.title}</Text>
+          <NeuView radius={24} style={[s.card, { gap: 12 }]}>
+            <View style={s.recHeader}>
+              <Ionicons name={recommendation.icon as any} size={20} color={colors.primary} />
+              <Text style={[s.recTitle, { color: colors.onSurface }]}>{recommendation.title}</Text>
             </View>
-            <Text style={[styles.recText, { color: colors.textSecondary }]}>
-              {recommendation.text}
-            </Text>
-            <TouchableOpacity
-              style={[styles.recBtn, { backgroundColor: colors.primary }]}
-              onPress={recommendation.action}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.recBtnText, { color: colors.onPrimary }]}>{recommendation.btnText}</Text>
-            </TouchableOpacity>
-          </View>
+            <Text style={[s.recText, { color: colors.onSurfaceVariant }]}>{recommendation.text}</Text>
+            <Button label={recommendation.btn} onPress={() => router.push(recommendation.to as any)} style={{ marginTop: 4 }} />
+          </NeuView>
         </FadeIn>
-
-        <View style={{ height: 100 }} />
       </ScrollView>
 
       <BottomNav />
@@ -394,185 +266,42 @@ export default function StatsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   container: { flex: 1 },
-  scroll: { paddingHorizontal: Spacing.base },
+  scroll: { paddingHorizontal: 20, gap: 20 },
 
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: Spacing.base,
-    paddingHorizontal: Spacing.xs,
-  },
-  title: { fontSize: Typography.xl, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.4 },
-  subtitle: { fontSize: Typography.sm, fontFamily: 'PlusJakartaSans_400Regular', marginTop: 4 },
-  historyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    borderWidth: 1,
-    borderRadius: BorderRadius.xl,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  historyBtnText: { fontSize: Typography.xs, fontFamily: 'PlusJakartaSans_600SemiBold' },
+  weekNav: { flexDirection: 'row', alignItems: 'center', padding: 8 },
+  weekNavCenter: { flex: 1, alignItems: 'center', gap: 2 },
+  weekNavLabel: { fontSize: 15, fontFamily: 'PlusJakartaSans_700Bold' },
+  weekNavBack: { fontSize: 13, fontFamily: 'PlusJakartaSans_600SemiBold', paddingVertical: 4 },
 
-  weekNav: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: BorderRadius.xl,
-    marginBottom: Spacing.base,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-  },
-  weekNavBtn: {
-    padding: Spacing.sm,
-  },
-  weekNavCenter: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 2,
-  },
-  weekNavLabel: {
-    fontSize: Typography.sm,
-    fontFamily: 'PlusJakartaSans_700Bold',
-  },
-  weekNavBack: {
-    fontSize: Typography.xs,
-    fontFamily: 'PlusJakartaSans_400Regular',
-  },
-
-  overviewCard: {
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.xl,
-    marginBottom: Spacing.base,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    overflow: 'hidden',
-    shadowColor: '#496175',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 6,
-  },
+  overviewCard: { borderRadius: 28, padding: 24, overflow: 'hidden' },
   overviewBlob: {
-    position: 'absolute',
-    width: 140, height: 140, borderRadius: 70,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    top: -40, right: 20,
+    position: 'absolute', width: 160, height: 160, borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.06)', top: -50, right: -20,
   },
-  overviewLabel: {
-    fontSize: 10,
-    fontFamily: 'PlusJakartaSans_700Bold',
-    color: 'rgba(255,255,255,0.7)',
-    letterSpacing: 1.5,
-    marginBottom: 4,
-  },
-  overviewScore: {
-    fontSize: 56,
-    fontFamily: 'PlusJakartaSans_800ExtraBold',
-    color: '#ffffff',
-    lineHeight: 60,
-  },
-  overviewSub: {
-    fontSize: Typography.xs,
-    fontFamily: 'PlusJakartaSans_400Regular',
-    color: 'rgba(255,255,255,0.65)',
-  },
-  overviewRight: { alignItems: 'center', gap: 4 },
-  overviewBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-  },
-  overviewBadgeText: { fontSize: Typography.sm, fontFamily: 'PlusJakartaSans_700Bold' },
-  overviewRightSub: { fontSize: 10, fontFamily: 'PlusJakartaSans_400Regular', color: 'rgba(255,255,255,0.65)', textAlign: 'center' },
+  overviewValue: { fontSize: 52, fontFamily: 'PlusJakartaSans_800ExtraBold', color: '#fff', lineHeight: 58 },
+  overviewLabel: { fontSize: 15, fontFamily: 'PlusJakartaSans_600SemiBold', color: 'rgba(255,255,255,0.9)' },
+  overviewSub: { fontSize: 14, fontFamily: 'PlusJakartaSans_400Regular', color: 'rgba(255,255,255,0.85)', marginTop: 12 },
 
-  card: {
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.xl,
-    marginBottom: Spacing.base,
-    shadowColor: '#2b3437',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.05,
-    shadowRadius: 30,
-    elevation: 2,
-  },
-  sectionLabel: {
-    fontSize: 10,
-    fontFamily: 'PlusJakartaSans_700Bold',
-    letterSpacing: 2,
-    marginBottom: Spacing.xl,
-  },
-  emptyText: {
-    fontSize: Typography.sm,
-    fontFamily: 'PlusJakartaSans_400Regular',
-    textAlign: 'center',
-    paddingVertical: Spacing.base,
-  },
+  card: { padding: 20 },
+  sectionLabel: { fontSize: 16, fontFamily: 'PlusJakartaSans_700Bold', marginBottom: 18 },
+  emptyText: { fontSize: 14, fontFamily: 'PlusJakartaSans_400Regular', textAlign: 'center', paddingVertical: 12 },
 
-  chart: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    height: CHART_H + 40,
-  },
-  barContainer: { flex: 1, alignItems: 'center', gap: 6 },
-  barTrack: {
-    width: 28,
-    height: CHART_H,
-    borderRadius: BorderRadius.md,
-    overflow: 'hidden',
-    justifyContent: 'flex-end',
-  },
-  barFill: { width: '100%', borderRadius: BorderRadius.md },
-  barDay: { fontSize: 10, fontFamily: 'PlusJakartaSans_600SemiBold' },
-  barScore: { fontSize: 10, fontFamily: 'PlusJakartaSans_700Bold' },
+  chart: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  barContainer: { flex: 1, alignItems: 'center', gap: 8 },
+  barTrack: { width: 24, height: CHART_H, borderRadius: 12, overflow: 'hidden', justifyContent: 'flex-end' },
+  barFill: { width: '100%', borderRadius: 12 },
+  barDay: { fontSize: 12, fontFamily: 'PlusJakartaSans_600SemiBold' },
 
-  aspectRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingVertical: Spacing.base,
-  },
-  aspectIcon: {
-    width: 36, height: 36, borderRadius: BorderRadius.lg,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  aspectMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  aspectLabel: { fontSize: Typography.sm, fontFamily: 'PlusJakartaSans_700Bold' },
-  aspectScore: { fontSize: Typography.sm, fontFamily: 'PlusJakartaSans_700Bold' },
-  aspectTrack: { height: 5, borderRadius: BorderRadius.full, overflow: 'hidden' },
-  aspectFill: { height: '100%', borderRadius: BorderRadius.full },
+  distRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  distMeta: { flexDirection: 'row', justifyContent: 'space-between' },
+  distLabel: { fontSize: 14, fontFamily: 'PlusJakartaSans_600SemiBold' },
+  distCount: { fontSize: 14, fontFamily: 'PlusJakartaSans_700Bold' },
+  distTrack: { height: 10, borderRadius: 5, overflow: 'hidden' },
+  distFill: { height: '100%', borderRadius: 5 },
 
-  recCard: {
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.xl,
-    borderWidth: 1,
-    gap: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  recHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  recIconWrap: {
-    width: 30, height: 30, borderRadius: BorderRadius.md,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  recTitle: { fontSize: Typography.sm, fontFamily: 'PlusJakartaSans_700Bold' },
-  recText: {
-    fontSize: Typography.sm,
-    fontFamily: 'PlusJakartaSans_400Regular',
-    lineHeight: Typography.sm * 1.7,
-  },
-  recBtn: {
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.xl,
-    alignItems: 'center',
-  },
-  recBtnText: { fontSize: Typography.sm, fontFamily: 'PlusJakartaSans_700Bold' },
+  recHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  recTitle: { fontSize: 16, fontFamily: 'PlusJakartaSans_700Bold' },
+  recText: { fontSize: 14, fontFamily: 'PlusJakartaSans_400Regular', lineHeight: 22 },
 });

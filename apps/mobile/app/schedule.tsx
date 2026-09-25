@@ -1,35 +1,26 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '@prototype/ui-shared';
-import { BottomNav, FadeIn } from '../components/ui';
-import { apiGetJadwal, apiGetKonselor, JadwalSlot as Jadwal, apiBuatBooking } from '@prototype/api-client';
+import { useTheme, Neu } from '@prototype/ui-shared';
+import { BottomNav, FadeIn, NeuView, Button, ScreenHeader } from '../components/ui';
+import { Companion } from '../components/chat';
+import type { Expression } from '@prototype/utils';
+import {
+  apiGetJadwal, apiGetKonselor, apiBuatBooking, apiGetBookingSaya, JadwalSlot as Jadwal,
+} from '@prototype/api-client';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-type Counselor = {
-  id: string;
-  name: string;
-  specialty: string;
-  rating: number;
-  sessions: number;
-  avatar: string;
-  color: string;
+type Counselor = { id: string; name: string; specialty: string };
+type Booking = {
+  booking_id: string;
+  status: 'menunggu' | 'dikonfirmasi' | 'selesai' | 'dibatalkan';
+  jadwal_konsultasi?: { tanggal: string; waktu_mulai: string; waktu_selesai: string; konselor_id: string };
 };
 
-
-
-const DAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+const DAYS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const hm = (t?: string) => (t ?? '').substring(0, 5);
 
 function getDates() {
   const today = new Date();
@@ -37,15 +28,15 @@ function getDates() {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
     return {
-      day: DAYS[d.getDay() === 0 ? 6 : d.getDay() - 1],
+      day: i === 0 ? 'Ini' : DAYS[d.getDay()],
       date: d.getDate(),
-      full: d,
-      formatted: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      long: d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' }),
+      formatted: ymd(d),
     };
   });
 }
 
-// ── Screen ─────────────────────────────────────────────────────────────────────
+const initials = (name: string) => name.split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase()).join('');
 
 export default function ScheduleScreen() {
   const insets = useSafeAreaInsets();
@@ -54,272 +45,292 @@ export default function ScheduleScreen() {
 
   const [counselors, setCounselors] = useState<Counselor[]>([]);
   const [jadwalList, setJadwalList] = useState<Jadwal[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [selectedCounselor, setSelectedCounselor] = useState<Counselor | null>(null);
   const [selectedDay, setSelectedDay] = useState(0);
   const [selectedSlot, setSelectedSlot] = useState<Jadwal | null>(null);
   const [isBooking, setIsBooking] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  React.useEffect(() => {
-    async function loadData() {
-      try {
-        const [cRes, jRes] = await Promise.all([apiGetKonselor(), apiGetJadwal()]);
-        const mapped = cRes.users.map((u: any, i: number) => ({
-          id: u.user_id,
-          name: u.nama,
-          specialty: u.role === 'konselor' ? 'Konselor Psikologi' : 'Layanan Dukungan',
-          rating: parseFloat((4.8 + (i % 2) * 0.1).toFixed(1)),
-          sessions: 120 + i * 35,
-          avatar: 'person',
-          color: i % 2 === 0 ? '#5C8B9E' : '#7B8C6E',
-        }));
-        setCounselors(mapped);
-        if (mapped.length > 0) setSelectedCounselor(mapped[0]);
-        setJadwalList(jRes.jadwal);
-      } catch (err) {
-        console.warn('Gagal memuat jadwal', err);
-      } finally {
-        setLoading(false);
-      }
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const [cRes, jRes] = await Promise.all([apiGetKonselor(), apiGetJadwal()]);
+      const mapped = cRes.users.map((u: any) => ({
+        id: u.user_id,
+        name: u.nama,
+        specialty: u.role === 'konselor' ? 'Konselor psikologi' : 'Layanan dukungan',
+      }));
+      setCounselors(mapped);
+      setSelectedCounselor((cur) => cur ?? mapped[0] ?? null);
+      setJadwalList(jRes.jadwal);
+      // Own bookings are a bonus: don't fail the whole screen if they can't load
+      apiGetBookingSaya().then((b) => setBookings(b.bookings as Booking[])).catch(() => {});
+    } catch (err) {
+      console.warn('Gagal memuat jadwal', err);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    loadData();
   }, []);
 
-  const selectedDateStr = dates[selectedDay].formatted;
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const selectedDate = dates[selectedDay];
+  // Open slots for the chosen counselor/day, in time order; today's slots that already started are hidden
+  const nowHM = new Date().toTimeString().substring(0, 5);
   const availableSlots = selectedCounselor
-    ? jadwalList.filter(j => j.konselor_id === selectedCounselor.id && j.tanggal === selectedDateStr && j.status === 'tersedia')
+    ? jadwalList
+        .filter((j) => j.konselor_id === selectedCounselor.id && j.tanggal === selectedDate.formatted && j.status === 'tersedia')
+        .filter((j) => selectedDay !== 0 || hm(j.waktu_mulai) > nowHM)
+        .sort((a, b) => a.waktu_mulai.localeCompare(b.waktu_mulai))
     : [];
 
+  // Nearest upcoming session that is still active
+  const today = ymd(new Date());
+  const upcoming = bookings
+    .filter((b) => (b.status === 'menunggu' || b.status === 'dikonfirmasi') && (b.jadwal_konsultasi?.tanggal ?? '') >= today)
+    .sort((a, b) =>
+      `${a.jadwal_konsultasi!.tanggal}${a.jadwal_konsultasi!.waktu_mulai}`.localeCompare(`${b.jadwal_konsultasi!.tanggal}${b.jadwal_konsultasi!.waktu_mulai}`),
+    )[0];
+  const counselorName = (id?: string) => counselors.find((c) => c.id === id)?.name ?? 'Konselor kampus';
+
   const handleBook = async () => {
-    if (!selectedSlot) {
-      Alert.alert('Pilih Waktu', 'Silakan pilih slot waktu konsultasi terlebih dahulu.');
-      return;
-    }
-    const date = dates[selectedDay];
+    if (!selectedSlot) return;
     setIsBooking(true);
-    
     try {
       await apiBuatBooking(selectedSlot.jadwal_id);
+      // Bookings start as 'menunggu' until the counselor approves
       Alert.alert(
-        'Berhasil Dijadwalkan! 🎉',
-        `Konsultasi dengan ${selectedCounselor?.name} pada ${date.day}, ${date.date} pukul ${selectedSlot.waktu_mulai} telah dikonfirmasi.`,
-        [{ text: 'OK', onPress: () => setSelectedSlot(null) }]
+        'Permintaan terkirim',
+        `Permintaan sesi dengan ${selectedCounselor?.name} pada ${selectedDate.long} pukul ${hm(selectedSlot.waktu_mulai)} sudah dikirim. Kamu akan dikabari setelah konselor mengonfirmasi.`,
+        [{ text: 'Oke', onPress: () => setSelectedSlot(null) }],
       );
-      // Refresh jadwal
-      const jRes = await apiGetJadwal();
-      setJadwalList(jRes.jadwal);
+      await loadData();
     } catch (e: any) {
-      Alert.alert('Gagal Booking', e.message);
+      Alert.alert('Gagal mengirim permintaan', e.message);
     } finally {
       setIsBooking(false);
     }
   };
 
-  if (loading) {
-    return (
-      <View style={[s.root, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+  // Shared layout for friendly full-width states (empty / error)
+  const StateCard = ({ face, title, body, children }: { face: Expression; title: string; body: string; children?: React.ReactNode }) => (
+    <NeuView radius={24} style={s.stateCard}>
+      <View style={s.stateRow}>
+        <View style={{ flex: 1, gap: 6 }}>
+          <Text style={[s.stateTitle, { color: colors.onSurface }]}>{title}</Text>
+          <Text style={[s.stateBody, { color: colors.onSurfaceVariant }]}>{body}</Text>
+        </View>
+        <Companion expression={face} size={96} interactive={false} />
       </View>
-    );
-  }
+      {children}
+    </NeuView>
+  );
+
+  const STATUS = {
+    menunggu: { label: 'Menunggu konfirmasi', color: colors.stressMid, icon: 'time-outline' },
+    dikonfirmasi: { label: 'Dikonfirmasi', color: '#3B7A56', icon: 'checkmark-circle-outline' },
+  } as const;
 
   return (
     <View style={[s.root, { backgroundColor: colors.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 24, paddingBottom: 120 }]}
+        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 120 }]}
       >
-        {/* ── Header ── */}
-        <FadeIn delay={0}>
-          <View style={s.headerRow}>
-            <View>
-              <Text style={[s.eyebrow, { color: colors.outline }]}>KONSULTASI</Text>
-              <Text style={[s.title, { color: colors.onSurface }]}>Jadwal Sesi</Text>
-            </View>
-            <View style={[s.headerIcon, { backgroundColor: colors.primaryContainer }]}>
-              <Ionicons name="calendar" size={22} color={colors.primary} />
-            </View>
-          </View>
-        </FadeIn>
+        <ScreenHeader title="Konseling" subtitle="Ngobrol langsung dengan konselor kampus. Gratis dan rahasia." />
 
-        {/* ── Counselors ── */}
-        <FadeIn delay={80}>
-          <Text style={[s.sectionLabel, { color: colors.onSurfaceVariant }]}>Pilih Konselor</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
-            <View style={{ flexDirection: 'row', gap: 12, paddingRight: 8 }}>
-              {counselors.map((c) => {
-                const active = selectedCounselor?.id === c.id;
-                return (
-                  <TouchableOpacity
-                    key={c.id}
-                    activeOpacity={0.8}
-                    onPress={() => setSelectedCounselor(c)}
-                    style={[
-                      s.counselorCard,
-                      {
-                        backgroundColor: active ? colors.surfaceContainerLow : colors.surfaceContainerLowest,
-                        borderColor: active ? colors.primary : 'transparent',
-                        borderWidth: active ? 2 : 1,
-                      },
-                    ]}
-                  >
-                    <View style={[s.avatarCircle, { backgroundColor: c.color + '25' }]}>
-                      <Ionicons name="person" size={24} color={c.color} />
-                    </View>
-                    <Text style={[s.counselorName, { color: colors.onSurface }]} numberOfLines={1}>
-                      {c.name}
-                    </Text>
-                    <Text style={[s.counselorSpec, { color: colors.outline }]} numberOfLines={1}>
-                      {c.specialty}
-                    </Text>
-                    <View style={s.counselorMeta}>
-                      <Ionicons name="star" size={11} color="#F4C430" />
-                      <Text style={[s.counselorRating, { color: colors.onSurfaceVariant }]}>
-                        {c.rating} · {c.sessions} sesi
+        {loading ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+        ) : loadError ? (
+          <StateCard face="bingung" title="Jadwal belum bisa dimuat" body="Periksa koneksi internetmu, lalu coba lagi.">
+            <Button label="Coba lagi" onPress={loadData} icon={<Ionicons name="refresh" size={18} color="#fff" />} />
+          </StateCard>
+        ) : (
+          <>
+            {/* ── Your session / how it works ── */}
+            <FadeIn delay={0}>
+              {upcoming ? (
+                <NeuView radius={24} style={s.sessionCard}>
+                  <Text style={[s.sectionLabel, { color: colors.onSurface, marginBottom: 0 }]}>Sesi kamu</Text>
+                  <View style={s.sessionRow}>
+                    <View style={[s.dateBlock, { backgroundColor: colors.primary }]}>
+                      <Text style={s.dateBlockDay}>{new Date(upcoming.jadwal_konsultasi!.tanggal).getDate()}</Text>
+                      <Text style={s.dateBlockMonth}>
+                        {new Date(upcoming.jadwal_konsultasi!.tanggal).toLocaleDateString('id-ID', { month: 'short' })}
                       </Text>
                     </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </ScrollView>
-        </FadeIn>
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text style={[s.sessionName, { color: colors.onSurface }]} numberOfLines={1}>
+                        {counselorName(upcoming.jadwal_konsultasi?.konselor_id)}
+                      </Text>
+                      <Text style={[s.sessionMeta, { color: colors.onSurfaceVariant }]}>
+                        {new Date(upcoming.jadwal_konsultasi!.tanggal).toLocaleDateString('id-ID', { weekday: 'long' })}, {hm(upcoming.jadwal_konsultasi?.waktu_mulai)}–{hm(upcoming.jadwal_konsultasi?.waktu_selesai)}
+                      </Text>
+                      <View style={s.statusRow}>
+                        <Ionicons name={STATUS[upcoming.status as 'menunggu' | 'dikonfirmasi'].icon} size={14} color={STATUS[upcoming.status as 'menunggu' | 'dikonfirmasi'].color} />
+                        <Text style={[s.statusText, { color: STATUS[upcoming.status as 'menunggu' | 'dikonfirmasi'].color }]}>
+                          {STATUS[upcoming.status as 'menunggu' | 'dikonfirmasi'].label}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </NeuView>
+              ) : (
+                <NeuView radius={24} style={s.intro}>
+                  <View style={s.stateRow}>
+                    <View style={{ flex: 1, gap: 6 }}>
+                      <Text style={[s.stateTitle, { color: colors.onSurface }]}>Belum ada sesi</Text>
+                      <Text style={[s.stateBody, { color: colors.onSurfaceVariant }]}>
+                        Kadang cerita langsung ke orang lebih melegakan. Begini caranya:
+                      </Text>
+                    </View>
+                    <Companion expression="menyapa" size={96} interactive={false} />
+                  </View>
+                  <View style={s.steps}>
+                    {['Pilih konselor', 'Pilih waktu', 'Tunggu konfirmasi'].map((t, i) => (
+                      <View key={t} style={s.step}>
+                        <View style={[s.stepNum, { backgroundColor: colors.background, boxShadow: Neu.inset }]}>
+                          <Text style={[s.stepNumText, { color: colors.primary }]}>{i + 1}</Text>
+                        </View>
+                        <Text style={[s.stepText, { color: colors.onSurface }]}>{t}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </NeuView>
+              )}
+            </FadeIn>
 
-        {/* ── Selected Counselor Banner ── */}
-        {selectedCounselor && (
-          <FadeIn delay={140}>
-            <LinearGradient
-              colors={[selectedCounselor.color, selectedCounselor.color + 'AA']}
-              style={s.bannerCard}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <View style={s.bannerBlob} />
-              <View style={[s.bannerAvatar, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                <Ionicons name="person" size={32} color="#fff" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.bannerName}>{selectedCounselor.name}</Text>
-                <Text style={s.bannerSpec}>{selectedCounselor.specialty}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                  <Ionicons name="star" size={12} color="#F4C430" />
-                  <Text style={s.bannerRating}>{selectedCounselor.rating} rating</Text>
-                </View>
-              </View>
-            </LinearGradient>
-          </FadeIn>
-        )}
-
-        {/* ── Date Picker ── */}
-        <FadeIn delay={200}>
-          <Text style={[s.sectionLabel, { color: colors.onSurfaceVariant }]}>Pilih Tanggal</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
-            <View style={{ flexDirection: 'row', gap: 10, paddingRight: 8 }}>
-              {dates.map((d, i) => {
-                const active = selectedDay === i;
-                return (
-                  <TouchableOpacity
-                    key={i}
-                    activeOpacity={0.8}
-                    onPress={() => { setSelectedDay(i); setSelectedSlot(null); }}
-                    style={[
-                      s.dateChip,
-                      {
-                        backgroundColor: active ? colors.primary : colors.surfaceContainerLowest,
-                        shadowColor: active ? colors.primary : 'transparent',
-                        shadowOpacity: active ? 0.4 : 0,
-                        shadowRadius: 8,
-                        elevation: active ? 4 : 0,
-                      },
-                    ]}
-                  >
-                    <Text style={[s.dayLabel, { color: active ? 'rgba(255,255,255,0.75)' : colors.outline }]}>
-                      {d.day}
-                    </Text>
-                    <Text style={[s.dateNum, { color: active ? '#fff' : colors.onSurface }]}>
-                      {d.date}
-                    </Text>
-                    {i === 0 && (
-                      <View style={[s.todayDot, { backgroundColor: active ? 'rgba(255,255,255,0.6)' : colors.primary }]} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </ScrollView>
-        </FadeIn>
-
-        {/* ── Time Slots ── */}
-        <FadeIn delay={260}>
-          <Text style={[s.sectionLabel, { color: colors.onSurfaceVariant }]}>Pilih Waktu</Text>
-          {availableSlots.length === 0 ? (
-            <View style={[s.emptySlotBox, { backgroundColor: colors.surfaceContainerLow }]}>
-              <Ionicons name="calendar-clear-outline" size={32} color={colors.outline} />
-              <Text style={[s.emptySlotText, { color: colors.outline }]}>Tidak ada jadwal tersedia di hari ini</Text>
-            </View>
-          ) : (
-            <View style={s.slotsGrid}>
-              {availableSlots.map((slot) => {
-                const active = selectedSlot?.jadwal_id === slot.jadwal_id;
-                return (
-                  <TouchableOpacity
-                    key={slot.jadwal_id}
-                    activeOpacity={0.8}
-                    onPress={() => setSelectedSlot(slot)}
-                    style={[
-                      s.slotChip,
-                      {
-                        backgroundColor: active ? colors.primary : colors.surfaceContainerLowest,
-                        borderColor: active ? colors.primary : colors.outlineVariant,
-                        borderWidth: 1,
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name="time-outline"
-                      size={14}
-                      color={active ? 'rgba(255,255,255,0.8)' : colors.outline}
+            {counselors.length === 0 ? (
+              <FadeIn delay={80}>
+                <StateCard
+                  face="tenang"
+                  title="Konselor belum membuka jadwal"
+                  body="Sambil menunggu, kamu tetap bisa cerita ke Sajiwa. Kalau darurat, hubungi hotline."
+                >
+                  <View style={s.stateActions}>
+                    <Button label="Cerita ke Sajiwa" onPress={() => router.push('/chat')} style={{ flex: 1 }} />
+                    <Button
+                      label="Hotline"
+                      variant="secondary"
+                      onPress={() => router.push('/hotline')}
+                      style={{ flex: 1 }}
+                      textStyle={{ color: colors.stressHigh }}
+                      icon={<Ionicons name="call-outline" size={16} color={colors.stressHigh} />}
                     />
-                    <Text style={[s.slotText, { color: active ? '#fff' : colors.onSurface }]}>
-                      {slot.waktu_mulai.substring(0, 5)}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-        </FadeIn>
-
-        {/* ── Session Info ── */}
-        {selectedSlot && (
-          <FadeIn delay={0}>
-            <View style={[s.infoCard, { backgroundColor: colors.primaryContainer, borderColor: colors.primary + '30', borderWidth: 1 }]}>
-              <Ionicons name="information-circle-outline" size={18} color={colors.primary} />
-              <Text style={[s.infoText, { color: colors.onPrimaryContainer }]}>
-                Sesi · {dates[selectedDay].day}, {dates[selectedDay].date} pukul {selectedSlot.waktu_mulai.substring(0, 5)} - {selectedSlot.waktu_selesai.substring(0, 5)}
-              </Text>
-            </View>
-          </FadeIn>
-        )}
-
-        {/* ── Book Button ── */}
-        <FadeIn delay={300}>
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={handleBook}
-            disabled={isBooking}
-            style={[s.bookBtn, { backgroundColor: colors.primary, opacity: selectedSlot ? 1 : 0.5 }]}
-          >
-            {isBooking ? (
-              <ActivityIndicator size="small" color="#fff" />
+                  </View>
+                </StateCard>
+              </FadeIn>
             ) : (
               <>
-                <Ionicons name="calendar-outline" size={18} color="#fff" />
-                <Text style={s.bookBtnText}>Konfirmasi Jadwal</Text>
+                {/* ── Counselors ── */}
+                <FadeIn delay={80}>
+                  <Text style={[s.sectionLabel, { color: colors.onSurface }]}>Pilih konselor</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hList} style={s.hScroll}>
+                    {counselors.map((c) => {
+                      const active = selectedCounselor?.id === c.id;
+                      return (
+                        <Pressable
+                          key={c.id}
+                          onPress={() => { setSelectedCounselor(c); setSelectedSlot(null); }}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected: active }}
+                          accessibilityLabel={`${c.name}, ${c.specialty}`}
+                          style={[s.counselorCard, { backgroundColor: colors.background, boxShadow: active ? Neu.inset : Neu.raisedSm }]}
+                        >
+                          <View style={[s.avatar, active ? { backgroundColor: colors.primary } : { backgroundColor: colors.background, boxShadow: Neu.inset }]}>
+                            <Text style={[s.avatarText, { color: active ? colors.onPrimary : colors.primary }]}>{initials(c.name)}</Text>
+                          </View>
+                          <Text style={[s.counselorName, { color: colors.onSurface }]} numberOfLines={2}>{c.name}</Text>
+                          <Text style={[s.counselorSpec, { color: colors.onSurfaceVariant }]} numberOfLines={1}>{c.specialty}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                </FadeIn>
+
+                {/* ── Dates ── */}
+                <FadeIn delay={140}>
+                  <Text style={[s.sectionLabel, { color: colors.onSurface }]}>Pilih tanggal</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hList} style={s.hScroll}>
+                    {dates.map((d, i) => {
+                      const active = selectedDay === i;
+                      return (
+                        <Pressable
+                          key={d.formatted}
+                          onPress={() => { setSelectedDay(i); setSelectedSlot(null); }}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected: active }}
+                          accessibilityLabel={d.long}
+                          style={[s.dateChip, { backgroundColor: active ? colors.primary : colors.background, boxShadow: Neu.raisedSm }]}
+                        >
+                          <Text style={[s.dayLabel, { color: active ? colors.onPrimary : colors.onSurfaceVariant }]}>{d.day}</Text>
+                          <Text style={[s.dateNum, { color: active ? colors.onPrimary : colors.onSurface }]}>{d.date}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                </FadeIn>
+
+                {/* ── Slots ── */}
+                <FadeIn delay={200}>
+                  <Text style={[s.sectionLabel, { color: colors.onSurface }]}>Pilih waktu</Text>
+                  {availableSlots.length === 0 ? (
+                    <NeuView inset radius={20} style={s.emptySlotBox}>
+                      <Ionicons name="calendar-clear-outline" size={24} color={colors.onSurfaceVariant} />
+                      <Text style={[s.muted, { color: colors.onSurfaceVariant }]}>
+                        Tidak ada jadwal di {selectedDate.long}. Coba tanggal lain.
+                      </Text>
+                    </NeuView>
+                  ) : (
+                    <View style={s.slotsGrid}>
+                      {availableSlots.map((slot) => {
+                        const active = selectedSlot?.jadwal_id === slot.jadwal_id;
+                        const label = `${hm(slot.waktu_mulai)}–${hm(slot.waktu_selesai)}`;
+                        return (
+                          <Pressable
+                            key={slot.jadwal_id}
+                            onPress={() => setSelectedSlot(slot)}
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected: active }}
+                            accessibilityLabel={`Pukul ${label}`}
+                            style={[s.slotChip, { backgroundColor: colors.background, boxShadow: active ? Neu.inset : Neu.raisedSm }]}
+                          >
+                            <Ionicons name="time-outline" size={16} color={active ? colors.primary : colors.onSurfaceVariant} />
+                            <Text
+                              style={[
+                                s.slotText,
+                                { color: active ? colors.primary : colors.onSurface, fontFamily: active ? 'PlusJakartaSans_700Bold' : 'PlusJakartaSans_600SemiBold' },
+                              ]}
+                            >
+                              {label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  )}
+                </FadeIn>
+
+                {/* ── CTA ── */}
+                <FadeIn delay={260}>
+                  <Button
+                    label={selectedSlot ? `Minta sesi ${hm(selectedSlot.waktu_mulai)}` : 'Pilih waktu dulu'}
+                    onPress={handleBook}
+                    loading={isBooking}
+                    disabled={!selectedSlot}
+                    icon={<Ionicons name="calendar-outline" size={18} color="#fff" />}
+                  />
+                </FadeIn>
               </>
             )}
-          </TouchableOpacity>
-        </FadeIn>
+          </>
+        )}
       </ScrollView>
 
       <BottomNav />
@@ -329,104 +340,51 @@ export default function ScheduleScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  scroll: { paddingHorizontal: 24 },
+  scroll: { paddingHorizontal: 20, gap: 24 },
 
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 },
-  eyebrow: { fontSize: 10, fontFamily: 'PlusJakartaSans_700Bold', letterSpacing: 2.5, textTransform: 'uppercase', marginBottom: 4 },
-  title: { fontSize: 28, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.8 },
-  headerIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  sectionLabel: { fontSize: 15, fontFamily: 'PlusJakartaSans_700Bold', marginBottom: 12 },
+  muted: { flex: 1, fontSize: 14, fontFamily: 'PlusJakartaSans_400Regular', lineHeight: 21 },
 
-  sectionLabel: { fontSize: 12, fontFamily: 'PlusJakartaSans_600SemiBold', marginBottom: 12, letterSpacing: 0.3 },
+  // Friendly states + intro share the "text left, character right" layout
+  stateCard: { padding: 18, gap: 14 },
+  intro: { padding: 18, gap: 16 },
+  stateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  stateTitle: { fontSize: 17, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.3 },
+  stateBody: { fontSize: 14, fontFamily: 'PlusJakartaSans_400Regular', lineHeight: 21 },
+  stateActions: { flexDirection: 'row', gap: 10 },
 
-  // Counselor cards
-  counselorCard: {
-    width: 150,
-    padding: 16,
-    borderRadius: 20,
-    gap: 6,
-    shadowColor: '#2b3437',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  avatarCircle: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  counselorName: { fontSize: 13, fontFamily: 'PlusJakartaSans_700Bold' },
-  counselorSpec: { fontSize: 11, fontFamily: 'PlusJakartaSans_500Medium' },
-  counselorMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  counselorRating: { fontSize: 11, fontFamily: 'PlusJakartaSans_500Medium' },
+  steps: { flexDirection: 'row', gap: 8 },
+  step: { flex: 1, alignItems: 'center', gap: 6 },
+  stepNum: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  stepNumText: { fontSize: 14, fontFamily: 'PlusJakartaSans_800ExtraBold' },
+  stepText: { fontSize: 12, fontFamily: 'PlusJakartaSans_600SemiBold', textAlign: 'center' },
 
-  // Banner
-  bannerCard: {
-    borderRadius: 20,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginBottom: 28,
-    overflow: 'hidden',
-    shadowColor: '#496175',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 6,
-  },
-  bannerBlob: {
-    position: 'absolute', width: 160, height: 160, borderRadius: 80,
-    backgroundColor: 'rgba(255,255,255,0.07)', top: -50, right: -30,
-  },
-  bannerAvatar: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
-  bannerName: { fontSize: 16, fontFamily: 'PlusJakartaSans_700Bold', color: '#fff', marginBottom: 2 },
-  bannerSpec: { fontSize: 12, fontFamily: 'PlusJakartaSans_500Medium', color: 'rgba(255,255,255,0.8)' },
-  bannerRating: { fontSize: 12, fontFamily: 'PlusJakartaSans_600SemiBold', color: 'rgba(255,255,255,0.9)' },
+  sessionCard: { padding: 18, gap: 14 },
+  sessionRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  dateBlock: { width: 60, height: 64, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  dateBlockDay: { fontSize: 24, fontFamily: 'PlusJakartaSans_800ExtraBold', color: '#fff', lineHeight: 28 },
+  dateBlockMonth: { fontSize: 12, fontFamily: 'PlusJakartaSans_600SemiBold', color: 'rgba(255,255,255,0.85)' },
+  sessionName: { fontSize: 16, fontFamily: 'PlusJakartaSans_700Bold' },
+  sessionMeta: { fontSize: 13, fontFamily: 'PlusJakartaSans_500Medium' },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  statusText: { fontSize: 12, fontFamily: 'PlusJakartaSans_700Bold' },
 
-  // Date chips
-  dateChip: {
-    width: 52,
-    paddingVertical: 14,
-    borderRadius: 16,
-    alignItems: 'center',
-    gap: 4,
-  },
-  dayLabel: { fontSize: 11, fontFamily: 'PlusJakartaSans_600SemiBold' },
-  dateNum: { fontSize: 18, fontFamily: 'PlusJakartaSans_800ExtraBold' },
-  todayDot: { width: 5, height: 5, borderRadius: 3, marginTop: 2 },
+  // Horizontal lists need vertical padding or the shadows get clipped
+  hScroll: { marginHorizontal: -20 },
+  hList: { gap: 14, paddingHorizontal: 20, paddingVertical: 10 },
 
-  // Slot grid
-  slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
-  slotChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    width: '22%',
-    minWidth: 78,
-  },
-  slotText: { fontSize: 13, fontFamily: 'PlusJakartaSans_600SemiBold' },
-  emptySlotBox: {
-    padding: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 20,
-  },
-  emptySlotText: { fontFamily: 'PlusJakartaSans_500Medium', fontSize: 13, textAlign: 'center' },
+  counselorCard: { width: 150, padding: 16, borderRadius: 22, gap: 6 },
+  avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  avatarText: { fontSize: 16, fontFamily: 'PlusJakartaSans_800ExtraBold' },
+  counselorName: { fontSize: 14, fontFamily: 'PlusJakartaSans_700Bold' },
+  counselorSpec: { fontSize: 12, fontFamily: 'PlusJakartaSans_500Medium' },
 
-  // Info card
-  infoCard: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, padding: 14, marginBottom: 20 },
-  infoText: { fontSize: 13, fontFamily: 'PlusJakartaSans_500Medium', flex: 1 },
+  dateChip: { width: 58, minHeight: 72, borderRadius: 18, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  dayLabel: { fontSize: 12, fontFamily: 'PlusJakartaSans_600SemiBold' },
+  dateNum: { fontSize: 19, fontFamily: 'PlusJakartaSans_800ExtraBold' },
 
-  // Book button
-  bookBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 16,
-    borderRadius: 20,
-    shadowColor: '#496175',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  bookBtnText: { fontSize: 15, fontFamily: 'PlusJakartaSans_700Bold', color: '#fff' },
+  slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  slotChip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 48, paddingHorizontal: 14, borderRadius: 16 },
+  slotText: { fontSize: 14 },
+  emptySlotBox: { flexDirection: 'row', alignItems: 'center', padding: 18, gap: 12 },
 });

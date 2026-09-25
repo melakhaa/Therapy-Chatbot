@@ -1,4 +1,4 @@
-# Sanctuary 🌿
+# Sajiwa 🌿
 
 > An AI-powered mental health support system for students and counselors.
 
@@ -40,7 +40,7 @@
 - **`apps/dashboard`**: Next.js web application.
 - **`apps/backend`**: FastAPI (Python 3.12) services.
 - **`packages/api-client`**: Shared TypeScript SDK for API communication.
-- **`packages/ui-shared`**: Shared hooks, context, and Sanctuary Design System.
+- **`packages/ui-shared`**: Shared hooks, context, and Sajiwa Design System.
 - **`packages/utils`**: Common logic, stress detection, and response parsers.
 
 ### Backend & AI

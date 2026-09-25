@@ -1,3 +1,4 @@
+import os
 from semantic_router import SemanticRouter
 from semantic_router.encoders import OllamaEncoder
 from services.chatbot.guardrail import guardrail_route, HARDCODED_RESPONSE
@@ -6,7 +7,7 @@ from services.chatbot.rag import rag_route, get_rag_response
 from typing import List, Optional
 
 try:
-    encoder = OllamaEncoder(name="nomic-embed-text-v2-moe")
+    encoder = OllamaEncoder(base_url=os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"), name="nomic-embed-text-v2-moe")
 except Exception as e:
     print(f"Warning: Ollama not found. Using mock encoder. Error: {e}")
     class MockEncoder:

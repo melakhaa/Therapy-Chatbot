@@ -1,6 +1,6 @@
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_core.messages import HumanMessage, AIMessage
-from supabase import create_client
+from core.db import query as db_query
 from semantic_router import Route
 import os
 import re
@@ -26,7 +26,11 @@ rag_route = Route(
     ]
 )
 
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY"))
+# nomic-embed-text-v2-moe expects task prefixes; query and document must use their
+# matching pair or similarity silently degrades. scripts/embed.py imports these.
+EMBED_MODEL = "nomic-embed-text-v2-moe"
+QUERY_PREFIX = "search_query: "
+DOCUMENT_PREFIX = "search_document: "
 
 _llm = None
 _embeddings = None
@@ -34,13 +38,18 @@ _embeddings = None
 def _get_llm():
     global _llm
     if _llm is None:
-        _llm = ChatOllama(model="hf.co/SekarBestNY/llama-3-8b-instruct-gguf:Q4_K_M")
+        _llm = ChatOllama(
+            model=os.getenv("OLLAMA_CHAT_MODEL", "hf.co/SekarBestNY/llama-3-8b-instruct-gguf:Q4_K_M"),
+            # Ollama's default context doesn't fit an 8B model on a 4GB GPU + ~4GB free RAM (KV cache alloc fails)
+            num_ctx=int(os.getenv("OLLAMA_NUM_CTX", "2048")),
+            base_url=os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
+        )
     return _llm
 
 def _get_embeddings():
     global _embeddings
     if _embeddings is None:
-        _embeddings = OllamaEmbeddings(model="nomic-embed-text-v2-moe")
+        _embeddings = OllamaEmbeddings(model=EMBED_MODEL, base_url=os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"))
     return _embeddings
 
 MAX_HISTORY_MESSAGES = 10
@@ -87,13 +96,11 @@ def validate_rag_query(query: str) -> tuple[bool, str]:
     return True, sanitized
 
 def retrieve_docs(query: str, k: int = 5):
-    query_embedding = _get_embeddings().embed_query(query)
-    result = supabase.rpc("match_documents", {
-        "query_embedding": query_embedding,
-        "match_threshold": 0.3,
-        "match_count": k
-    }).execute()
-    return result.data or []
+    query_embedding = _get_embeddings().embed_query(f"{QUERY_PREFIX}{query}")
+    return db_query(
+        "select * from match_documents(%s::vector, %s, %s)",
+        (str(query_embedding), 0.3, k),
+    )
 
 def _build_rag_messages(history: List[dict], user_message: str, context: str):
     """Build message list from history + RAG context + new user message."""

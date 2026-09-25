@@ -11,7 +11,9 @@ export function setUnauthorizedCallback(callback: () => void) {
 function getDevApiBaseUrl(): string {
   // Di web (browser di laptop), localhost:8000 selalu paling tepat & cepat
   if (Platform.OS === 'web') {
-    return 'http://localhost:8000';
+    // 127.0.0.1, not localhost: on Windows "localhost" may resolve to ::1, where a stale
+    // Docker backend can be listening and swallow the requests.
+    return 'http://127.0.0.1:8000';
   }
 
   const envUrl = process.env.EXPO_PUBLIC_API_BASE_URL;

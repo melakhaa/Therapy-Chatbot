@@ -1,13 +1,12 @@
 from semantic_router import Route
 from semantic_router import SemanticRouter
 from semantic_router.encoders import OllamaEncoder
-from supabase import create_client
+from core.db import query
 from dotenv import load_dotenv
 import os
 import re
 
 load_dotenv()
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY"))
 
 guardrail_route = Route(
     name="guardrail",
@@ -80,16 +79,16 @@ def check_guardrail(text: str, semantic_result_name: str = None) -> tuple[bool, 
 def get_hotlines_from_db():
     """CB-03 — Ambil dari tabel hotline (ERD: singular, kolom nama/nomor)."""
     try:
-        result = supabase.table("hotline").select("nama, nomor, deskripsi").execute()
-        if result.data:
-            return result.data
+        rows = query("select nama, nomor, deskripsi from hotline")
+        if rows:
+            return rows
     except Exception:
         pass
     return HARDCODED_HOTLINES
 
 
 def init_guardrail_router():
-    encoder = OllamaEncoder(base_url="http://localhost:11434", name="nomic-embed-text-v2-moe")
+    encoder = OllamaEncoder(base_url=os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"), name="nomic-embed-text-v2-moe")
     router = SemanticRouter(
         routes=[guardrail_route],
         encoder=encoder,
@@ -102,7 +101,7 @@ def init_guardrail_router():
 #     from semantic_router import SemanticRouter
 #     from semantic_router.encoders import OllamaEncoder
 
-#     encoder = OllamaEncoder(base_url="http://localhost:11434", name="nomic-embed-text-v2-moe")
+#     encoder = OllamaEncoder(base_url=os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"), name="nomic-embed-text-v2-moe")
 #     router = SemanticRouter(routes=[guardrail_route], encoder=encoder)
 
 #     router = SemanticRouter(

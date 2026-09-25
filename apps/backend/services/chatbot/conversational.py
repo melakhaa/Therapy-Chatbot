@@ -1,3 +1,4 @@
+import os
 from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage, AIMessage
 from semantic_router import Route
@@ -9,7 +10,12 @@ _llm = None
 def _get_llm():
     global _llm
     if _llm is None:
-        _llm = ChatOllama(model="hf.co/SekarBestNY/llama-3-8b-instruct-gguf:Q4_K_M")
+        _llm = ChatOllama(
+            model=os.getenv("OLLAMA_CHAT_MODEL", "hf.co/SekarBestNY/llama-3-8b-instruct-gguf:Q4_K_M"),
+            # Ollama's default context doesn't fit an 8B model on a 4GB GPU + ~4GB free RAM (KV cache alloc fails)
+            num_ctx=int(os.getenv("OLLAMA_NUM_CTX", "2048")),
+            base_url=os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
+        )
     return _llm
 
 conversational_route = Route(

@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, TouchableOpacity, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Spacing, BorderRadius } from '@prototype/ui-shared';
-import { useTheme } from '@prototype/ui-shared';
+import { useTheme, Neu } from '@prototype/ui-shared';
 
 interface Props {
   level: number;
@@ -88,7 +88,7 @@ export const StressBar: React.FC<Props> = ({ level, onSupportPress }) => {
   const tierBg = colors[config.bgKey];
 
   return (
-    <View style={[s.wrap, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant + '30' }]}>
+    <View style={[s.wrap, { backgroundColor: colors.background, boxShadow: Neu.raisedSm }]}>
       {/* Compact row */}
       <Pressable
         onPress={() => setExpanded(!expanded)}
@@ -107,7 +107,7 @@ export const StressBar: React.FC<Props> = ({ level, onSupportPress }) => {
         </View>
 
         <Animated.View style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }}>
-          <Ionicons name="chevron-down" size={16} color={colors.outline} />
+          <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
         </Animated.View>
       </Pressable>
 
@@ -118,7 +118,7 @@ export const StressBar: React.FC<Props> = ({ level, onSupportPress }) => {
           {
             height: heightAnim.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, tier !== 'calm' ? 136 : 80],
+              outputRange: [0, tier !== 'calm' ? 124 : 104],
             }),
             opacity: heightAnim,
           },
@@ -131,6 +131,7 @@ export const StressBar: React.FC<Props> = ({ level, onSupportPress }) => {
             {tier !== 'calm' && (
               <TouchableOpacity
                 style={[s.actionBtn, { backgroundColor: tierColor }]}
+                accessibilityRole="button"
                 onPress={() => onSupportPress?.()}
                 activeOpacity={0.8}
               >
@@ -139,7 +140,8 @@ export const StressBar: React.FC<Props> = ({ level, onSupportPress }) => {
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              style={[s.secondaryBtn, { borderColor: colors.outlineVariant, backgroundColor: colors.surfaceContainerLowest }]}
+              style={[s.secondaryBtn, { backgroundColor: colors.background, boxShadow: Neu.raisedSm }]}
+              accessibilityRole="button"
               onPress={() => tier === 'calm' ? onSupportPress?.() : setExpanded(false)}
               activeOpacity={0.7}
             >
@@ -157,33 +159,33 @@ export const StressBar: React.FC<Props> = ({ level, onSupportPress }) => {
 
 const s = StyleSheet.create({
   wrap: {
-    marginHorizontal: Spacing.md,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.xs,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
+    marginHorizontal: Spacing.base,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.xl,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
   },
   compactRow: {
+    minHeight: 36,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
   },
   iconWrap: {
-    width: 32, height: 32,
-    borderRadius: 16,
+    width: 36, height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   textGroup: { flex: 1, gap: 2 },
   tierLabel: {
-    fontSize: 13,
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 14,
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   tierMessage: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: 'PlusJakartaSans_400Regular',
   },
   divider: {
@@ -209,9 +211,9 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 9,
+    minHeight: 44,
     paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
   },
   actionBtnText: {
     fontSize: 13,
@@ -224,10 +226,9 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 9,
+    minHeight: 44,
     paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
   },
   secondaryBtnText: {
     fontSize: 13,

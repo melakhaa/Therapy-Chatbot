@@ -8,13 +8,13 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-  Linking,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '@prototype/ui-shared';
-import { BottomNav, FadeIn } from '../components/ui';
+import { useTheme, Neu } from '@prototype/ui-shared';
+import { BottomNav, FadeIn, NeuView, ScreenHeader } from '../components/ui';
+import { callNumber } from '../components/chat/AlertModal';
 import { apiGetHotline } from '@prototype/api-client';
 
 type HotlineItem = {
@@ -45,14 +45,6 @@ export default function HotlineScreen() {
     fetchHotlines();
   }, []);
 
-  const handleCall = (nomor: string) => {
-    // Bersihkan karakter non-digit kecuali + untuk panggil telepon
-    const cleanNum = nomor.replace(/[^\d+]/g, '');
-    Linking.openURL(`tel:${cleanNum}`).catch(() => {
-      Alert.alert('Gagal Panggil', `Tidak dapat membuka dialer untuk nomor: ${nomor}`);
-    });
-  };
-
   const filteredHotlines = hotlines.filter(h =>
     h.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (h.deskripsi && h.deskripsi.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -70,92 +62,77 @@ export default function HotlineScreen() {
     <View style={[s.root, { backgroundColor: colors.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 24, paddingBottom: 130 }]}
+        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 130 }]}
       >
-        {/* ── Header ── */}
         <FadeIn delay={0}>
-          <View style={s.headerRow}>
-            <View>
-              <Text style={[s.eyebrow, { color: colors.outline }]}>DARURAT & BANTUAN</Text>
-              <Text style={[s.title, { color: colors.onSurface }]}>Kontak Hotline</Text>
-            </View>
-            <View style={[s.headerIcon, { backgroundColor: colors.primaryContainer }]}>
-              <Ionicons name="call" size={22} color={colors.primary} />
+          <ScreenHeader back title="Hotline darurat" subtitle="Bantuan profesional, gratis dan rahasia." />
+        </FadeIn>
+
+        {/* ── Comfort banner ── */}
+        <FadeIn delay={80}>
+          <View style={[s.bannerCard, { backgroundColor: colors.primary, boxShadow: Neu.raised }]}>
+            <View style={s.bannerBlob} />
+            <Ionicons name="heart-outline" size={32} color="#fff" />
+            <View style={{ flex: 1 }}>
+              <Text style={s.bannerTitle}>Kamu tidak sendirian</Text>
+              <Text style={s.bannerText}>
+                Saat merasa cemas, tertekan, atau butuh didengar, layanan ini siap membantu.
+              </Text>
             </View>
           </View>
         </FadeIn>
 
-        {/* ── Comforting Support Banner ── */}
-        <FadeIn delay={80}>
-          <LinearGradient
-            colors={[colors.primary, colors.primary + 'CC']}
-            style={s.bannerCard}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <View style={s.bannerBlob} />
-            <Ionicons name="heart-half-outline" size={40} color="#fff" style={s.bannerIcon} />
-            <View style={{ flex: 1 }}>
-              <Text style={s.bannerTitle}>Kamu Tidak Sendirian</Text>
-              <Text style={s.bannerText}>
-                Jika kamu merasa cemas, tertekan, atau membutuhkan seseorang untuk didengar, bantuan profesional gratis selalu siap mendukungmu.
-              </Text>
-            </View>
-          </LinearGradient>
-        </FadeIn>
-
-        {/* ── Search Bar ── */}
+        {/* ── Search ── */}
         <FadeIn delay={140}>
-          <View style={[s.searchContainer, { backgroundColor: colors.surfaceContainerLow }]}>
-            <Ionicons name="search" size={20} color={colors.outline} style={s.searchIcon} />
+          <NeuView inset radius={18} style={s.searchContainer}>
+            <Ionicons name="search" size={20} color={colors.onSurfaceVariant} />
             <TextInput
               style={[s.searchInput, { color: colors.onSurface }]}
-              placeholder="Cari layanan hotline..."
-              placeholderTextColor={colors.outlineVariant}
+              placeholder="Cari layanan hotline"
+              placeholderTextColor={colors.textMuted}
+              accessibilityLabel="Cari layanan hotline"
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={18} color={colors.outline} />
-              </TouchableOpacity>
+              <Pressable onPress={() => setSearchQuery('')} hitSlop={12} accessibilityRole="button" accessibilityLabel="Hapus pencarian">
+                <Ionicons name="close-circle" size={20} color={colors.onSurfaceVariant} />
+              </Pressable>
             )}
-          </View>
+          </NeuView>
         </FadeIn>
 
-        {/* ── Hotlines List ── */}
+        {/* ── List ── */}
         <FadeIn delay={200}>
           {filteredHotlines.length === 0 ? (
-            <View style={[s.emptyBox, { backgroundColor: colors.surfaceContainerLowest }]}>
-              <Ionicons name="alert-circle-outline" size={48} color={colors.outline} />
-              <Text style={[s.emptyText, { color: colors.outline }]}>Tidak ada kontak hotline yang cocok.</Text>
-            </View>
+            <NeuView inset radius={24} style={s.emptyBox}>
+              <Ionicons name="search-outline" size={36} color={colors.onSurfaceVariant} />
+              <Text style={[s.emptyText, { color: colors.onSurfaceVariant }]}>Tidak ada layanan yang cocok.</Text>
+            </NeuView>
           ) : (
             <View style={s.listContainer}>
               {filteredHotlines.map((item, index) => (
-                <View
+                <Pressable
                   key={index}
-                  style={[s.card, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant + '15', borderWidth: 1 }]}
+                  onPress={() => callNumber(item.nomor)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Telepon ${item.nama}, ${item.nomor}`}
+                  style={({ pressed }) => [
+                    s.card,
+                    { backgroundColor: colors.background, boxShadow: pressed ? Neu.inset : Neu.raised },
+                  ]}
                 >
-                  <View style={s.cardHeader}>
-                    <View style={s.infoColumn}>
-                      <Text style={[s.cardTitle, { color: colors.onSurface }]}>{item.nama}</Text>
-                      <Text style={[s.cardPhone, { color: colors.primary }]}>{item.nomor}</Text>
-                    </View>
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => handleCall(item.nomor)}
-                      style={[s.callBtn, { backgroundColor: colors.primaryContainer }]}
-                    >
-                      <Ionicons name="call" size={18} color={colors.primary} />
-                    </TouchableOpacity>
+                  <View style={s.infoColumn}>
+                    <Text style={[s.cardTitle, { color: colors.onSurface }]}>{item.nama}</Text>
+                    <Text style={[s.cardPhone, { color: colors.primary }]}>{item.nomor}</Text>
+                    {item.deskripsi ? (
+                      <Text style={[s.cardDesc, { color: colors.onSurfaceVariant }]}>{item.deskripsi}</Text>
+                    ) : null}
                   </View>
-                  {item.deskripsi && (
-                    <Text style={[s.cardDesc, { color: colors.onSurfaceVariant }]}>
-                      {item.deskripsi}
-                    </Text>
-                  )}
-                </View>
+                  <View style={[s.callBtn, { backgroundColor: colors.stressHigh }]}>
+                    <Ionicons name="call" size={20} color="#fff" />
+                  </View>
+                </Pressable>
               ))}
             </View>
           )}
@@ -169,79 +146,46 @@ export default function HotlineScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  scroll: { paddingHorizontal: 24 },
+  scroll: { paddingHorizontal: 20, gap: 20 },
 
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  eyebrow: { fontSize: 10, fontFamily: 'PlusJakartaSans_700Bold', letterSpacing: 2.5, textTransform: 'uppercase', marginBottom: 4 },
-  title: { fontSize: 28, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.8 },
-  headerIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-
-  // Comfort Banner
   bannerCard: {
     borderRadius: 24,
-    padding: 24,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    marginBottom: 24,
     overflow: 'hidden',
-    shadowColor: '#496175',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 4,
   },
   bannerBlob: {
     position: 'absolute', width: 140, height: 140, borderRadius: 70,
     backgroundColor: 'rgba(255,255,255,0.06)', top: -30, right: -20,
   },
-  bannerIcon: { textShadowColor: 'rgba(0,0,0,0.15)', textShadowOffset: { width: 1, height: 2 }, textShadowRadius: 4 },
   bannerTitle: { fontSize: 18, fontFamily: 'PlusJakartaSans_800ExtraBold', color: '#fff', marginBottom: 4 },
-  bannerText: { fontSize: 12, fontFamily: 'PlusJakartaSans_500Medium', color: 'rgba(255,255,255,0.9)', lineHeight: 18 },
+  bannerText: { fontSize: 14, fontFamily: 'PlusJakartaSans_400Regular', color: 'rgba(255,255,255,0.9)', lineHeight: 20 },
 
-  // Search Bar
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 18,
+    gap: 12,
     paddingHorizontal: 16,
     height: 52,
-    marginBottom: 24,
   },
-  searchIcon: { marginRight: 12 },
-  searchInput: { flex: 1, height: '100%', fontSize: 14, fontFamily: 'PlusJakartaSans_500Medium' },
+  searchInput: { flex: 1, height: '100%', fontSize: 15, fontFamily: 'PlusJakartaSans_500Medium' },
 
-  // Hotline List & Cards
   listContainer: { gap: 16 },
   card: {
-    padding: 20,
-    borderRadius: 20,
-    shadowColor: '#2b3437',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  infoColumn: { flex: 1, marginRight: 12 },
-  cardTitle: { fontSize: 16, fontFamily: 'PlusJakartaSans_700Bold', marginBottom: 2 },
-  cardPhone: { fontSize: 14, fontFamily: 'PlusJakartaSans_800ExtraBold' },
-  cardDesc: { fontSize: 12, fontFamily: 'PlusJakartaSans_500Medium', lineHeight: 18, marginTop: 4 },
-  callBtn: {
-    width: 44,
-    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 18,
     borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
+  infoColumn: { flex: 1, gap: 2 },
+  cardTitle: { fontSize: 16, fontFamily: 'PlusJakartaSans_700Bold' },
+  cardPhone: { fontSize: 15, fontFamily: 'PlusJakartaSans_800ExtraBold' },
+  cardDesc: { fontSize: 13, fontFamily: 'PlusJakartaSans_400Regular', lineHeight: 19, marginTop: 4 },
+  callBtn: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
 
-  // Empty State
-  emptyBox: {
-    padding: 40,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-  },
+  emptyBox: { padding: 32, alignItems: 'center', gap: 12 },
   emptyText: { fontSize: 14, fontFamily: 'PlusJakartaSans_500Medium', textAlign: 'center' },
 });

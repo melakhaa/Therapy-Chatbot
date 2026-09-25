@@ -1,23 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  RefreshControl,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme, Spacing } from '@prototype/ui-shared';
+import { useTheme, Neu } from '@prototype/ui-shared';
 import { apiGetChatSessions } from '@prototype/api-client';
+import { NeuView, Button, ScreenHeader, FadeIn } from '../components/ui';
 
 export default function ChatHistoryScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  
+
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -38,133 +31,87 @@ export default function ChatHistoryScreen() {
     fetchSessions();
   }, []);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchSessions();
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('id-ID', {
-      day: 'numeric', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
+  const formatDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString('id-ID', {
+      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
     });
-  };
 
   return (
     <View style={[s.root, { backgroundColor: colors.background }]}>
-      {/* ── Header ── */}
-      <View
-        style={[
-          s.header,
-          {
-            paddingTop: insets.top + Spacing.sm,
-            borderBottomColor: colors.outlineVariant + '30',
-          }
-        ]}
+      <ScrollView
+        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); fetchSessions(); }}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
       >
-        <TouchableOpacity
-          style={[s.backBtn, { backgroundColor: colors.surfaceContainerLow }]}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={18} color={colors.onSurface} />
-        </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: colors.onSurface }]}>Riwayat Chat</Text>
-        <View style={{ width: 36 }} />
-      </View>
+        <ScreenHeader back title="Riwayat chat" subtitle="Lanjutkan percakapan sebelumnya." />
 
-      {/* ── Content ── */}
-      {loading ? (
-        <View style={s.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + 20 }]}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
-          }
-        >
-          {sessions.length === 0 ? (
-            <View style={s.emptyState}>
-              <Ionicons name="chatbubbles-outline" size={48} color={colors.outline} />
-              <Text style={[s.emptyText, { color: colors.onSurfaceVariant }]}>Belum ada riwayat chat.</Text>
-            </View>
-          ) : (
-            sessions.map((session, i) => (
-              <TouchableOpacity
-                key={session.session_id}
-                style={[s.card, { backgroundColor: colors.surfaceContainerLowest }]}
-                activeOpacity={0.7}
-                onPress={() => router.push(`/chat?sessionId=${session.session_id}`)}
-              >
-                <View style={s.cardLeft}>
-                  <Text style={[s.cardTitle, { color: colors.onSurface }]} numberOfLines={1}>
-                    {session.title || 'Sesi Chat Baru'}
-                  </Text>
-                  <Text style={[s.cardDate, { color: colors.onSurfaceVariant }]}>
-                    {formatDate(session.started_at)}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={colors.outline} />
-              </TouchableOpacity>
-            ))
-          )}
-        </ScrollView>
-      )}
+        {loading ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 48 }} />
+        ) : sessions.length === 0 ? (
+          <NeuView inset radius={24} style={s.empty}>
+            <Ionicons name="chatbubbles-outline" size={40} color={colors.onSurfaceVariant} />
+            <Text style={[s.emptyTitle, { color: colors.onSurface }]}>Belum ada percakapan</Text>
+            <Text style={[s.emptyText, { color: colors.onSurfaceVariant }]}>
+              Ceritakan apa pun yang sedang kamu rasakan. Sajiwa siap mendengarkan.
+            </Text>
+            <Button label="Mulai cerita" onPress={() => router.push('/chat')} style={{ alignSelf: 'stretch' }} />
+          </NeuView>
+        ) : (
+          <View style={s.list}>
+            {sessions.map((session) => (
+              <FadeIn key={session.session_id}>
+                <Pressable
+                  onPress={() => router.push(`/chat?sessionId=${session.session_id}`)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${session.title || 'Sesi chat'}, ${formatDate(session.started_at)}`}
+                  style={({ pressed }) => [
+                    s.card,
+                    { backgroundColor: colors.background, boxShadow: pressed ? Neu.inset : Neu.raised },
+                  ]}
+                >
+                  <View style={[s.icon, { backgroundColor: colors.background, boxShadow: Neu.inset }]}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.cardTitle, { color: colors.onSurface }]} numberOfLines={1}>
+                      {session.title || 'Sesi chat'}
+                    </Text>
+                    <Text style={[s.cardDate, { color: colors.onSurfaceVariant }]}>{formatDate(session.started_at)}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                </Pressable>
+              </FadeIn>
+            ))}
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.base,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontFamily: 'PlusJakartaSans_700Bold',
-  },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scrollContent: { padding: Spacing.base, gap: 12 },
+  scroll: { paddingHorizontal: 20 },
+  list: { gap: 16 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 14,
     padding: 16,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderRadius: 22,
   },
-  cardLeft: { flex: 1, paddingRight: 12 },
-  cardTitle: {
-    fontSize: 15,
-    fontFamily: 'PlusJakartaSans_700Bold',
-    marginBottom: 4,
-  },
-  cardDate: {
-    fontSize: 12,
-    fontFamily: 'PlusJakartaSans_500Medium',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 60,
-    gap: 12,
-  },
-  emptyText: {
-    fontSize: 14,
-    fontFamily: 'PlusJakartaSans_500Medium',
-  },
+  icon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  cardTitle: { fontSize: 15, fontFamily: 'PlusJakartaSans_700Bold', marginBottom: 3 },
+  cardDate: { fontSize: 13, fontFamily: 'PlusJakartaSans_500Medium' },
+
+  empty: { alignItems: 'center', padding: 28, gap: 12 },
+  emptyTitle: { fontSize: 17, fontFamily: 'PlusJakartaSans_700Bold' },
+  emptyText: { fontSize: 14, fontFamily: 'PlusJakartaSans_400Regular', textAlign: 'center', lineHeight: 21, marginBottom: 8 },
 });

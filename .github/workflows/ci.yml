@@ -1,5 +1,5 @@
 # .github/workflows/ci.yml
-# CI/CD Pipeline for Sanctuary Backend & Mobile
+# CI/CD Pipeline for Sajiwa Backend & Mobile
 
 name: CI/CD Pipeline
 
@@ -33,7 +33,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: sanctuary
+          POSTGRES_DB: sajiwa
         ports: ["5432:5432"]
         options: >-
           --health-cmd="pg_isready -U postgres"

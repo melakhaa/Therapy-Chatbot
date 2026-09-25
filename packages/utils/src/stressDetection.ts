@@ -7,9 +7,11 @@ export interface Message {
   text: string;
   sender: MessageSender;
   timestamp: Date;
+  /** Companion expression shown next to AI messages. */
+  expression?: import('./characterReaction').Expression;
 }
 
-const KEYWORDS = {
+export const KEYWORDS = {
   high: [
     'putus asa', 'tidak ada harapan', 'mau mati', 'ingin mati', 'bunuh diri',
     'tidak kuat lagi', 'menyerah', 'hancur', 'sangat tertekan', 'panik', 'krisis',

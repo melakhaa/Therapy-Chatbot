@@ -2,18 +2,20 @@ import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { setUnauthorizedCallback } from '@prototype/api-client';
+import { useFonts } from 'expo-font';
 import {
-  useFonts,
   PlusJakartaSans_400Regular,
   PlusJakartaSans_500Medium,
   PlusJakartaSans_600SemiBold,
   PlusJakartaSans_700Bold,
+  PlusJakartaSans_700Bold_Italic,
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
+
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider } from '@prototype/ui-shared';
-import { SanctuaryColors } from '@prototype/ui-shared';
+import { SajiwaColors } from '@prototype/ui-shared';
 import { AnimatedSplashScreen } from '../components/AnimatedSplashScreen';
 
 SplashScreen.preventAutoHideAsync();
@@ -24,6 +26,7 @@ export default function RootLayout() {
     PlusJakartaSans_500Medium,
     PlusJakartaSans_600SemiBold,
     PlusJakartaSans_700Bold,
+    PlusJakartaSans_700Bold_Italic,
     PlusJakartaSans_800ExtraBold,
   });
 
@@ -40,11 +43,11 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
-        <StatusBar style="dark" backgroundColor={SanctuaryColors.background} />
+        <StatusBar style="dark" backgroundColor={SajiwaColors.background} />
         <Stack
           screenOptions={{
             headerShown: false,
-            contentStyle: { backgroundColor: SanctuaryColors.background },
+            contentStyle: { backgroundColor: SajiwaColors.background },
             animation: 'fade_from_bottom',
           }}
         >

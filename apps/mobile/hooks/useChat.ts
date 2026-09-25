@@ -1,7 +1,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Animated } from 'react-native';
-import { analyzeStress, QUICK_REPLIES } from '@prototype/utils';
+import { analyzeStress, QUICK_REPLIES, reactToUserMessage, type Expression } from '@prototype/utils';
 import { apiChatStream, apiGetChatHistory } from '@prototype/api-client';
 import {Message} from '@prototype/utils';
 export interface UseChatReturn {
@@ -22,6 +22,7 @@ export interface UseChatReturn {
   sessionId: string;
   isHighRisk: boolean;
   isLoadingHistory: boolean;
+  expression: Expression;
 }
 
 // Generate session ID per chat session (UUIDv4 for PostgreSQL compatibility)
@@ -34,9 +35,9 @@ function generateSessionId() {
 
 // Greeting lokal — tidak perlu hit backend
 const GREETINGS = [
-  'Hei, senang kamu di sini  Apa yang ingin kamu ceritakan hari ini?',
+  'Hei, senang kamu di sini. Apa yang ingin kamu ceritakan hari ini?',
   'Halo! Aku siap mendengarkan. Bagaimana perasaanmu sekarang?',
-  'Selamat datang  Ceritakan apapun yang ada di pikiranmu.',
+  'Selamat datang. Ceritakan apa pun yang ada di pikiranmu.',
 ];
 const pickGreeting = () => GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
 
@@ -52,6 +53,7 @@ export function useChat(initialSessionId?: string): UseChatReturn {
   const [isHighRisk, setIsHighRisk]     = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isSending, setIsSending]       = useState(false);
+  const [expression, setExpression]     = useState<Expression>('menyapa');
 
   const sessionIdRef      = useRef(initialSessionId || generateSessionId());
   const sendBtnScale   = useRef(new Animated.Value(1)).current;
@@ -70,7 +72,7 @@ export function useChat(initialSessionId?: string): UseChatReturn {
   const addAI = useCallback((text: string) => {
     setMessages((prev) => [
       ...prev,
-      { id: `ai-${Date.now()}`, text, sender: 'ai', timestamp: new Date() },
+      { id: `ai-${Date.now()}`, text, sender: 'ai', timestamp: new Date(), expression: 'menyapa' },
     ]);
   }, []);
 
@@ -80,13 +82,20 @@ export function useChat(initialSessionId?: string): UseChatReturn {
       setIsLoadingHistory(true);
       apiGetChatHistory(initialSessionId)
         .then((res) => {
-          const histMessages: Message[] = res.messages.map((m: any): Message => ({
-            id: m.id || `hist-${m.created_at}`,
-            text: m.content,
-            sender: m.role === 'user' ? 'user' : 'ai',
-            timestamp: new Date(m.created_at),
-          }));
+          let lastReaction: Expression = 'senang';
+          const histMessages: Message[] = res.messages.map((m: any): Message => {
+            const isUser = m.role === 'user';
+            if (isUser) lastReaction = reactToUserMessage(m.content, lastReaction);
+            return {
+              id: m.id || `hist-${m.created_at}`,
+              text: m.content,
+              sender: isUser ? 'user' : 'ai',
+              timestamp: new Date(m.created_at),
+              expression: isUser ? undefined : (m.route_used === 'guardrail' ? 'tenang' : lastReaction),
+            };
+          });
           setMessages(histMessages);
+          setExpression(lastReaction);
         })
         .catch(err => {
           console.error("Failed to load chat history:", err);
@@ -153,11 +162,16 @@ export function useChat(initialSessionId?: string): UseChatReturn {
 
       // Create new empty AI placeholder for the response
       const aiMsgId = `ai-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      // The companion reacts to what the user said right away
+      const reaction = reactToUserMessage(trimmed, expression);
+      setExpression(reaction);
+
       const aiPlaceholder: Message = {
         id: aiMsgId,
         text: '',
         sender: 'ai',
         timestamp: new Date(),
+        expression: reaction,
       };
 
       // Clean existing messages: keep any previous message that has text
@@ -206,6 +220,11 @@ export function useChat(initialSessionId?: string): UseChatReturn {
           setShowQuickReplies(true);
           setIsSending(false);
           abortStreamRef.current = null;
+          if (meta.is_high_risk || meta.route === 'guardrail') {
+            // Crisis: never leave a playful face on screen
+            setExpression('tenang');
+            setMessages((prev) => prev.map((m) => (m.id === aiMsgId ? { ...m, expression: 'tenang' } : m)));
+          }
           if (meta.is_high_risk) {
             setIsHighRisk(true);
             setShowAlert(true);
@@ -218,7 +237,7 @@ export function useChat(initialSessionId?: string): UseChatReturn {
           setMessages((prev) =>
             prev.map((m) =>
               m.id === aiMsgId
-                ? { ...m, text: m.text || 'Maaf, aku sedang tidak bisa dihubungi. Coba lagi sebentar ya 🙏' }
+                ? { ...m, text: m.text || 'Maaf, aku sedang tidak bisa dihubungi. Coba lagi sebentar ya.', expression: 'bingung' }
                 : m
             )
           );
@@ -238,14 +257,15 @@ export function useChat(initialSessionId?: string): UseChatReturn {
 
       abortStreamRef.current = abort;
     },
-    [sendBtnScale, sessionId, messages]
+    [sendBtnScale, sessionId, messages, expression]
   );
 
   // ── Report confirmed ──────────────────────────────────────────
   const confirmReport = useCallback(() => {
     setShowAlert(false);
+    setExpression('tenang');
     addAI(
-      '🔔 Informasimu telah dikirim ke tim Sanctuary. Seseorang akan menghubungimu. Kamu tidak sendirian 💙'
+      '🔔 Informasimu telah dikirim ke tim Sajiwa. Seseorang akan menghubungimu. Kamu tidak sendirian 💙'
     );
   }, [addAI]);
 
@@ -267,6 +287,7 @@ export function useChat(initialSessionId?: string): UseChatReturn {
     sessionId,
     isHighRisk,
     isLoadingHistory,
+    expression,
   };
 }
 

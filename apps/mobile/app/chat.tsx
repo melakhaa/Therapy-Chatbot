@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -13,12 +13,14 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { NeuView } from '../components/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 
 import { useChat } from '../hooks/useChat';
-import { ChatBubble, TypingIndicator, StressBar, QuickReply, AlertModal } from '../components/chat';
-import { useTheme } from '@prototype/ui-shared';
+import { ChatBubble, TypingIndicator, QuickReply, AlertModal, Companion } from '../components/chat';
+import { DayDivider, OpeningPrompts, SupportNote } from '../components/chat/ConversationExtras';
+import { EXPRESSION_STATUS, type Expression } from '@prototype/utils';
+import { useTheme, Neu } from '@prototype/ui-shared';
 import { Spacing, BorderRadius } from '@prototype/ui-shared';
 
 export default function ChatScreen() {
@@ -41,6 +43,7 @@ export default function ChatScreen() {
     isLoadingHistory,
     setShowAlert,
     setAlertTriggered,
+    expression,
   } = useChat(initialSessionId);
 
   useEffect(() => {
@@ -48,6 +51,20 @@ export default function ChatScreen() {
   }, [messages, isTyping]);
 
   const canSend = inputText.trim().length > 0;
+  const hasUserMessage = messages.some((m) => m.sender === 'user');
+
+  // Support note lives inside the thread and only appears when the conversation turns heavy.
+  // 0 = fine, 1 = heavy, 2 = very heavy. Dismissing hides it until the tier rises again.
+  const tier = stressLevel >= 7 ? 2 : stressLevel >= 4 ? 1 : 0;
+  const [dismissedTier, setDismissedTier] = useState(0);
+  const showNote = tier > dismissedTier && hasUserMessage && !isTyping;
+
+  const firstDate = messages[0]?.timestamp;
+  const dayLabel = !firstDate || new Date(firstDate).toDateString() === new Date().toDateString()
+    ? 'Hari ini'
+    : new Date(firstDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' });
+  // AI typing > user typing (attentive) > last reaction
+  const liveExpression: Expression = isTyping ? 'berpikir' : canSend && expression !== 'tenang' ? 'senang' : expression;
 
   return (
     <KeyboardAvoidingView
@@ -62,49 +79,38 @@ export default function ChatScreen() {
           {
             paddingTop: insets.top + Spacing.sm,
             backgroundColor: colors.background,
-            borderBottomColor: colors.outlineVariant + '25',
           },
         ]}
       >
         <TouchableOpacity
-          style={[s.iconBtn, { backgroundColor: colors.surfaceContainerLow }]}
+          style={[s.iconBtn, { backgroundColor: colors.background, boxShadow: Neu.raisedSm }]}
+          accessibilityRole="button"
+          accessibilityLabel="Kembali"
           onPress={() => {
             if (router.canGoBack()) router.back();
             else router.replace('/home');
           }}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={18} color={colors.onSurface} />
+          <Ionicons name="arrow-back" size={20} color={colors.onSurface} />
         </TouchableOpacity>
 
-        <View style={s.navCenter}>
-          <LinearGradient
-            colors={[colors.primary, colors.primaryDim]}
-            style={s.navAvatar}
-          >
-            <Ionicons name="leaf-outline" size={11} color="#fff" />
-          </LinearGradient>
-          <Text style={[s.navBrand, { color: colors.onSurface }]}>Sanctuary</Text>
-          <View style={[s.onlineDot, { backgroundColor: colors.stressLow }]} />
+        <View style={s.navCenter} accessibilityLiveRegion="polite">
+          <Text style={[s.navBrand, { color: colors.onSurface }]}>Sajiwa</Text>
+          <Text style={[s.navStatus, { color: colors.onSurfaceVariant }]}>{EXPRESSION_STATUS[liveExpression]}</Text>
         </View>
 
-        <TouchableOpacity style={s.iconBtn} activeOpacity={0.7}>
-          <Ionicons name="ellipsis-horizontal" size={18} color={colors.onSurfaceVariant} />
+        {/* Always-visible path to human help */}
+        <TouchableOpacity
+          style={[s.iconBtn, { backgroundColor: colors.background, boxShadow: Neu.raisedSm }]}
+          onPress={() => router.push('/hotline')}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Hotline darurat"
+        >
+          <Ionicons name="call-outline" size={20} color={colors.stressHigh} />
         </TouchableOpacity>
       </View>
-
-      {/* ── Wellness indicator: normal flow, not absolute ── */}
-      <StressBar
-        level={stressLevel}
-        onSupportPress={() => {
-          if (stressLevel >= 7) {
-            setShowAlert(true);
-            setAlertTriggered(true);
-          } else {
-            router.push('/journal');
-          }
-        }}
-      />
 
       {/* ── Message List ── */}
       {isLoadingHistory ? (
@@ -114,11 +120,39 @@ export default function ChatScreen() {
           ref={listRef}
           data={messages}
           keyExtractor={(m) => m.id}
-          renderItem={({ item, index }) => <ChatBubble message={item} index={index} />}
+          renderItem={({ item, index }) => {
+            const next = messages[index + 1];
+            // A group ends when the sender changes or the next message comes 5+ minutes later
+            const endOfGroup =
+              !next || next.sender !== item.sender ||
+              new Date(next.timestamp).getTime() - new Date(item.timestamp).getTime() > 5 * 60 * 1000;
+            return <ChatBubble message={item} endOfGroup={endOfGroup} />;
+          }}
           contentContainerStyle={s.msgList}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={messages.length ? <DayDivider label={dayLabel} /> : null}
           ListEmptyComponent={<EmptyState />}
-          ListFooterComponent={isTyping ? <TypingIndicator /> : null}
+          ListFooterComponent={
+            isTyping ? (
+              <TypingIndicator />
+            ) : (
+              <>
+                {!hasUserMessage && messages.length > 0 && (
+                  <OpeningPrompts onPick={(t) => { sendMessage(t); Keyboard.dismiss(); }} />
+                )}
+                {showNote && (
+                  <SupportNote
+                    heavy={tier === 2}
+                    onPrimary={() => {
+                      if (tier === 2) { setShowAlert(true); setAlertTriggered(true); }
+                      else router.push('/journal');
+                    }}
+                    onDismiss={() => setDismissedTier(tier)}
+                  />
+                )}
+              </>
+            )
+          }
         />
       )}
 
@@ -129,11 +163,16 @@ export default function ChatScreen() {
           {
             paddingBottom: insets.bottom + Spacing.sm,
             backgroundColor: colors.background,
-            borderTopColor: colors.outlineVariant + '20',
+            /* borderTopColor removed for neumorphism */
           },
         ]}
       >
-        {showQuickReplies && messages.length < 16 && (
+        {/* Companion sits beside the composer: messages above keep their full width */}
+        <Companion expression={liveExpression} />
+
+        <View style={s.composer}>
+        {/* Suggestions only once the user is in a heavy moment; openers cover the fresh start */}
+        {showQuickReplies && hasUserMessage && tier >= 1 && !showNote && (
           <QuickReply
             options={quickReplies}
             onSelect={(t) => { sendMessage(t); Keyboard.dismiss(); }}
@@ -141,43 +180,45 @@ export default function ChatScreen() {
         )}
 
         <View style={s.inputRow}>
-          <View
-            style={[
-              s.inputPill,
-              {
-                backgroundColor: colors.surfaceContainerLow,
-                borderColor: colors.outlineVariant + '60',
-              },
-            ]}
+          <NeuView
+            inset
+            radius={24}
+            style={s.inputPill}
           >
             <TextInput
+              accessibilityLabel="Tulis pesan"
               style={[s.textInput, { color: colors.onSurface }]}
               value={inputText}
               onChangeText={setInputText}
               placeholder="Tulis sesuatu..."
-              placeholderTextColor={colors.outline}
+              placeholderTextColor={colors.textMuted}
               multiline
               maxLength={500}
             />
-          </View>
+          </NeuView>
 
           <Animated.View style={{ transform: [{ scale: sendBtnScale }] }}>
             <TouchableOpacity
               onPress={() => sendMessage(inputText)}
               disabled={!canSend}
               activeOpacity={0.8}
-              style={[
-                s.sendBtn,
-                { backgroundColor: canSend ? colors.primary : colors.surfaceContainerHigh },
-              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Kirim pesan"
+              accessibilityState={{ disabled: !canSend }}
             >
-              <Ionicons
-                name="arrow-up"
-                size={18}
-                color={canSend ? '#fff' : colors.onSurfaceVariant}
-              />
+              <View
+                style={[
+                  s.sendBtn,
+                  canSend
+                    ? { backgroundColor: colors.primary, boxShadow: Neu.raised }
+                    : { backgroundColor: colors.background, boxShadow: Neu.raisedSm },
+                ]}
+              >
+                <Ionicons name="arrow-up" size={20} color={canSend ? colors.onPrimary : colors.textMuted} />
+              </View>
             </TouchableOpacity>
           </Animated.View>
+        </View>
         </View>
       </View>
 
@@ -218,14 +259,11 @@ const EmptyState: React.FC = () => {
         { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
       ]}
     >
-      <View style={[s.emptyAvatar, { backgroundColor: colors.primaryContainer }]}>
-        <Ionicons name="leaf-outline" size={22} color={colors.primary} />
-      </View>
       <Text style={[s.emptyTitle, { color: colors.onSurface }]}>
         Ruang Refleksimu
       </Text>
       <Text style={[s.emptySub, { color: colors.onSurfaceVariant }]}>
-        Ceritakan apapun. Sanctuary mendengarkan dengan penuh empati, tanpa penghakiman.
+        Ceritakan apapun. Sajiwa mendengarkan dengan penuh empati, tanpa penghakiman.
       </Text>
     </Animated.View>
   );
@@ -239,37 +277,20 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
-    borderBottomWidth: 1,
+    paddingBottom: Spacing.sm,
     gap: Spacing.sm,
   },
   iconBtn: {
-    width: 36, height: 36,
-    borderRadius: 18,
+    width: 44, height: 44,
+    borderRadius: 22,
     alignItems: 'center', justifyContent: 'center',
   },
   navCenter: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
   },
-  navAvatar: {
-    width: 22, height: 22,
-    borderRadius: 11,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  navBrand: {
-    fontSize: 15,
-    fontFamily: 'PlusJakartaSans_700Bold',
-    letterSpacing: -0.2,
-  },
-  onlineDot: {
-    width: 7, height: 7,
-    borderRadius: 3.5,
-  },
-
+  navBrand: { fontSize: 17, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.3 },
+  navStatus: { fontSize: 13, fontFamily: 'PlusJakartaSans_500Medium' },
   /* Message list */
   msgList: {
     paddingVertical: Spacing.sm,
@@ -278,22 +299,26 @@ const s = StyleSheet.create({
 
   /* Bottom container: chips + input, no gap between them */
   bottomContainer: {
-    borderTopWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
     paddingTop: Spacing.xs,
+    paddingLeft: Spacing.xs,
   },
+  composer: { flex: 1, minWidth: 0 },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.xs,
-    gap: Spacing.sm,
+    paddingLeft: Spacing.xs,
+    paddingRight: Spacing.base,
+    paddingTop: Spacing.sm,
+    gap: Spacing.md,
   },
   inputPill: {
     flex: 1,
-    borderRadius: 20,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Platform.OS === 'ios' ? 11 : 7,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
     maxHeight: 120,
   },
   textInput: {
@@ -304,14 +329,10 @@ const s = StyleSheet.create({
     padding: 0, margin: 0,
   },
   sendBtn: {
-    width: 44, height: 44,
-    borderRadius: 22,
+    width: 48, height: 48,
+    borderRadius: 24,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 3,
+    
   },
 
   /* Loading */
@@ -329,15 +350,8 @@ const s = StyleSheet.create({
     paddingBottom: Spacing.lg,
     gap: Spacing.md,
   },
-  emptyAvatar: {
-    width: 48, height: 48,
-    borderRadius: 24,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: Spacing.xs,
-  },
   emptyTitle: {
-    fontSize: 28,
-    fontFamily: 'PlusJakartaSans_800ExtraBold',
+    fontSize: 28, fontFamily: 'PlusJakartaSans_800ExtraBold',
     letterSpacing: -0.8,
     lineHeight: 34,
   },

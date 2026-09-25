@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#f8f9fd', // Sanctuary Background
+    backgroundColor: '#f8f9fd', // Sajiwa Background
   },
   sidebar: {
     width: 256, 

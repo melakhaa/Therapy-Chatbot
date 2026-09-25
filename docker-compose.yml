@@ -1,114 +1,43 @@
-# docker-compose.yml
-# Local development environment for Sanctuary
-
-version: "3.8"
-
 services:
-  # PostgreSQL with pgvector
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: sanctuary-postgres
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: sanctuary-db
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: sanctuary
+      POSTGRES_PASSWORD: sanctuary
       POSTGRES_DB: sanctuary
     ports:
-      - "5432:5432"
+      # Host port overridable via root .env (SANCTUARY_DB_PORT) when 5432 is taken, e.g. by a native PostgreSQL
+      - "${SANCTUARY_DB_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./supabase/migrations:/docker-entrypoint-initdb.d
+      - pgdata:/var/lib/postgresql/data
+      # *.sql here runs once, alphabetically, on first boot of an empty volume
+      - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U sanctuary -d sanctuary"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
-  # Redis for rate limiting & task queue
-  redis:
-    image: redis:7-alpine
-    container_name: sanctuary-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Ollama for LLM inference
-  ollama:
-    image: ollama/ollama:latest
-    container_name: sanctuary-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: sanctuary-pgadmin
+    restart: unless-stopped
     environment:
-      - OLLAMA_HOST=0.0.0.0
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Backend API
-  backend:
-    build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
-    container_name: sanctuary-backend
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
     ports:
-      - "8000:8000"
-    environment:
-      - SUPABASE_URL=http://postgres:5432
-      - SUPABASE_ANON_KEY=your-anon-key
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - REDIS_URL=redis://redis:6379
-      - ENCRYPTION_KEY=your-32-char-encryption-key-here
-      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080,http://localhost:19006
-      - PYTHONPATH=/app
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./db/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ./db/pgadmin/pgpass:/pgpass:ro
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-      ollama:
-        condition: service_healthy
-    volumes:
-      - ./apps/backend:/app
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --workers 1
-
-  # Mobile Web (Expo)
-  mobile:
-    build:
-      context: ./apps/mobile
-      dockerfile: Dockerfile
-    container_name: sanctuary-mobile
-    ports:
-      - "8080:80"
-    environment:
-      - EXPO_PUBLIC_API_BASE_URL=http://localhost:8000
-      - EXPO_PUBLIC_SUPABASE_URL=http://localhost:54321
-    depends_on:
-      - backend
-    volumes:
-      - ./apps/mobile:/app
-      - /app/node_modules
 
 volumes:
-  postgres_data:
-  redis_data:
-  ollama_data:
-
-networks:
-  default:
-    name: sanctuary-network
+  pgdata:
+  pgadmin_data:

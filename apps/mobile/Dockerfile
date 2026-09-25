@@ -1,5 +1,5 @@
 # apps/mobile/Dockerfile
-# Multi-stage build for Sanctuary Mobile (Expo Web)
+# Multi-stage build for Sajiwa Mobile (Expo Web)
 
 # Build stage
 FROM node:20-alpine AS builder
