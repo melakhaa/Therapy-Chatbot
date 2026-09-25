@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
-import { apiCreateAccount, apiUpdateAccount, type Role, type UserRow } from '@prototype/api-client';
+import { apiCreateAccount, apiUpdateAccount, type Role, type UserRow } from '@/services/adminData';
 import { Button, Dialog, ErrorState, Field, FilterControl, Notice } from '@/components/ui';
 import { errorMessage } from '@/hooks/useAdminResource';
 export const roleOptions = [
   { value: 'mahasiswa', label: 'Mahasiswa' }, { value: 'konselor', label: 'Konselor' },
-  { value: 'admin', label: 'Admin' }, { value: 'pemangku_jabatan', label: 'Pemangku jabatan' },
+  { value: 'admin', label: 'Admin' },
 ];
-export default function AccountForm({ user, onClose, onSaved }: { user?: UserRow; onClose: () => void; onSaved: () => void }) {
+export default function AccountForm({ user, initialRole = 'mahasiswa', lockRole = false, onClose, onSaved }: { user?: UserRow; initialRole?: Role; lockRole?: boolean; onClose: () => void; onSaved: () => void }) {
   const [nama, setNama] = useState(user?.nama || '');
   const [email, setEmail] = useState(user?.email || '');
   const [nim, setNim] = useState(user?.nim || '');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<Role>((user?.role as Role) || 'mahasiswa');
+  const [role, setRole] = useState<Role>((user?.role as Role) || initialRole);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const save = async () => {
@@ -31,7 +31,7 @@ export default function AccountForm({ user, onClose, onSaved }: { user?: UserRow
     {user && <Notice>Email tidak dapat diubah melalui API akun saat ini.</Notice>}
     <Field label="NIM (opsional)" value={nim} onChangeText={setNim} maxLength={14} editable={!busy} />
     {!user && <Field label="Kata sandi awal" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" editable={!busy} />}
-    <FilterControl label="Peran akun" value={role} options={roleOptions} onChange={v => { if (!busy) setRole(v as Role); }} />
+    {lockRole ? <Notice>Account type: {role === 'mahasiswa' ? 'Student' : 'Counselor'}</Notice> : <FilterControl label="Peran akun" value={role} options={roleOptions} onChange={v => { if (!busy) setRole(v as Role); }} />}
     {error && <ErrorState message={error} />}
     <Button label={busy ? 'Menyimpan…' : 'Simpan akun'} disabled={busy} onPress={() => { void save(); }} />
   </Dialog>;

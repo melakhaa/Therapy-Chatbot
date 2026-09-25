@@ -1,2 +1,2 @@
-import DashboardSummary from '@/components/admin/DashboardSummary';
-export default function Analytics() { return <DashboardSummary analytics />; }
+import { Redirect } from 'expo-router';
+export default function LegacyAnalyticsRoute() { return <Redirect href="/reports" />; }

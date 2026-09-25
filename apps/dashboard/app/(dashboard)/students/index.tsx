@@ -1,2 +1,2 @@
-import UserDirectory from '@/components/admin/UserDirectory';
-export default function Students() { return <UserDirectory />; }
+import ManagedAccountDirectory from '@/components/admin/ManagedAccountDirectory';
+export default function Students() { return <ManagedAccountDirectory role="mahasiswa" />; }

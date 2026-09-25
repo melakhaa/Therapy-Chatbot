@@ -20,7 +20,7 @@ export default function LoginScreen() {
     setBusy(true); setError(null);
     try {
       const data = await apiLogin({ email: email.trim(), password });
-      if (data.user.role === 'mahasiswa') { await clearAuth(); setError('Portal admin hanya tersedia untuk admin, konselor, dan pemangku jabatan.'); }
+      if (data.user.role !== 'admin') { await clearAuth(); setError('Portal administrasi Sanctuary hanya tersedia untuk administrator.'); }
       else { setPassword(''); router.replace('/overview' as Href); }
     } catch (e) { setError(e instanceof ApiError && e.status === 401 ? 'Email atau kata sandi salah.' : errorMessage(e)); } finally { setBusy(false); }
   };

@@ -1,2 +1,2 @@
-import DashboardSummary from '@/components/admin/DashboardSummary';
-export default function Overview() { return <DashboardSummary />; }
+import OperationsOverview from '@/components/admin/OperationsOverview';
+export default function Overview() { return <OperationsOverview />; }

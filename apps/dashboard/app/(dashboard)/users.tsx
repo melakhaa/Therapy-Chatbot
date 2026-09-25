@@ -1,2 +1,2 @@
-import UserDirectory from '@/components/admin/UserDirectory';
-export default function Users() { return <UserDirectory management />; }
+import { Redirect } from 'expo-router';
+export default function LegacyUsersRoute() { return <Redirect href="/students" />; }
