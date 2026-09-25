@@ -18,6 +18,11 @@ apiFetch<T>(path, { method, body, auth = true, base })  // auth defaults true
 - Export request/response interfaces next to the helper.
 - `auth: false` for login/register/hotline/guardrail.
 - `apiLogin` persists token + user via `src/storage.ts`.
+- `src/admin.ts` + `src/admin-operations.ts` hold the dashboard helpers (`apiGetAdminAssessments`,
+  `apiGetUserDetail`, `apiGetAttention`, `apiGetOrganizationSchedules`, `apiGetHotlines`,
+  `apiGetAnalytics`, ...) and their row/page interfaces. `src/index.ts` re-exports all four modules.
+- Failed requests throw `ApiError` (an `Error` subclass carrying `status`); dashboard code maps the
+  status to a safe Bahasa Indonesia message in `apps/dashboard/hooks/useAdminResource.ts`.
 
 `src/storage.ts` is the cross-platform token store: `localStorage` on web, `AsyncStorage` on
 native. Keys `sanctuary_token`, `sanctuary_user`. Use `getStoredUser` / `clearAuth`; the `*Sync`

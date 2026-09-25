@@ -4,10 +4,10 @@ from semantic_router import SemanticRouter
 from semantic_router.encoders import OllamaEncoder
 from services.chatbot.guardrail import guardrail_route, HARDCODED_RESPONSE, is_crisis
 from services.chatbot.conversational import conversational_route, get_conversational_response
-from services.chatbot.rag import rag_route, get_rag_response
+from services.chatbot.rag import rag_route, get_rag_response, EMBED_MODEL
 
 try:
-    encoder = OllamaEncoder(name="nomic-embed-text-v2-moe")
+    encoder = OllamaEncoder(name=EMBED_MODEL)
 except Exception as e:
     print(f"Warning: Ollama not found. Using mock encoder. Error: {e}")
     class MockEncoder:

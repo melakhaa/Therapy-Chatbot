@@ -28,8 +28,10 @@ llm.invoke([HumanMessage(content=prompt)]).content
 - `SYSTEM_PROMPT` is passed as an extra `HumanMessage` (there is no `SystemMessage` usage) — follow the
   existing pattern.
 - Return the string via `response.content`; handlers wrap it in the API shape.
-- `OllamaEmbeddings(model="nomic-embed-text-v2-moe")` is imported in `rag.py`, but retrieval actually
-  calls the same model through the router encoder / `ollama` client — keep model names in sync.
+- `OllamaEmbeddings(model=EMBED_MODEL)` is a module-level singleton in `rag.py`; retrieval embeds
+  the query with `embeddings.embed_query(f"{QUERY_PREFIX}{text}")` and passes it to
+  `match_documents(%s::vector, 0.3, k)` through `core.db.query`. `scripts/embed.py` imports the same
+  `EMBED_MODEL` / `DOCUMENT_PREFIX` constants and embeds documents via the raw `ollama.embed` client.
 
 ## Rules
 

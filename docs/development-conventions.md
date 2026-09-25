@@ -47,15 +47,19 @@ Also start `ollama serve` for chat/embeddings ([ollama-conventions.md](ollama-co
 
 ## Tests
 
-Both need the stack running and clean up after themselves (no test framework, no CI).
+Three tiers, all manual (no CI). Tiers 2 and 3 need the stack running; tier 1 is fully isolated.
 
 ```bash
-# RLS isolation + auth functions, against the live DB
+# 1. Isolated API contract tests — no DB, no AI, no network. Needs httpx installed
+#    (FastAPI TestClient) and only the venv. Stubs core.db and signs real JWTs.
+cd apps/backend && venv/bin/python -m unittest discover -s tests -v
+
+# 2. RLS isolation + auth functions, against the live DB
 docker exec -i -e PGPASSWORD=sanctuary_app sanctuary-db \
   psql -v ON_ERROR_STOP=1 -U sanctuary_app -d sanctuary < db/test_rls.sql
 
-# end-to-end API check: auth, assessments, journals, jadwal/booking, dashboard,
-# chat (real Ollama), RLS isolation. Exits non-zero on failure.
+# 3. end-to-end API check: auth, assessments, journals, jadwal/booking, dashboard,
+#    chat (real Ollama), RLS isolation. Exits non-zero on failure.
 cd apps/backend && venv/bin/python scripts/api_smoke.py
 ```
 

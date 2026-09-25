@@ -8,9 +8,14 @@ React Navigation setup for app navigation — see [react-navigation-conventions.
 - `app/` is the route tree; every file is a screen. `app/_layout.tsx` is the root layout.
 - Layouts render `<Stack>` / `<Tabs>` from `expo-router` with `headerShown: false` and app-wide
   `screenOptions` (background color, animation).
-- `(group)` folders are route groups with no URL segment; the dashboard uses `app/(dashboard)/`.
-- Screens are registered explicitly in the root `<Stack>` (mobile: `index`, `register`,
-  `forgot-password`, `home`, `chat`, `journal`, `stats`, `profile`, `admin`).
+- `(group)` folders are route groups with no URL segment; the dashboard uses `app/(dashboard)/`,
+  which now holds the operator screens (`overview`, `risk`, `assessments`, `students`,
+  `students/[id]`, `analytics`, `counseling`, `schedule`, `counselors`, `attention`, `hotlines`,
+  `reports`, `users`, `settings`, plus `index` as a legacy redirect).
+- Screens are registered explicitly in the root `<Stack>` (mobile: `index`, `register`, `home`,
+  `admin`, `chat`, `journal`, `stats`, `profile`; dashboard: `index`, `(dashboard)`,
+  `report-preview`). The mobile `forgot-password` screen exists under `app/` but is reached via
+  `router.push`, not a `<Stack.Screen>` entry.
 - `expo-router/entry` is the package `main` for the dashboard; mobile uses `index.ts`.
 
 ## Navigation

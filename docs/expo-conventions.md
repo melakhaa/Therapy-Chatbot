@@ -39,22 +39,28 @@ Core React Native rules live in [react-native-conventions.md](react-native-conve
   `index.ts` barrel.
 - **Shared design system** from `@prototype/ui-shared` (`ThemeProvider`, `SanctuaryColors`,
   typography) — style from the theme, do not hardcode hex values.
-- Dashboard keeps its own `components/` + `constants/theme.ts`.
+- Dashboard keeps its own `components/` (`components/admin/`, `components/ui/AdminUI.tsx` +
+  `ProductPrimitives.tsx`), `constants/theme.ts` + `constants/adminTheme.ts`, and
+  `hooks/useAdminResource.ts` (loading/error/reload state + safe Bahasa Indonesia error messages for
+  every admin screen).
 - Font: Plus Jakarta Sans, loaded in the root layout via `useFonts`.
 - Components are `PascalCase.tsx`; hooks are `useX.ts`.
 
 ## Data & state
 
-- All network calls go through `@prototype/api-client` (`apiFetch`, `apiLogin`, `apiChat`, ...).
-  Never call `fetch` directly in a screen.
+- All network calls go through `@prototype/api-client` (`apiFetch`, `apiLogin`, `apiChat`, admin
+  helpers, ...). Never call `fetch` directly in a screen.
 - Auth state via `useAuth()` from `@prototype/ui-shared`.
 - Chat logic lives in `apps/mobile/hooks/useChat.ts`.
+- Dashboard API calls are wrapped in `apps/dashboard/services/operationsData.ts` and consumed via
+  `useAdminResource`; row/page interfaces come from `packages/api-client/src/admin*.ts`.
 
 ## Env
 
 `apps/mobile/.env` holds `EXPO_PUBLIC_*` vars only. `API_BASE_URL` in `api-client` defaults to
-`http://localhost:8000` (Android emulator: `http://10.0.2.2:8000`). See
-[security-conventions.md](security-conventions.md) for what must never be `EXPO_PUBLIC_`.
+`http://localhost:8000` (Android emulator: `http://10.0.2.2:8000`) and can be overridden at build time
+with `EXPO_PUBLIC_API_URL`. See [security-conventions.md](security-conventions.md) for what must never
+be `EXPO_PUBLIC_`.
 
 ## Run
 

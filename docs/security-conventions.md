@@ -21,8 +21,10 @@
 
 ## Roles (RBAC)
 
-`mahasiswa | konselor | admin | pemangku_jabatan` in `users.role`. Dashboard/admin endpoints
-require `konselor`, `admin`, or `pemangku_jabatan`. See
+`mahasiswa | konselor | admin | pemangku_jabatan` in `users.role`. Dashboard reads are tiered:
+`/admin/assessments` and the per-user histories allow `konselor`, `admin`, `pemangku_jabatan`;
+`/admin/users/{id}` (identity profile) and every operational route (schedules, hotlines, attention,
+analytics) require `admin` (or `admin`/`pemangku_jabatan` for the profile). See
 [postgresql-conventions.md](postgresql-conventions.md) for the RLS side.
 
 ## Row Level Security

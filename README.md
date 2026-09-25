@@ -4,7 +4,7 @@
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Expo](https://img.shields.io/badge/Expo-54-000020?style=flat&logo=expo)](https://expo.dev/)
-[![React Native](https://img.shields.io/badge/React_Native-0.74-61DAFB?style=flat&logo=react)](https://reactnative.dev/)
+[![React Native](https://img.shields.io/badge/React_Native-0.81-61DAFB?style=flat&logo=react)](https://reactnative.dev/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 
@@ -14,7 +14,7 @@
 
 - **AI Chatbot**: Intelligent mental health companion using Semantic Router + RAG for context-aware support.
 - **Automatic Stress Detection**: Real-time analysis of chat messages to detect emotional distress.
-- **Clinical Assessments**: Self-service DASS-21 test with immediate results.
+- **Clinical Assessments**: Self-service PHQ-9, GAD-7, and SRQ assessments with immediate results.
 - **Self-Journaling**: Private mood tracking and daily reflections.
 - **Secure Auth**: OTP-based password recovery and secure authentication.
 
@@ -128,12 +128,13 @@ Therapy-Chatbot/
 ├── apps/
 │   ├── mobile/           # Expo Mobile App
 │   ├── dashboard/        # Expo Router Web Dashboard
-│   └── backend/          # FastAPI Python Server
+│   └── backend/          # FastAPI Python Server (routes/, services/, tests/)
 ├── packages/
 │   ├── api-client/       # Shared Fetch Wrappers
 │   ├── ui-shared/        # Theme, Hooks, Components
 │   └── utils/            # Helper Functions
 ├── db/                   # Schema, auth SQL, RLS self-check
+├── docs/                 # Per-stack convention docs
 ├── docker-compose.yml    # PostgreSQL 17 + pgvector + pgAdmin
 └── package.json          # Root Workspace Config
 ```
