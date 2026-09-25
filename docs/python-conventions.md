@@ -12,19 +12,22 @@ apps/backend/
 ├── core/            # cross-cutting (security.py, db.py)
 ├── routes/          # API routers
 ├── services/        # business/AI logic
-└── scripts/         # one-off scripts (embed.py, test_rag_performance.py)
+├── tests/           # isolated unittest contract tests (no DB, no AI)
+└── scripts/         # one-off scripts (embed.py, seed_dev_users.py, api_smoke.py)
 ```
 
 Modules are top-level, **not** a package: imports are `from auth import ...`, `from core.security import ...`,
-`from services.chatbot.core import ...`. Always run from `apps/backend`.
+`from services.chatbot.core import ...`. Always run from `apps/backend`. Scripts in `scripts/` that
+import app modules add the backend root to `sys.path` before the import (`embed.py`,
+`test_rag_performance.py`) so direct `python scripts/x.py` invocation works.
 
 ## Dependencies
 
 - Declared in `apps/backend/requirements.txt`, lower-bound pinned (`>=`): `fastapi`, `uvicorn[standard]`,
   `pydantic[email]`, `python-dotenv`, `psycopg[binary,pool]`, `PyJWT`, `bcrypt`, `semantic-router`,
-  `langchain-ollama`, `langchain-core`, `cryptography`.
-- `python-docx` (import `docx`) is used by `scripts/embed.py` but is **not** in `requirements.txt` —
-  install it ad hoc if you run ingestion.
+  `langchain-ollama`, `langchain-core`, `python-docx`, `ollama`, `cryptography`.
+- `httpx` (needed by FastAPI's `TestClient`) is **not** in `requirements.txt` — install it ad hoc to run
+  `tests/`.
 - No `pyproject.toml` / no formatter config; keep edits consistent with surrounding style.
 
 ## Conventions
@@ -40,6 +43,9 @@ Modules are top-level, **not** a package: imports are `from auth import ...`, `f
 - IDs written to Postgres are cast with `str(user.id)`.
 - Every chatbot/AI module ends with an `if __name__ == "__main__":` smoke-test block of sample inputs —
   follow that pattern when adding one.
+- Contract tests live in `tests/` (`unittest`) and isolate the module under test: stub `core.db.query`
+  in `sys.modules` and patch `auth.query`; never open a real database, AI model, or network. Run with
+  `python -m unittest discover -s tests -v` (see [development-conventions.md](development-conventions.md)).
 - Fail fast on missing critical config (`core/security.py` raises at import if `ENCRYPTION_KEY` is unset).
 
 ## Run

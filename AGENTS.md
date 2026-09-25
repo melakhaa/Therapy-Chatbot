@@ -16,6 +16,8 @@ local embeddings and the LLM.
 
 **Backend**: FastAPI · Uvicorn · Pydantic v2 · python-dotenv · cryptography (Fernet) · psycopg 3 · PyJWT · bcrypt
 
+**Tests**: `unittest` + FastAPI `TestClient` (`apps/backend/tests/`, httpx dev-only) · SQL self-checks (`db/test_rls.sql`) · manual smoke script
+
 **AI / ML**: semantic-router · Ollama (`llama3.2:3b`, `nomic-embed-text-v2-moe`) · langchain-core ·
 langchain-ollama · RAG + pgvector · python-docx (ingestion)
 
@@ -37,12 +39,13 @@ Therapy-Chatbot/
 ├── apps/
 │   ├── mobile/        Expo React Native app (expo-router) — student-facing
 │   ├── dashboard/     Expo Router web app (react-native-web) — counselor/admin
-│   └── backend/       FastAPI (Python 3.12) API + services/chatbot
+│   └── backend/       FastAPI (Python 3.12) API + services/chatbot + routes/ + tests/
 ├── packages/
 │   ├── api-client/    @prototype/api-client — fetch wrappers + cross-platform storage
 │   ├── ui-shared/     @prototype/ui-shared — theme, context, auth hook, animation
 │   └── utils/         @prototype/utils — stress detection, response parsers
 ├── db/                SQL init scripts (schema, auth) + RLS self-check
+├── docs/              Per-stack convention docs (linked below)
 ├── docker-compose.yml PostgreSQL 17 + pgvector + pgAdmin
 ├── package.json       Root workspace
 └── AGENTS.md
@@ -80,6 +83,8 @@ Therapy-Chatbot/
 - Backend/DB identifiers are `snake_case`; user-facing messages are Bahasa Indonesia.
 - Never log or store raw chat content — it is Fernet-encrypted (`core/security.py`).
 - High-risk messages (`guardrail` route) always return the hardcoded crisis response; never let an LLM rewrite it.
+- Admin operational endpoints (schedules, hotlines, attention, analytics) are `admin`-only and must
+  never return raw chat, journal, assessment-answer, or guardrail-trigger content.
 - Run `apps/backend` from its own directory (`venv`, `uvicorn main:app`).
 - The schema source of truth is `db/init/01_schema.sql` (+ `02_auth.sql`); it is applied by
   `docker compose up` on an empty volume. Backend connects as the non-superuser `sanctuary_app`

@@ -7,8 +7,9 @@ All generation and embeddings run **locally via Ollama** through `langchain-olla
 
 | Purpose | Model | Client |
 |---------|-------|--------|
-| Intent routing + query embeddings | `nomic-embed-text-v2-moe` | `semantic_router.encoders.OllamaEncoder` |
+| Intent routing | `nomic-embed-text-v2-moe` | `semantic_router.encoders.OllamaEncoder` |
 | Chat generation | `llama3.2:3b` | `langchain_ollama.ChatOllama` |
+| RAG query embeddings | `nomic-embed-text-v2-moe` | `langchain_ollama.OllamaEmbeddings` (`embed_query`) |
 | Document ingestion embeddings | `nomic-embed-text-v2-moe` | `ollama.embed(...)` |
 
 ## Generation
@@ -39,9 +40,14 @@ Retrieval is `select * from match_documents(%s::vector, 0.3, k)` through `core/d
 
 ## Conventions
 
-- Pin model names; all three call sites must agree on the embedding model or vector search breaks.
-- Embedding input is prefixed `"passage: "` for documents (see `embed.py`); keep query/document
-  prefixes consistent with the model's expectations.
+- Pin model names; all call sites share `EMBED_MODEL` from `services/chatbot/rag.py`
+  (`core.py` routing, `rag.py` queries, `scripts/embed.py` ingestion).
+- `nomic-embed-text-v2-moe` requires task prefixes and does not add them itself: documents are
+  embedded as `"search_document: "` (`embed.py`), queries as `"search_query: "` (`rag.py`). The
+  `QUERY_PREFIX` / `DOCUMENT_PREFIX` constants in `rag.py` are the single source of truth — keep the
+  pair matched or similarity degrades silently.
+- Changing an embedding prefix invalidates every stored vector: re-embed the `documents` table
+  (`scripts/embed.py`) after any prefix or model change.
 - If Ollama isn't running, routing falls back to a zero-vector `MockEncoder` and answers degrade —
   treat "no Ollama" as a dev-only state.
 - Never send guardrail (crisis) messages to the LLM; they are handled by fixed responses
