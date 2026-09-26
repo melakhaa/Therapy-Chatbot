@@ -5,11 +5,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@prototype/ui-shared';
 import { apiRequestPasswordReset, apiConfirmPasswordReset } from '@prototype/api-client';
-import { NeuView, Input, Button, IconButton } from '../components/ui';
+import { NeuView, Input, Button, IconButton, useToast } from '../components/ui';
 
 export default function ForgotPasswordScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const toast = useToast();
 
   const [step, setStep] = useState<'request' | 'confirm'>('request');
   const [email, setEmail] = useState('');
@@ -28,6 +29,7 @@ export default function ForgotPasswordScreen() {
     try {
       await apiRequestPasswordReset(email.trim());
       setStep('confirm');
+      toast.show('Kode OTP dikirim. Cek email kamu.', 'info');
     } catch (err: any) {
       setError(err.message || 'Gagal mengirim kode OTP.');
     } finally {
@@ -48,7 +50,7 @@ export default function ForgotPasswordScreen() {
     setError('');
     try {
       await apiConfirmPasswordReset(email.trim(), otp.trim(), newPassword);
-      Alert.alert('Berhasil', 'Kata sandi sudah diubah. Silakan masuk dengan kata sandi baru.');
+      toast.show('Kata sandi berhasil diubah. Silakan masuk dengan kata sandi baru.');
       router.replace('/');
     } catch (err: any) {
       setError(err.message || 'Kode OTP salah atau gagal mengubah kata sandi.');

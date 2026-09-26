@@ -17,6 +17,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider } from '@prototype/ui-shared';
 import { SajiwaColors } from '@prototype/ui-shared';
 import { AnimatedSplashScreen } from '../components/AnimatedSplashScreen';
+import { ToastProvider } from '../components/ui/Toast';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -43,6 +44,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
+        <ToastProvider>
         <StatusBar style="dark" backgroundColor={SajiwaColors.background} />
         <Stack
           screenOptions={{
@@ -63,6 +65,7 @@ export default function RootLayout() {
         {!splashAnimationFinished && (
           <AnimatedSplashScreen onAnimationComplete={() => setSplashAnimationFinished(true)} />
         )}
+        </ToastProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

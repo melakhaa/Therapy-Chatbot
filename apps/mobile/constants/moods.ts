@@ -38,3 +38,11 @@ export const MOOD_COMPANION: Record<Mood, { face: Expression; writing: string; l
     looking: 'Hari itu terasa berat. Terima kasih sudah jujur menuliskannya.',
   },
 };
+
+// Daily writing prompt, shared by the journal list and the editor so both show the same question
+export const JOURNAL_PROMPTS = [
+  'Apa yang paling kamu syukuri hari ini?',
+  'Apa yang sedang membebani pikiranmu?',
+  'Momen kecil apa yang membuatmu tersenyum?',
+];
+export const todayPrompt = () => JOURNAL_PROMPTS[new Date().getDay() % JOURNAL_PROMPTS.length];

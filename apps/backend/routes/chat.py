@@ -163,6 +163,18 @@ def stream_chat_response(request: ChatRequest, background_tasks: BackgroundTasks
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
+class ReportRequest(BaseModel):
+    session_id: Optional[str] = None
+
+
+@chat_router.post("/report")
+def report_to_team(request: ReportRequest, user=Depends(get_current_user)):
+    """User tapped "Kabari tim Sajiwa" in the crisis sheet. Logged as an unread safety
+    signal, which the counselor dashboard surfaces under /admin/attention."""
+    _log_guardrail(request.session_id, str(user.id), "[LAPORAN PENGGUNA] Minta dihubungi tim dari modal krisis")
+    return {"status": "reported"}
+
+
 @chat_router.get("/sessions")
 def get_chat_sessions(user=Depends(get_current_user)):
     rows = query(

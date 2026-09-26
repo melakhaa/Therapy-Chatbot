@@ -221,6 +221,14 @@ export async function apiChat(payload: ChatPayload): Promise<ChatResponse> {
   });
 }
 
+/** Crisis sheet "Kabari tim Sajiwa": logs an unread safety signal for counselors. */
+export async function apiReportToTeam(session_id?: string) {
+  return apiFetch<{ status: string }>('/chat/report', {
+    method: 'POST',
+    body: JSON.stringify({ session_id }),
+  });
+}
+
 export async function apiGetChatSessions(): Promise<{ sessions: any[] }> {
   return apiFetch('/chat/sessions');
 }

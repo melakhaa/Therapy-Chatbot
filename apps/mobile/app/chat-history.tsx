@@ -5,11 +5,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, Neu } from '@prototype/ui-shared';
 import { apiGetChatSessions } from '@prototype/api-client';
-import { NeuView, Button, ScreenHeader, FadeIn } from '../components/ui';
+import { NeuView, Button, ScreenHeader, FadeIn, useToast } from '../components/ui';
 
 export default function ChatHistoryScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const toast = useToast();
 
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +22,7 @@ export default function ChatHistoryScreen() {
       setSessions(res.sessions || []);
     } catch (err) {
       console.error(err);
+      toast.show('Riwayat chat belum bisa dimuat. Tarik ke bawah untuk coba lagi.', 'error');
     } finally {
       setLoading(false);
       setRefreshing(false);

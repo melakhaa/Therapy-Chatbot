@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { apiGetJournals } from '@prototype/api-client';
 
-import { BottomNav, FadeIn, NeuView, Button, ScreenHeader, IconButton } from '../components/ui';
+import { BottomNav, FadeIn, NeuView, Button, ScreenHeader, IconButton, useToast } from '../components/ui';
 import { useTheme, Neu } from '@prototype/ui-shared';
 import { MOODS, Mood, moodOf } from '../constants/moods';
 
@@ -38,6 +38,7 @@ function formatWeekLabel(weekOffset: number) {
 export default function StatsScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const toast = useToast();
 
   const [weekOffset, setWeekOffset] = React.useState(0);
   const [allJournals, setAllJournals] = React.useState<any[]>([]);
@@ -49,7 +50,10 @@ export default function StatsScreen() {
   useEffect(() => {
     apiGetJournals(200, 0)
       .then((res) => setAllJournals(res.journals || []))
-      .catch((e) => console.error(e));
+      .catch((e) => {
+        console.error(e);
+        toast.show('Data laporan belum bisa dimuat. Coba lagi nanti.', 'error');
+      });
   }, []);
 
   const computeStats = useCallback(() => {

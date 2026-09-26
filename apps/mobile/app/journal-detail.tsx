@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, Neu } from '@prototype/ui-shared';
-import { FadeIn, NeuView, Button, ScreenHeader } from '../components/ui';
+import { FadeIn, NeuView, Button, ScreenHeader, useToast } from '../components/ui';
 import { Companion } from '../components/chat';
 import { MoodPicker } from '../components/MoodPicker';
 import { apiUpdateJournal, apiDeleteJournal } from '@prototype/api-client';
@@ -13,6 +13,7 @@ import { Mood, moodOf, MOOD_COMPANION } from '../constants/moods';
 export default function JournalDetailScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const toast = useToast();
 
   const params = useLocalSearchParams();
   const { journal_id, content: initialContent, mood: initialMood, created_at } = params as any;
@@ -39,7 +40,7 @@ export default function JournalDetailScreen() {
 
   const handleSave = async () => {
     if (!editContent.trim()) {
-      Alert.alert('Jurnal kosong', 'Tulis sesuatu sebelum menyimpan.');
+      toast.show('Catatan tidak boleh kosong.', 'info');
       return;
     }
     setIsSaving(true);
@@ -48,8 +49,9 @@ export default function JournalDetailScreen() {
       setContent(editContent.trim());
       setMood(editMood);
       setIsEditing(false);
+      toast.show('Perubahan jurnal disimpan.');
     } catch (e) {
-      Alert.alert('Gagal menyimpan', 'Perubahan belum tersimpan. Coba lagi.');
+      toast.show('Perubahan belum tersimpan. Coba lagi.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -65,9 +67,10 @@ export default function JournalDetailScreen() {
           setIsDeleting(true);
           try {
             await apiDeleteJournal(journal_id);
+            toast.show('Jurnal dihapus.', 'info');
             router.back();
           } catch (e) {
-            Alert.alert('Gagal menghapus', 'Coba lagi nanti.');
+            toast.show('Jurnal belum terhapus. Coba lagi nanti.', 'error');
             setIsDeleting(false);
           }
         },

@@ -14,14 +14,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@prototype/ui-shared';
 import { apiRegister } from '@prototype/api-client';
-import {
-  Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-  Button, NeuView, Input, IconButton,
-} from '../components/ui';
+import { Button, NeuView, Input, IconButton, useToast } from '../components/ui';
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const toast = useToast();
 
   const anim = useRef(new Animated.Value(0)).current;
   const y = useRef(new Animated.Value(20)).current;
@@ -33,7 +31,6 @@ export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successModalVisible, setSuccessModalVisible] = useState(false);
 
   useEffect(() => {
     Animated.parallel([
@@ -63,7 +60,8 @@ export default function RegisterScreen() {
         nim: nim.trim() || undefined,
         role: 'mahasiswa',
       });
-      setSuccessModalVisible(true);
+      toast.show('Akun berhasil dibuat. Silakan masuk dengan email dan kata sandimu.');
+      router.replace('/');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Registrasi gagal. Coba lagi.');
     } finally {
@@ -175,25 +173,6 @@ export default function RegisterScreen() {
         </Animated.View>
       </ScrollView>
 
-      <Dialog open={successModalVisible} onOpenChange={setSuccessModalVisible}>
-        <DialogHeader style={{ alignItems: 'center', marginBottom: 12 }}>
-          <Ionicons name="checkmark-circle" size={56} color={colors.primary} />
-          <DialogTitle style={{ marginTop: 8 }}>Akun berhasil dibuat</DialogTitle>
-          <DialogDescription style={{ textAlign: 'center', marginTop: 4 }}>
-            Silakan masuk memakai email dan kata sandi yang baru kamu daftarkan.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter style={{ justifyContent: 'center' }}>
-          <Button
-            label="Lanjut masuk"
-            style={{ width: '100%' }}
-            onPress={() => {
-              setSuccessModalVisible(false);
-              router.replace('/');
-            }}
-          />
-        </DialogFooter>
-      </Dialog>
     </KeyboardAvoidingView>
   );
 }

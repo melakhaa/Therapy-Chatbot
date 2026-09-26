@@ -4,20 +4,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, Neu } from '@prototype/ui-shared';
 import { apiSaveJournal } from '@prototype/api-client';
 import type { Expression } from '@prototype/utils';
-import { NeuView, Button, ScreenHeader, goBack } from '../components/ui';
+import { NeuView, Button, ScreenHeader, goBack, useToast } from '../components/ui';
 import { Companion } from '../components/chat';
 import { MoodPicker } from '../components/MoodPicker';
-import { Mood, MOOD_COMPANION } from '../constants/moods';
+import { Mood, MOOD_COMPANION, todayPrompt } from '../constants/moods';
 
-const PROMPTS = [
-  'Apa yang paling kamu syukuri hari ini?',
-  'Apa yang sedang membebani pikiranmu?',
-  'Momen kecil apa yang membuatmu tersenyum?',
-];
 
 export default function JournalScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const toast = useToast();
 
   const [content, setContent] = useState('');
   const [mood, setMood] = useState<Mood | null>(null);
@@ -25,7 +21,7 @@ export default function JournalScreen() {
   const [saved, setSaved] = useState(false);
 
   const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const prompt = PROMPTS[new Date().getDay() % PROMPTS.length];
+  const prompt = todayPrompt();
 
   // Companion: greets with today's prompt, then follows the chosen mood; thumbs-up once saved
   const companion: { face: Expression; line: string } = saved
@@ -39,9 +35,10 @@ export default function JournalScreen() {
     try {
       await apiSaveJournal({ content: content.trim(), mood: mood as any });
       setSaved(true);
+      toast.show('Jurnal tersimpan. Terima kasih sudah menulis hari ini.');
       setTimeout(goBack, 900); // let the thumbs-up play before leaving
     } catch (e: any) {
-      Alert.alert('Gagal menyimpan', e.message || 'Jurnal belum tersimpan. Coba lagi.');
+      toast.show(`Jurnal belum tersimpan: ${e.message || 'coba lagi sebentar.'}`, 'error');
     } finally {
       setIsLoading(false);
     }

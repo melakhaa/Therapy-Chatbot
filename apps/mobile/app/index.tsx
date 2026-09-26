@@ -14,13 +14,14 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@prototype/ui-shared';
-import { NeuView, Input, Button } from '../components/ui';
+import { NeuView, Input, Button, useToast } from '../components/ui';
 import { Spacing } from '@prototype/ui-shared';
 import { useAuth } from '@prototype/ui-shared';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const toast = useToast();
   const { login, logout, isLoading, error, isLoggedIn, user } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -73,10 +74,11 @@ export default function LoginScreen() {
       
       if (role !== 'mahasiswa') {
         await logout(); // Clear token immediately
-        alert('Akses Ditolak: Aplikasi mobile hanya untuk Mahasiswa.');
+        toast.show('Aplikasi ini khusus mahasiswa. Konselor dan admin masuk lewat dashboard.', 'error');
         return;
       }
       
+      toast.show(`Selamat datang kembali${data.user.nama ? ', ' + data.user.nama.split(' ')[0] : ''}!`);
       router.replace('/home');
     } catch {
       // error sudah disimpan di hook

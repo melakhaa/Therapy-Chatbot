@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BottomNav, FadeIn, NeuView, Button, IconButton } from '../components/ui';
+import { BottomNav, FadeIn, NeuView, Button, IconButton, useToast } from '../components/ui';
 import { Companion } from '../components/chat';
 import { MoodPicker } from '../components/MoodPicker';
 import { useTheme, useAuth, Neu, Spacing } from '@prototype/ui-shared';
@@ -37,6 +37,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { user } = useAuth();
+  const toast = useToast();
   const [selectedMood, setSelectedMood] = useState<Mood | null>(null);
   const [journalText, setJournalText] = useState('');
   const [isSavingJournal, setIsSavingJournal] = useState(false);
@@ -49,6 +50,7 @@ export default function HomeScreen() {
       setJournals(res.journals || []);
     } catch (err) {
       console.warn('Failed to load journals for home:', err);
+      toast.show('Data jurnal belum bisa dimuat. Periksa koneksimu.', 'error');
     }
   }, []);
 
@@ -63,19 +65,19 @@ export default function HomeScreen() {
 
   const handleSaveJournal = async () => {
     if (!journalText.trim() || !selectedMood) {
-      Alert.alert('Perhatian', 'Pilih mood dan tulis jurnal terlebih dahulu.');
+      toast.show('Pilih suasana hati dan tulis sedikit dulu, ya.', 'info');
       return;
     }
     setIsSavingJournal(true);
     try {
       await apiSaveJournal({ content: journalText, mood: selectedMood });
-      Alert.alert('Tersimpan', 'Jurnal kamu berhasil disimpan.');
+      toast.show('Jurnal tersimpan.');
       setJournalText('');
       setSelectedMood(null);
       setFace('jempol');
       await fetchJournals();
     } catch (err: any) {
-      Alert.alert('Gagal', err.message || 'Gagal menyimpan jurnal.');
+      toast.show(`Jurnal belum tersimpan: ${err.message || 'coba lagi sebentar.'}`, 'error');
     } finally {
       setIsSavingJournal(false);
     }

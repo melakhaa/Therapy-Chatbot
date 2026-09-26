@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, Neu } from '@prototype/ui-shared';
-import { BottomNav, FadeIn, NeuView, Button, ScreenHeader } from '../components/ui';
+import { BottomNav, FadeIn, NeuView, Button, ScreenHeader, useToast } from '../components/ui';
 import { Companion } from '../components/chat';
 import type { Expression } from '@prototype/utils';
 import {
@@ -41,6 +41,7 @@ const initials = (name: string) => name.split(' ').slice(0, 2).map((w) => w[0]?.
 export default function ScheduleScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const toast = useToast();
   const dates = getDates();
 
   const [counselors, setCounselors] = useState<Counselor[]>([]);
@@ -105,14 +106,11 @@ export default function ScheduleScreen() {
     try {
       await apiBuatBooking(selectedSlot.jadwal_id);
       // Bookings start as 'menunggu' until the counselor approves
-      Alert.alert(
-        'Permintaan terkirim',
-        `Permintaan sesi dengan ${selectedCounselor?.name} pada ${selectedDate.long} pukul ${hm(selectedSlot.waktu_mulai)} sudah dikirim. Kamu akan dikabari setelah konselor mengonfirmasi.`,
-        [{ text: 'Oke', onPress: () => setSelectedSlot(null) }],
-      );
+      toast.show(`Permintaan sesi ${hm(selectedSlot.waktu_mulai)} terkirim. Tunggu konfirmasi konselor, ya.`);
+      setSelectedSlot(null);
       await loadData();
     } catch (e: any) {
-      Alert.alert('Gagal mengirim permintaan', e.message);
+      toast.show(`Permintaan belum terkirim: ${e.message}`, 'error');
     } finally {
       setIsBooking(false);
     }

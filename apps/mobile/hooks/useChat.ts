@@ -2,7 +2,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Animated } from 'react-native';
 import { analyzeStress, QUICK_REPLIES, reactToUserMessage, type Expression } from '@prototype/utils';
-import { apiChatStream, apiGetChatHistory } from '@prototype/api-client';
+import { apiChatStream, apiGetChatHistory, apiReportToTeam } from '@prototype/api-client';
+import { useToast } from '../components/ui/Toast';
 import {Message} from '@prototype/utils';
 export interface UseChatReturn {
   messages: Message[];
@@ -55,6 +56,7 @@ export function useChat(initialSessionId?: string): UseChatReturn {
   const [isSending, setIsSending]       = useState(false);
   const [expression, setExpression]     = useState<Expression>('menyapa');
 
+  const toast = useToast();
   const sessionIdRef      = useRef(initialSessionId || generateSessionId());
   const sendBtnScale   = useRef(new Animated.Value(1)).current;
   const abortStreamRef = useRef<(() => void) | null>(null);
@@ -99,6 +101,7 @@ export function useChat(initialSessionId?: string): UseChatReturn {
         })
         .catch(err => {
           console.error("Failed to load chat history:", err);
+          toast.show('Riwayat percakapan ini belum bisa dimuat.', 'error');
         })
         .finally(() => {
           setIsLoadingHistory(false);
@@ -234,6 +237,7 @@ export function useChat(initialSessionId?: string): UseChatReturn {
         // onError: fallback message
         (err) => {
           console.error('Chat stream error:', err);
+          toast.show('Sajiwa belum bisa membalas. Periksa koneksimu lalu coba kirim lagi.', 'error');
           setMessages((prev) =>
             prev.map((m) =>
               m.id === aiMsgId
@@ -261,13 +265,22 @@ export function useChat(initialSessionId?: string): UseChatReturn {
   );
 
   // ── Report confirmed ──────────────────────────────────────────
-  const confirmReport = useCallback(() => {
+  // Actually notify the team (logged as an unread safety signal on the counselor dashboard).
+  // Never claim it was sent unless the server confirmed it.
+  const confirmReport = useCallback(async () => {
     setShowAlert(false);
     setExpression('tenang');
-    addAI(
-      '🔔 Informasimu telah dikirim ke tim Sajiwa. Seseorang akan menghubungimu. Kamu tidak sendirian 💙'
-    );
-  }, [addAI]);
+    try {
+      await apiReportToTeam(sessionIdRef.current);
+      toast.show('Tim Sajiwa sudah dikabari.');
+      addAI(
+        'Kabarmu sudah diteruskan ke tim Sajiwa dan akan ditinjau oleh konselor. Sambil menunggu, ' +
+        'kamu tetap bisa menghubungi hotline kapan saja. Kamu tidak sendirian.'
+      );
+    } catch {
+      toast.show('Kabar belum terkirim. Kalau mendesak, hubungi hotline langsung dari tombol telepon.', 'error');
+    }
+  }, [addAI, toast]);
 
   return {
     messages,

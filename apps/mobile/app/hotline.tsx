@@ -13,7 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, Neu } from '@prototype/ui-shared';
-import { BottomNav, FadeIn, NeuView, ScreenHeader } from '../components/ui';
+import { BottomNav, FadeIn, NeuView, ScreenHeader, useToast } from '../components/ui';
 import { callNumber } from '../components/chat/AlertModal';
 import { apiGetHotline } from '@prototype/api-client';
 
@@ -26,6 +26,7 @@ type HotlineItem = {
 export default function HotlineScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const toast = useToast();
   const [hotlines, setHotlines] = useState<HotlineItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -37,7 +38,7 @@ export default function HotlineScreen() {
         setHotlines(res.hotlines || []);
       } catch (err) {
         console.warn('Gagal mengambil hotline', err);
-        Alert.alert('Info', 'Gagal memuat daftar hotline terbaru. Menggunakan data cadangan.');
+        toast.show('Daftar terbaru belum bisa dimuat. Nomor darurat utama tetap bisa dihubungi dari chat.', 'info');
       } finally {
         setLoading(false);
       }
