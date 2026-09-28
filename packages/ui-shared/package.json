@@ -5,5 +5,10 @@
   "private": true,
   "dependencies": {
     "@prototype/api-client": "*"
+  },
+  "scripts": {
+    "lint": "echo 'No lint for ui-shared'",
+    "typecheck": "echo 'No typecheck for ui-shared'",
+    "test": "echo 'No test for ui-shared'"
   }
 }

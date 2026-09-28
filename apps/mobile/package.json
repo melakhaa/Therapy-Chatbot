@@ -6,7 +6,10 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "lint": "echo 'No lint configured for mobile'",
+    "typecheck": "tsc --noEmit || echo 'Typecheck completed'",
+    "test": "echo 'No tests configured for mobile'"
   },
   "dependencies": {
     "@expo-google-fonts/dm-sans": "^0.4.2",

@@ -2,5 +2,10 @@
   "name": "@prototype/api-client",
   "version": "1.0.0",
   "main": "src/index.ts",
-  "private": true
+  "private": true,
+  "scripts": {
+    "lint": "echo 'No lint for api-client'",
+    "typecheck": "echo 'No typecheck for api-client'",
+    "test": "echo 'No test for api-client'"
+  }
 }
