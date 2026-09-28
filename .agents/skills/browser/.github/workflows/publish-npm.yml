@@ -1,0 +1,144 @@
+name: Publish npm
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to verify and publish
+        required: true
+        type: string
+      prerelease:
+        description: Publish a prerelease package under the beta npm tag
+        default: false
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  RELEASE_PRERELEASE: ${{ github.event_name == 'release' && github.event.release.prerelease || inputs.prerelease }}
+
+jobs:
+  publish:
+    if: startsWith(github.event.release.tag_name || inputs.tag, 'v')
+    name: Publish trusted package
+    runs-on: ubuntu-latest
+    environment: npm
+    # Downloads BetterChromium and runs the full integration suite before it
+    # publishes. Generous, but bounded: a hung browser launch should fail the
+    # release rather than hold the npm environment open for six hours.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+      # Must equal the pin in ci.yml's branch-protected jobs. npm Trusted
+      # Publishing still needs an npm CLI; Bun runs the build, tests, and
+      # version checks.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.0"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.18.0"
+          registry-url: "https://registry.npmjs.org"
+      - name: Install Trusted Publishing capable npm
+        run: npm install --global npm@11.5.1
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Verify release source and tag
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tag must be a v-prefixed semantic version." >&2
+            exit 1
+          fi
+          git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{}")"
+          git merge-base --is-ancestor "$(git rev-parse HEAD)" origin/main
+          bun scripts/check-versions.ts --tag "$RELEASE_TAG"
+      - name: Check whether this version already exists
+        id: existing
+        shell: bash
+        run: |
+          NAME=$(bun -e 'console.log(require("./package.json").name)')
+          VERSION=$(bun -e 'console.log(require("./package.json").version)')
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "$NAME@$VERSION is already published; nothing to do."
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build TypeScript sources
+        if: steps.existing.outputs.published != 'true'
+        run: bun run build
+      - name: Install managed browser
+        if: steps.existing.outputs.published != 'true'
+        run: bun dist/bin/betterwright.js setup
+      - name: Enable Chromium sandbox user namespaces
+        if: steps.existing.outputs.published != 'true'
+        shell: bash
+        run: |
+          # BetterChromium keeps Chromium's sandbox enabled; its Linux sandbox
+          # needs unprivileged user namespaces on AppArmor-restricted runners.
+          if [[ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+      - name: Verify BetterChromium update
+        if: steps.existing.outputs.published != 'true'
+        shell: bash
+        run: |
+          bun dist/bin/betterwright.js update --force
+          bun -e "
+            import { resolveChromiumForkBinary } from './dist/src/chromium-fork.js';
+            const binary = resolveChromiumForkBinary();
+            if (!binary) throw new Error('update did not install BetterChromium');
+            console.log('BetterChromium update ok:', binary);
+          "
+      - name: Install recording encoder
+        if: steps.existing.outputs.published != 'true'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Run browser integration suite
+        if: steps.existing.outputs.published != 'true'
+        run: bun run test
+        env:
+          BETTERWRIGHT_REQUIRE_BROWSER: "1"
+          BETTERWRIGHT_REQUIRE_RECORDING: "1"
+      - name: Run final release verification
+        if: steps.existing.outputs.published != 'true'
+        run: bun run release:check
+        env:
+          BETTERWRIGHT_CHROMIUM_ROOT: "off"
+      - name: Select npm distribution tag
+        if: steps.existing.outputs.published != 'true'
+        id: npm_tag
+        shell: bash
+        run: |
+          VERSION=$(bun -e 'console.log(require("./package.json").version)')
+          if [[ "$VERSION" == *-* ]]; then
+            if [[ "$RELEASE_PRERELEASE" != "true" ]]; then
+              echo "Prerelease package versions must use a GitHub prerelease." >&2
+              exit 1
+            fi
+            echo "tag=beta" >> "$GITHUB_OUTPUT"
+          else
+            if [[ "$RELEASE_PRERELEASE" == "true" ]]; then
+              echo "Stable package versions cannot use a GitHub prerelease." >&2
+              exit 1
+            fi
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish to npm with provenance
+        if: steps.existing.outputs.published != 'true'
+        run: npm publish --ignore-scripts --access public --tag "${{ steps.npm_tag.outputs.tag }}"

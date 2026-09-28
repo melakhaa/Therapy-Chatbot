@@ -1,0 +1,56 @@
+# Node
+node_modules/
+npm-debug.log*
+# npm lockfile. This repo installs with bun.lock.
+package-lock.json
+bun-debug.log*
+
+# Compiled leftover JavaScript next to TypeScript sources. bun runs the `.ts`
+# files directly; tsconfig.tools.json and tsconfig.harness.json are type-check
+# only. The ignore list still catches an accidental `tsc` emit. Tests import
+# the built runtime as `../../dist/src/*.js` and read `../fixtures/*`.
+scripts/*.js
+research/*.js
+tests/node/**/*.js
+benchmarks/*/*.js
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# BetterWright runtime state (never commit a profile, vault, or artifacts)
+.betterwright/
+benchmarks/online-mind2web/runs/
+benchmarks/online-mind2web/tasks.local.json
+benchmarks/odysseys/runs/
+
+# Editor / OS / agent tooling
+.DS_Store
+*.swp
+.idea/
+.vscode/
+.claude/
+
+# Scratch output every checkout produces
+.tmp/
+tmp/
+artifacts/
+*.tmp.mjs
+
+# Private notes, kept out of the repo as well as out of the tarball.
+# scripts/check-package.ts refuses to publish these because v1.1.4 shipped an
+# internal handoff note carrying an operator's residential egress IP; they also
+# carry session context and competitor research. That is a repo-wide hazard,
+# not one developer's preference, so it stays in the shared ignore file.
+# One developer's own scratch directories belong in .git/info/exclude instead.
+internal/
+HANDOFF-*
+*-handoff.md

@@ -1,0 +1,692 @@
+// End-to-end local CAPTCHA solver tests against self-hosted fixture widgets.
+// These prove the in-browser solve path without third-party captcha APIs.
+// Optional live demos run only when BETTERWRIGHT_LIVE_CAPTCHA=1.
+
+import assert from "node:assert/strict";
+import { once } from "node:events";
+import fs from "node:fs";
+import http from "node:http";
+import type { AddressInfo } from "node:net";
+import path from "node:path";
+import { test } from "node:test";
+import { fileURLToPath } from "node:url";
+
+import { doctorReport } from "../../dist/src/doctor.js";
+import { BetterWright } from "../../dist/src/index.js";
+import { isNumber } from "../../dist/src/untrusted-value.js";
+import { classifyCaptchaOutcome } from "./helpers/captcha-outcome.js";
+import { makeTempDir } from "./helpers/temp-dir.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const FIXTURES = path.join(__dirname, "fixtures", "captcha");
+
+const browserStatus = await doctorReport();
+const ready = browserStatus.ready;
+const browserUnavailable = `browser runtime not ready (doctor browser: ${browserStatus.browser})`;
+if (!ready && process.env.BETTERWRIGHT_REQUIRE_BROWSER) {
+  throw new Error(
+    `BETTERWRIGHT_REQUIRE_BROWSER is set but no browser runtime is ready (doctor browser: ${browserStatus.browser}).`,
+  );
+}
+const opts = { skip: ready ? false : browserUnavailable };
+const liveOpts = {
+  skip:
+    !ready
+      ? browserUnavailable
+      : process.env.BETTERWRIGHT_LIVE_CAPTCHA === "1"
+        ? false
+        : "set BETTERWRIGHT_LIVE_CAPTCHA=1 to hit public captcha demos",
+};
+
+function tempHome() {
+  return makeTempDir("betterwright-captcha-");
+}
+
+async function startFixtureServer() {
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url || "/", "http://127.0.0.1");
+    let file = "checkbox.html";
+    if (url.pathname === "/slider") file = "slider.html";
+    else if (url.pathname === "/grid") file = "grid.html";
+    else if (url.pathname === "/grid-chrome") file = "grid-chrome.html";
+    else if (url.pathname === "/motion") file = "motion.html";
+    else if (url.pathname === "/drag") file = "drag.html";
+    else if (url.pathname === "/managed") file = "managed.html";
+    else if (url.pathname === "/submit-decoy") file = "submit-decoy.html";
+    else if (url.pathname === "/skip-verify") file = "skip-verify.html";
+    else if (url.pathname === "/checkbox") file = "checkbox.html";
+    else if (url.pathname !== "/" && url.pathname !== "/index.html") {
+      res.writeHead(404);
+      res.end("not found");
+      return;
+    }
+    const body = fs.readFileSync(path.join(FIXTURES, file));
+    res.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    });
+    res.end(body);
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  // SAFETY: the server finished `listen` on a TCP port, so `address()` returns
+  // an AddressInfo — not the null of an unbound server or a pipe-name string.
+  const { port } = server.address() as AddressInfo;
+  return {
+    base: `http://127.0.0.1:${port}`,
+    async close() {
+      server.close();
+      await once(server, "close");
+    },
+  };
+}
+
+async function withBrowser(fn) {
+  const home = tempHome();
+  const bw = new BetterWright({
+    home,
+    headless: true,
+  });
+  try {
+    return await fn(bw);
+  } finally {
+    await bw.close().catch(() => {});
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+
+test(
+  "captcha.solve clears a local checkbox widget and mints a response token",
+  opts,
+  async () => {
+    const server = await startFixtureServer();
+    try {
+      await withBrowser(async (bw) => {
+        const result = await bw.run(`
+          await page.goto(${JSON.stringify(`${server.base}/checkbox`)}, { waitUntil: "domcontentloaded" });
+          const before = await captcha.detect();
+          const solved = await captcha.solve({ timeout: 20_000, maxStages: 2 });
+          const token = await page.locator('[name="bw-captcha-response"]').inputValue();
+          return { before, solved, token, title: await page.title() };
+        `);
+        assert.equal(result.ok, true, result.error);
+        assert.equal(result.result.before.present, true);
+        assert.equal(result.result.solved.status, "ready");
+        assert.equal(result.result.solved.cleared, true);
+        assert.equal(result.result.solved.local, true);
+        assert.equal(result.result.solved.externalApi, false);
+        assert.ok(result.result.token.length > 8);
+        assert.ok(result.result.solved.attempts.length >= 1);
+      });
+    } finally {
+      await server.close();
+    }
+  },
+);
+
+test("captcha.solve drags a local slider challenge to completion", opts, async () => {
+  const server = await startFixtureServer();
+  try {
+    await withBrowser(async (bw) => {
+      const result = await bw.run(`
+        await page.goto(${JSON.stringify(`${server.base}/slider`)}, { waitUntil: "domcontentloaded" });
+        return captcha.solve({ timeout: 20_000, maxStages: 3 });
+      `);
+      assert.equal(result.ok, true, result.error);
+      assert.equal(result.result.status, "ready");
+      assert.equal(result.result.cleared, true);
+      assert.ok(
+        result.result.attempts.some((attempt) => attempt.action === "drag_slider"),
+      );
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test(
+  "captcha.solve returns processing + tiles for an image grid stage",
+  opts,
+  async () => {
+    const server = await startFixtureServer();
+    try {
+      await withBrowser(async (bw) => {
+        const result = await bw.run(`
+          await page.goto(${JSON.stringify(`${server.base}/grid`)}, { waitUntil: "domcontentloaded" });
+          return captcha.solve({ timeout: 15_000, maxStages: 2 });
+        `);
+        assert.equal(result.ok, true, result.error);
+        assert.equal(result.result.status, "processing");
+        assert.equal(result.result.stage, "image_grid");
+        assert.ok(Array.isArray(result.result.tiles));
+        assert.ok(result.result.tiles.length >= 3);
+        assert.ok(result.result.artifact?.path);
+        assert.equal(result.result.grid?.rows, 3);
+        assert.equal(result.result.grid?.cols, 3);
+        assert.match(String(result.result.instruction || ""), /tiles:/);
+        assert.equal(result.result.local, true);
+        for (const tile of result.result.tiles) {
+          assert.ok(isNumber(tile.index));
+          assert.ok(isNumber(tile.x));
+          assert.ok(isNumber(tile.y));
+          assert.ok(isNumber(tile.width));
+          assert.ok(isNumber(tile.height));
+          assert.equal(tile.x, tile.bounds.x);
+          assert.ok(tile.width >= 48);
+        }
+      });
+    } finally {
+      await server.close();
+    }
+  },
+);
+
+test("captcha.solve scrolls Verify into a short viewport before submitting picks", opts, async () => {
+  const server = await startFixtureServer();
+  try {
+    await withBrowser(async (bw) => {
+      const result = await bw.run(`
+        await page.setViewportSize({width:800,height:320});
+        await page.goto(${JSON.stringify(`${server.base}/grid`)}, {waitUntil:"domcontentloaded"});
+        // Keep the grid visible but force its separate submit control below the fold.
+        await page.locator('#verify').evaluate(button => button.style.marginTop = '400px');
+        const first = await captcha.solve({timeoutMs:15000,maxStages:1});
+        const picks = first.tiles.filter(tile => tile.label === 'traffic light').map(tile => tile.index);
+        const solved = await captcha.solve({tiles:picks,timeoutMs:15000,maxStages:1});
+        return {solved,token:await page.locator('[name="bw-captcha-response"]').inputValue()};
+      `);
+      assert.equal(result.ok, true, result.error);
+      assert.equal(result.result.solved.cleared, true);
+      assert.match(result.result.token, /^bw_grid_token_/);
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test("captcha.solve does not report a visible generic grid cleared after wrong picks", opts, async () => {
+  const server = await startFixtureServer();
+  try {
+    await withBrowser(async (bw) => {
+      const result = await bw.run(`
+        await page.goto(${JSON.stringify(`${server.base}/grid`)}, {waitUntil:"domcontentloaded"});
+        await captcha.solve({timeoutMs:15000,maxStages:1});
+        const solved = await captcha.solve({tiles:[1],timeoutMs:15000,maxStages:1});
+        return {solved,token:await page.locator('[name="bw-captcha-response"]').inputValue(),visible:await page.locator('#bw-captcha').isVisible()};
+      `);
+      assert.equal(result.ok, true, result.error);
+      assert.equal(result.result.visible, true);
+      assert.equal(result.result.token, "");
+      assert.equal(result.result.solved.status, "processing");
+      assert.notEqual(result.result.solved.cleared, true);
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test(
+  "captcha.click activates an image-grid target in the native browser",
+  opts,
+  async () => {
+    const server = await startFixtureServer();
+    try {
+      await withBrowser(async (bw) => {
+        const result = await bw.run(`
+          await page.goto(${JSON.stringify(`${server.base}/grid`)}, { waitUntil: "domcontentloaded" });
+          const solved = await captcha.solve({ timeout: 15_000, maxStages: 2 });
+          for (const tile of solved.tiles.filter((entry) => entry.label === "traffic light")) {
+            await captcha.click(tile.bounds);
+          }
+          await human.click(page.locator("#verify"));
+          return page.locator('[name="bw-captcha-response"]').inputValue();
+        `);
+        assert.equal(result.ok, true, result.error);
+        assert.match(result.result, /^bw_grid_token_/);
+      });
+    } finally {
+      await server.close();
+    }
+  },
+);
+
+test(
+  "replaying selected tiles does not click an unlisted Skip translation",
+  opts,
+  async () => {
+    const server = await startFixtureServer();
+    const pageUrl = `${server.base}/skip-verify?skip=${encodeURIComponent("Pomiń")}&verify=${encodeURIComponent("Zweryfikuj")}&preselect=1`;
+    try {
+      await withBrowser(async (bw) => {
+        const result = await bw.run(`
+          await page.goto(${JSON.stringify(pageUrl)}, { waitUntil: "domcontentloaded" });
+          const first = await captcha.solve({ timeout: 15_000, maxStages: 2 });
+          const picks = first.tiles
+            .filter((entry) => entry.label === "traffic light")
+            .map((entry) => entry.index);
+          await captcha.clickTiles(picks);
+          const skips = await page.evaluate(() => window.__bwSkipClicks);
+          const token = await page.locator('[name="bw-captcha-response"]').inputValue();
+          const label = await page.locator("#recaptcha-verify-button").innerText();
+          return { picks, skips, token, label };
+        `);
+        assert.equal(result.ok, true, result.error);
+        assert.deepEqual(result.result.picks, [0, 4, 8]);
+        assert.equal(result.result.skips, 0, "Verify-to-Skip toggle must not be clicked");
+        assert.equal(result.result.token, "");
+        assert.equal(result.result.label, "Pomiń");
+      });
+    } finally {
+      await server.close();
+    }
+  },
+);
+
+test(
+  "captcha.solve does not treat an unlisted Skip translation as Verify",
+  opts,
+  async () => {
+    const server = await startFixtureServer();
+    const pageUrl = `${server.base}/skip-verify?skip=${encodeURIComponent("Pomiń")}&verify=${encodeURIComponent("Zweryfikuj")}`;
+    try {
+      await withBrowser(async (bw) => {
+        const result = await bw.run(`
+          await page.goto(${JSON.stringify(pageUrl)}, { waitUntil: "domcontentloaded" });
+          const first = await captcha.solve({ timeout: 15_000, maxStages: 2 });
+          const picks = first.tiles
+            .filter((entry) => entry.label === "traffic light")
+            .map((entry) => entry.index);
+          const second = await captcha.solve({ tiles: picks, timeout: 15_000, maxStages: 2 });
+          const token = await page.locator('[name="bw-captcha-response"]').inputValue();
+          const skips = await page.evaluate(() => window.__bwSkipClicks);
+          return { first, second, picks, token, skips };
+        `);
+        assert.equal(result.ok, true, result.error);
+        assert.deepEqual(result.result.picks, [0, 4, 8]);
+        assert.equal(result.result.skips, 0, "unlisted Skip must not be clicked");
+        assert.equal(result.result.second.status, "ready");
+        assert.match(result.result.token, /^bw_skipverify_token_/);
+      });
+    } finally {
+      await server.close();
+    }
+  },
+);
+
+test(
+  "captcha.solve waits for Verify and does not click a Skip-labeled button",
+  opts,
+  async () => {
+    const server = await startFixtureServer();
+    try {
+      await withBrowser(async (bw) => {
+        const result = await bw.run(`
+          await page.goto(${JSON.stringify(`${server.base}/skip-verify`)}, { waitUntil: "domcontentloaded" });
+          const first = await captcha.solve({ timeout: 15_000, maxStages: 2 });
+          const picks = first.tiles
+            .filter((entry) => entry.label === "traffic light")
+            .map((entry) => entry.index);
+          const second = await captcha.solve({ tiles: picks, timeout: 15_000, maxStages: 2 });
+          const token = await page.locator('[name="bw-captcha-response"]').inputValue();
+          const skips = await page.evaluate(() => window.__bwSkipClicks);
+          return { first, second, picks, token, skips };
+        `);
+        assert.equal(result.ok, true, result.error);
+        assert.deepEqual(result.result.picks, [0, 4, 8]);
+        assert.equal(result.result.skips, 0, "Skip must not be clicked");
+        assert.equal(result.result.second.status, "ready");
+        assert.match(result.result.token, /^bw_skipverify_token_/);
+      });
+    } finally {
+      await server.close();
+    }
+  },
+);
+
+test(
+  "captcha.solve applies numbered vision picks and clears a local grid",
+  opts,
+  async () => {
+    const server = await startFixtureServer();
+    try {
+      await withBrowser(async (bw) => {
+        const result = await bw.run(`
+          await page.goto(${JSON.stringify(`${server.base}/grid`)}, { waitUntil: "domcontentloaded" });
+          const first = await captcha.solve({ timeout: 15_000, maxStages: 2 });
+          const picks = first.tiles
+            .filter((entry) => entry.label === "traffic light")
+            .map((entry) => entry.index);
+          const second = await captcha.solve({ tiles: picks, timeout: 15_000, maxStages: 2 });
+          const token = await page.locator('[name="bw-captcha-response"]').inputValue();
+          return { first, second, picks, token };
+        `);
+        assert.equal(result.ok, true, result.error);
+        assert.equal(result.result.first.status, "processing");
+        assert.deepEqual(result.result.picks, [0, 4, 8]);
+        assert.equal(result.result.second.status, "ready");
+        assert.equal(result.result.second.cleared, true);
+        assert.match(result.result.token, /^bw_grid_token_/);
+      });
+    } finally {
+      await server.close();
+    }
+  },
+);
+
+test(
+  "captcha.clickTiles clears a local grid after a numbered capture",
+  opts,
+  async () => {
+    const server = await startFixtureServer();
+    try {
+      await withBrowser(async (bw) => {
+        const result = await bw.run(`
+          await page.goto(${JSON.stringify(`${server.base}/grid`)}, { waitUntil: "domcontentloaded" });
+          const first = await captcha.solve({ timeout: 15_000, maxStages: 2 });
+          const picks = first.tiles
+            .filter((entry) => entry.label === "traffic light")
+            .map((entry) => entry.index);
+          await captcha.clickTiles(picks);
+          const token = await page.locator('[name="bw-captcha-response"]').inputValue();
+          return { picks, token, tileCount: first.tiles.length };
+        `);
+        assert.equal(result.ok, true, result.error);
+        assert.deepEqual(result.result.picks, [0, 4, 8]);
+        assert.match(result.result.token, /^bw_grid_token_/);
+      });
+    } finally {
+      await server.close();
+    }
+  },
+);
+
+test(
+  "the widget is clicked before the host page's own submit button",
+  opts,
+  async () => {
+    const server = await startFixtureServer();
+    try {
+      await withBrowser(async (bw) => {
+        const result = await bw.run(`
+          await page.goto(${JSON.stringify(`${server.base}/submit-decoy`)}, { waitUntil: "domcontentloaded" });
+          const solved = await captcha.solve({ timeout: 15_000, maxStages: 2 });
+          const token = await page.locator('[name="bw-captcha-response"]').inputValue();
+          const posted = await page.locator("#posted").innerText();
+          return { solved, token, posted };
+        `);
+        assert.equal(result.ok, true, result.error);
+        // The widget must be what gets clicked. Falling through to the page's
+        // own submit button would post the form with no token.
+        assert.match(result.result.token, /^bw_decoy_token_/);
+        assert.equal(result.result.posted, "");
+        assert.equal(result.result.solved.status, "ready");
+      });
+    } finally {
+      await server.close();
+    }
+  },
+);
+
+test(
+  "numbered picks are discarded when the grid changes before they are applied",
+  opts,
+  async () => {
+    const server = await startFixtureServer();
+    try {
+      await withBrowser(async (bw) => {
+        const result = await bw.run(`
+          await page.goto(${JSON.stringify(`${server.base}/grid`)}, { waitUntil: "domcontentloaded" });
+          const first = await captcha.solve({ timeout: 15_000, maxStages: 2 });
+          const picks = first.tiles
+            .filter((entry) => entry.label === "traffic light")
+            .map((entry) => entry.index);
+          // The challenge swaps in a different grid before the picks land.
+          await page.goto(${JSON.stringify(`${server.base}/grid-chrome`)}, { waitUntil: "domcontentloaded" });
+          const second = await captcha.solve({ tiles: picks, timeout: 15_000, maxStages: 2 });
+          const token = await page.locator('[name="bw-captcha-response"]').inputValue();
+          let clickTilesError = null;
+          try {
+            await captcha.clickTiles(picks);
+          } catch (error) {
+            clickTilesError = String(error && error.message ? error.message : error);
+          }
+          return { picks, second, token, clickTilesError };
+        `);
+        assert.equal(result.ok, true, result.error);
+        assert.deepEqual(result.result.picks, [0, 4, 8]);
+        // Stale coordinates must not be replayed: no token can be minted, and
+        // the caller is handed a fresh crop instead of a blind click.
+        assert.equal(result.result.second.status, "processing");
+        assert.equal(result.result.token, "");
+        assert.equal(
+          result.result.second.attempts.some((entry) => entry.action === "recapture_tiles"),
+          true,
+        );
+        assert.ok(result.result.second.tiles?.length);
+      });
+    } finally {
+      await server.close();
+    }
+  },
+);
+
+test(
+  "image-grid capture ignores EN/Skip/Refresh chrome and numbers the 3x3",
+  opts,
+  async () => {
+    const server = await startFixtureServer();
+    try {
+      await withBrowser(async (bw) => {
+        const result = await bw.run(`
+          await page.goto(${JSON.stringify(`${server.base}/grid-chrome`)}, { waitUntil: "domcontentloaded" });
+          const first = await captcha.solve({ timeout: 15_000, maxStages: 2 });
+          const picks = first.tiles
+            .filter((entry) => entry.label === "traffic light")
+            .map((entry) => entry.index);
+          const second = await captcha.solve({ tiles: picks, timeout: 15_000, maxStages: 2 });
+          const token = await page.locator('[name="bw-captcha-response"]').inputValue();
+          return { first, second, picks, token };
+        `);
+        assert.equal(result.ok, true, result.error);
+        assert.equal(result.result.first.status, "processing");
+        assert.equal(result.result.first.tiles.length, 9);
+        assert.equal(result.result.first.grid?.rows, 3);
+        assert.equal(result.result.first.grid?.cols, 3);
+        assert.equal(
+          result.result.first.tiles.some((tile) => /skip|english|refresh/i.test(tile.label || "")),
+          false,
+        );
+        assert.deepEqual(result.result.picks, [0, 4, 8]);
+        assert.equal(result.result.second.status, "ready");
+        assert.match(result.result.token, /^bw_grid_token_/);
+      });
+    } finally {
+      await server.close();
+    }
+  },
+);
+
+test(
+  "captcha.solve auto-clicks the growing shape on a local motion challenge",
+  opts,
+  async () => {
+    const server = await startFixtureServer();
+    try {
+      await withBrowser(async (bw) => {
+        const result = await bw.run(`
+          await page.goto(${JSON.stringify(`${server.base}/motion`)}, { waitUntil: "domcontentloaded" });
+          const solved = await captcha.solve({ timeout: 25_000, maxStages: 3 });
+          const token = await page.locator('[name="bw-captcha-response"]').inputValue();
+          return { solved, token };
+        `);
+        assert.equal(result.ok, true, result.error);
+        assert.equal(result.result.solved.status, "ready");
+        assert.equal(result.result.solved.stage, "motion");
+        assert.equal(result.result.solved.cleared, true);
+        assert.ok(
+          result.result.solved.attempts.some((attempt) => attempt.action === "click_growing"),
+        );
+        assert.match(result.result.token, /^bw_motion_token_/);
+      });
+    } finally {
+      await server.close();
+    }
+  },
+);
+
+test(
+  "captcha.solve drags a local drag-to-fit piece onto its slot",
+  opts,
+  async () => {
+    const server = await startFixtureServer();
+    try {
+      await withBrowser(async (bw) => {
+        const result = await bw.run(`
+          await page.goto(${JSON.stringify(`${server.base}/drag`)}, { waitUntil: "domcontentloaded" });
+          const solved = await captcha.solve({ timeout: 25_000, maxStages: 3 });
+          const token = await page.locator('[name="bw-captcha-response"]').inputValue();
+          return { solved, token };
+        `);
+        assert.equal(result.ok, true, result.error);
+        assert.equal(result.result.solved.status, "ready");
+        assert.equal(result.result.solved.cleared, true);
+        assert.match(result.result.token, /^bw_drag_token_/);
+      });
+    } finally {
+      await server.close();
+    }
+  },
+);
+
+test(
+  "captcha.solve clears a managed-style verify challenge",
+  opts,
+  async () => {
+    const server = await startFixtureServer();
+    try {
+      await withBrowser(async (bw) => {
+        const result = await bw.run(`
+          await page.goto(${JSON.stringify(`${server.base}/managed`)}, { waitUntil: "domcontentloaded" });
+          return captcha.solve({ timeout: 20_000, maxStages: 3 });
+        `);
+        assert.equal(result.ok, true, result.error);
+        assert.equal(result.result.status, "ready");
+        assert.equal(result.result.cleared, true);
+      });
+    } finally {
+      await server.close();
+    }
+  },
+);
+
+test(
+  "live: reCAPTCHA demo checkbox interaction (best-effort)",
+  liveOpts,
+  async () => {
+    await withBrowser(async (bw) => {
+      const result = await bw.run(`
+        await page.goto("https://www.google.com/recaptcha/api2/demo", {
+          waitUntil: "domcontentloaded",
+          timeout: 45_000,
+        });
+        await page.waitForTimeout(2_000);
+        const detected = await captcha.detect();
+        const solved = await captcha.solve({ timeout: 40_000, maxStages: 3 });
+        return {
+          url: page.url(),
+          detected,
+          solved,
+          tokenLen: (await page.locator('textarea[name="g-recaptcha-response"]').inputValue().catch(() => "")).length,
+        };
+      `);
+      assert.equal(result.ok, true, result.error);
+      // Live providers may score-block automation; record structured outcome.
+      assert.ok(["ready", "processing", "error"].includes(result.result.solved.status));
+      assert.equal(result.result.solved.local, true);
+      assert.equal(result.result.solved.externalApi, false);
+      console.log(
+        "[live recaptcha]",
+        JSON.stringify({
+          outcome: classifyCaptchaOutcome(result.result.solved.status, result.result.solved.stage, result.result.tokenLen),
+          serverAcceptance: "unverified",
+          status: result.result.solved.status,
+          stage: result.result.solved.stage,
+          provider: result.result.solved.provider,
+          attempts: result.result.solved.attempts?.length,
+          tokenLen: result.result.tokenLen,
+          present: result.result.detected?.present,
+        }),
+      );
+    });
+  },
+);
+
+test(
+  "live: hCaptcha demo detection and solve attempt (best-effort)",
+  liveOpts,
+  async () => {
+    await withBrowser(async (bw) => {
+      const result = await bw.run(`
+        await page.goto("https://accounts.hcaptcha.com/demo", {
+          waitUntil: "domcontentloaded",
+          timeout: 45_000,
+        });
+        await page.waitForTimeout(2_500);
+        const detected = await captcha.detect();
+        const solved = await captcha.solve({ timeout: 40_000, maxStages: 3 });
+        const tokenLen = (await page.locator('[name="h-captcha-response"]').inputValue().catch(() => "")).length;
+        return { detected, solved, tokenLen, url: page.url() };
+      `);
+      assert.equal(result.ok, true, result.error);
+      assert.ok(["ready", "processing", "error"].includes(result.result.solved.status));
+      assert.equal(result.result.solved.externalApi, false);
+      console.log(
+        "[live hcaptcha]",
+        JSON.stringify({
+          outcome: classifyCaptchaOutcome(result.result.solved.status, result.result.solved.stage, result.result.tokenLen),
+          serverAcceptance: "unverified",
+          status: result.result.solved.status,
+          stage: result.result.solved.stage,
+          provider: result.result.solved.provider,
+          widgets: result.result.detected?.widgets?.length,
+          tokenLen: result.result.tokenLen,
+        }),
+      );
+    });
+  },
+);
+
+test(
+  "live: Cloudflare Turnstile demo solve attempt (best-effort)",
+  liveOpts,
+  async () => {
+    await withBrowser(async (bw) => {
+      const result = await bw.run(`
+        await page.goto("https://2captcha.com/demo/cloudflare-turnstile", {
+          waitUntil: "domcontentloaded",
+          timeout: 45_000,
+        });
+        await page.waitForTimeout(2_500);
+        const detected = await captcha.detect();
+        const solved = await captcha.solve({ timeout: 45_000, maxStages: 3 });
+        const token = await page.locator('[name="cf-turnstile-response"]').inputValue().catch(() => "");
+        return { detected, solved, tokenLen: token.length, url: page.url() };
+      `);
+      assert.equal(result.ok, true, result.error);
+      assert.ok(["ready", "processing", "error"].includes(result.result.solved.status));
+      assert.equal(result.result.solved.local, true);
+      console.log(
+        "[live turnstile]",
+        JSON.stringify({
+          outcome: classifyCaptchaOutcome(result.result.solved.status, result.result.solved.stage, result.result.tokenLen),
+          serverAcceptance: "unverified",
+          status: result.result.solved.status,
+          stage: result.result.solved.stage,
+          provider: result.result.solved.provider,
+          tokenLen: result.result.tokenLen,
+          present: result.result.detected?.present,
+        }),
+      );
+    });
+  },
+);

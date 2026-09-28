@@ -1,0 +1,63 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.12/schema.json",
+  "files": {
+    "includes": [
+      "src/**",
+      "bin/**",
+      "scripts/**",
+      "tests/**",
+      "benchmarks/**",
+      "examples/**",
+      "research/**",
+      "!!tests/manual/**",
+      "!!tests/node/fixtures/**",
+      // Benchmark run artifacts (browser profiles, traces) are not our code.
+      "!!benchmarks/*/runs/**",
+      // Third-party benchmark datasets: data, not source, and large enough to
+      // trip the file-size limit.
+      "!!benchmarks/**/*.json",
+      // Emitted next to the .ts input by the dev projects; lint the source.
+      "!!scripts/**/*.js",
+      "!!research/**/*.js",
+      "!!tests/**/*.js",
+      "!!benchmarks/**/*.js"
+    ]
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  },
+  // The first TypeScript release keeps the dynamic browser/model protocol
+  // boundaries explicit while they are progressively narrowed. TypeScript's
+  // noEmitOnError build is authoritative. These two TypeScript-only style
+  // rules are deferred until those legacy protocol boundaries are narrowed.
+  "overrides": [
+    {
+      "includes": [
+        "src/**/*.ts",
+        "bin/**/*.ts",
+        "scripts/**/*.ts",
+        "tests/**/*.ts",
+        "benchmarks/**/*.ts",
+        "research/**/*.ts"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off",
+            "noImplicitAnyLet": "off"
+          }
+        }
+      }
+    }
+  ],
+  // The formatter is off deliberately, not as an oversight: the codebase is
+  // consistently hand-formatted (2-space indent, double quotes, semicolons —
+  // see .editorconfig), and enabling it would land a ~4,000-line whitespace
+  // commit across ~80 files that destroys git blame for zero behavior change.
+  "formatter": {
+    "enabled": false
+  }
+}
