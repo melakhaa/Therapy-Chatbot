@@ -15,6 +15,9 @@ from core.db import query
 
 router = APIRouter(prefix="/admin", tags=["Admin Operations"])
 admin_access = require_role("admin")
+# Counselors act on crisis signals and read aggregate insights too (RLS already lets them read guardrail_logs)
+staff_access = require_role("konselor", "admin", "pemangku_jabatan")
+report_access = require_role("admin", "pemangku_jabatan")
 
 
 class ScheduleCreate(BaseModel):
@@ -42,15 +45,19 @@ class HotlineUpdate(BaseModel):
 
 @router.get("/attention")
 def attention_signals(
-    signal: Optional[Literal["assessment", "safety"]] = None,
+    signal: Optional[Literal["assessment", "safety", "request"]] = None,
     unread_only: bool = False,
     page: int = Query(1, ge=1, le=2147483647),
     page_size: int = Query(20, ge=1, le=100),
-    admin=Depends(admin_access),
+    admin=Depends(staff_access),
 ):
+    # 'request' = the student pressed "contact me" in the app's crisis dialog (routes/chat.py report_to_team).
     # Older assessment logs only recorded a safe prefix in triggered_input. It is
     # used solely for classification here and is never returned to the client.
-    kind = "case when g.assessment_id is not null or g.triggered_input like '[ASSESSMENT]%' then 'assessment' else 'safety' end"
+    kind = (
+        "case when g.assessment_id is not null or g.triggered_input like '[ASSESSMENT]%%' then 'assessment' "
+        "when g.triggered_input like '[LAPORAN PENGGUNA]%%' then 'request' else 'safety' end"
+    )
     source = (
         "from guardrail_logs g left join users u on u.user_id = g.user_id "
         f"where (%s::text is null or ({kind}) = %s) and (%s = false or g.is_read = false)"
@@ -72,7 +79,7 @@ def attention_signals(
 
 
 @router.patch("/attention/{log_id}/read")
-def mark_attention_read(log_id: UUID, admin=Depends(admin_access)):
+def mark_attention_read(log_id: UUID, admin=Depends(staff_access)):
     rows = query(
         "update guardrail_logs set is_read = true where log_id = %s returning log_id",
         (str(log_id),), user_id=admin.id,
@@ -189,7 +196,7 @@ def delete_hotline(hotline_id: UUID, admin=Depends(admin_access)):
 def analytics(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
-    admin=Depends(admin_access),
+    admin=Depends(report_access),
 ):
     end = date_to or date.today()
     start = date_from or end - timedelta(days=29)
@@ -219,3 +226,12 @@ def analytics(
         "severity_distribution": severity, "assessment_trend": trend,
         "booking_total": sum(row["count"] for row in bookings), "booking_status": bookings,
     }
+
+
+@router.get("/insights")
+def student_insights(days: int = Query(30, ge=1, le=365), staff=Depends(staff_access)):
+    # Aggregates only (see db/init/05_student_insights.sql): no journal/chat text ever leaves the DB
+    row = query("select student_insights(%s) as data", (days,), user_id=staff.id)[0]["data"]
+    if row is None:
+        raise HTTPException(403, "Akses ditolak")
+    return row

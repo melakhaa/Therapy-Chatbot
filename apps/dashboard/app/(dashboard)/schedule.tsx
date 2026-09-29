@@ -6,22 +6,24 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { apiGetAdminBookings, apiUpdateBookingStatus, AdminBooking } from '@prototype/api-client';
 
+import { T, F, Neu } from '../../constants/sajiwa';
+
 const C = {
-  bg: '#f8f9fd', surface: '#ffffff', surfaceLow: '#f1f4f9', border: '#e4e8ef',
-  primary: '#356385', primaryLight: '#eef3f8', onPrimary: '#f6f9ff',
-  text: '#2b3437', textMuted: '#596067', textLight: '#8a9299',
-  success: '#2e7d52', successBg: '#e8f5ee',
-  warning: '#895900', warningBg: '#fff3e0',
-  danger: '#9f403d', dangerBg: '#fff0f0',
+  bg: T.bg, surface: T.bg, surfaceLow: T.bg, border: T.hairline,
+  primary: T.primary, primaryLight: 'rgba(38,53,110,0.08)', onPrimary: T.onPrimary,
+  text: T.ink, textMuted: T.sub, textLight: T.muted,
+  success: T.sage, successBg: T.sageFill,
+  warning: T.amber, warningBg: 'rgba(212,150,74,0.18)',
+  danger: T.coral, dangerBg: 'rgba(217,103,78,0.14)',
 };
 
-type StatusFilter = 'all' | 'menunggu' | 'dikonfirmasi' | 'dibatalkan';
+type StatusFilter = 'all' | 'menunggu' | 'dikonfirmasi' | 'selesai' | 'dibatalkan';
 
 const statusMeta = (s: string) => ({
   menunggu:     { label: 'Menunggu',   color: C.warning, bg: C.warningBg, icon: 'schedule'     },
   dikonfirmasi: { label: 'Dikonfirmasi', color: C.success, bg: C.successBg, icon: 'check-circle' },
   dibatalkan:   { label: 'Dibatalkan', color: C.danger,  bg: C.dangerBg,  icon: 'cancel'       },
-  selesai:      { label: 'Selesai',    color: C.textMuted, bg: C.surfaceLow, icon: 'done-all'   },
+  selesai:      { label: 'Selesai',    color: C.primary, bg: C.primaryLight, icon: 'done-all'   },
 }[s] || { label: s, color: C.textMuted, bg: C.surfaceLow, icon: 'info' });
 
 function StatusBadge({ status }: { status: string }) {
@@ -46,7 +48,7 @@ const badge = StyleSheet.create({
   },
   txt: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: F.bold,
     letterSpacing: -0.2,
   },
 });
@@ -152,6 +154,16 @@ export default function ScheduleManagementScreen() {
     finally { setSaving(null); }
   };
 
+  // After the session took place; the student's app then shows it as finished
+  const complete = async (id: string) => {
+    setSaving(id);
+    try {
+      await apiUpdateBookingStatus(id, 'selesai');
+      setBookings(prev => prev.map(b => b.booking_id === id ? { ...b, status: 'selesai' } : b));
+    } catch (e: any) { alert(e.message); }
+    finally { setSaving(null); }
+  };
+
   const rejectConfirm = async () => {
     setSaving(rejectModal.id);
     try {
@@ -183,8 +195,8 @@ export default function ScheduleManagementScreen() {
       {/* Header */}
       <View style={s.pageHeader}>
         <View>
-          <Text style={s.pageEye}>Sistem Manajemen</Text>
-          <Text style={s.pageTitle}>Penjadwalan Konsultasi</Text>
+          <Text style={s.pageTitle}>Daftar Konsultasi</Text>
+          <Text style={s.pageSub}>Booking yang dibuat mahasiswa dari menu Konseling di aplikasi.</Text>
         </View>
         <Animated.View style={s.refreshBtnWrap}>
           <InteractiveBtn onPress={load} style={s.refreshBtnInner}>
@@ -237,7 +249,7 @@ export default function ScheduleManagementScreen() {
           </View>
           
           <View style={s.filterRow}>
-            {(['all', 'menunggu', 'dikonfirmasi', 'dibatalkan'] as StatusFilter[]).map(f => {
+            {(['all', 'menunggu', 'dikonfirmasi', 'selesai', 'dibatalkan'] as StatusFilter[]).map(f => {
               const active = filterStatus === f;
               return (
                 <View key={f} style={[s.filterChip, active && s.filterChipActive]}>
@@ -271,7 +283,7 @@ export default function ScheduleManagementScreen() {
           ) : error ? (
             <View style={s.center}>
               <MaterialIcons name="error-outline" size={44} color={C.danger} />
-              <Text style={[s.centerTxt, { color: C.danger, fontWeight: '700' }]}>{error}</Text>
+              <Text style={[s.centerTxt, { color: C.danger, fontFamily: F.bold }]}>{error}</Text>
               <Pressable onPress={load} style={s.retryBtn}><Text style={s.retryTxt}>Coba Lagi</Text></Pressable>
             </View>
           ) : filtered.length === 0 ? (
@@ -304,14 +316,14 @@ export default function ScheduleManagementScreen() {
                   {/* Counselor Column */}
                   <View style={[s.col, { flex: 2 }]}>
                     <View style={s.profileCell}>
-                      <View style={[s.avatarCircle, { backgroundColor: '#0ea5e915' }]}>
-                        <Text style={[s.avatarTxt, { color: '#0ea5e9' }]}>
+                      <View style={[s.avatarCircle, { backgroundColor: C.warningBg }]}>
+                        <Text style={[s.avatarTxt, { color: C.warning }]}>
                           {getInitials(b.konselor.nama)}
                         </Text>
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={s.tdBold} numberOfLines={1}>{b.konselor.nama}</Text>
-                        <Text style={s.tdSub} numberOfLines={1}>Konselor Spesialis</Text>
+                        <Text style={s.tdSub} numberOfLines={1}>Konselor kampus</Text>
                       </View>
                     </View>
                   </View>
@@ -324,7 +336,7 @@ export default function ScheduleManagementScreen() {
                       </View>
                       <View>
                         <Text style={s.tdBold}>{fmtDate(b.jadwal?.tanggal)}</Text>
-                        <Text style={s.tdSub}>{b.jadwal ? `${b.jadwal.waktu_mulai} – ${b.jadwal.waktu_selesai}` : '-'}</Text>
+                        <Text style={s.tdSub}>{b.jadwal ? `${b.jadwal.waktu_mulai.slice(0, 5)} – ${b.jadwal.waktu_selesai.slice(0, 5)}` : '-'}</Text>
                       </View>
                     </View>
                   </View>
@@ -366,8 +378,21 @@ export default function ScheduleManagementScreen() {
                           </InteractiveBtn>
                         </View>
                       </View>
+                    ) : b.status === 'dikonfirmasi' ? (
+                      <View style={s.btnComplete}>
+                        <InteractiveBtn onPress={() => complete(b.booking_id)} disabled={saving === b.booking_id}>
+                          {saving === b.booking_id ? (
+                            <ActivityIndicator size="small" color={C.success} />
+                          ) : (
+                            <View style={s.btnInner}>
+                              <MaterialIcons name="done-all" size={14} color={C.success} />
+                              <Text style={s.btnCompleteTxt}>Tandai selesai</Text>
+                            </View>
+                          )}
+                        </InteractiveBtn>
+                      </View>
                     ) : (
-                      <Text style={s.actionDoneText}>Selesai diproses</Text>
+                      <Text style={s.actionDoneText}>{b.status === 'selesai' ? 'Sesi selesai' : 'Dibatalkan'}</Text>
                     )}
                   </View>
                 </View>
@@ -421,30 +446,27 @@ export default function ScheduleManagementScreen() {
 }
 
 const s = StyleSheet.create({
+  btnComplete: { height: 34, justifyContent: 'center', borderRadius: 10, paddingHorizontal: 12, backgroundColor: C.successBg },
+  btnCompleteTxt: { fontSize: 12, fontFamily: F.bold, color: C.success },
+  pageSub: { fontSize: 14, fontFamily: F.medium, color: C.textMuted, marginTop: 4 },
   root: { flex: 1, backgroundColor: C.bg },
   content: { padding: 32, paddingBottom: 60 },
   pageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 },
-  pageEye: { fontSize: 12, fontWeight: '700', color: C.textLight, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 },
-  pageTitle: { fontSize: 28, fontWeight: '800', color: C.text, letterSpacing: -0.5 },
+  pageEye: { fontSize: 12, fontFamily: F.bold, color: C.textLight, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 },
+  pageTitle: { fontSize: 28, fontFamily: F.extrabold, color: C.text, letterSpacing: -0.5 },
   
   refreshBtnWrap: {
     height: 38,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: C.border,
-    backgroundColor: C.surface,
+    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
     overflow: 'hidden',
-    shadowColor: '#2b3437',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
   },
   refreshBtnInner: {
     paddingHorizontal: 16,
     height: '100%',
   },
   refreshRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  refreshTxt: { fontSize: 13, fontWeight: '700', color: C.primary },
+  refreshTxt: { fontSize: 13, fontFamily: F.bold, color: C.primary },
   
   statsRow: { flexDirection: 'row', gap: 16, marginBottom: 28, flexWrap: 'wrap' },
   statCardWrap: { flexBasis: 220, flexGrow: 1 },
@@ -452,33 +474,19 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    backgroundColor: C.surface,
+    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
     borderRadius: 16,
     padding: 20,
-    borderWidth: 1,
-    borderColor: C.border,
-    shadowColor: '#2b3437',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
-    elevation: 2,
   },
   statIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  statValue: { fontSize: 26, fontWeight: '800', color: C.text, lineHeight: 30, letterSpacing: -0.5 },
-  statLabel: { fontSize: 13, fontWeight: '700', color: C.text, marginTop: 2 },
+  statValue: { fontSize: 26, fontFamily: F.extrabold, color: C.text, lineHeight: 30, letterSpacing: -0.5 },
+  statLabel: { fontSize: 13, fontFamily: F.bold, color: C.text, marginTop: 2 },
   statDesc: { fontSize: 11, color: C.textMuted, marginTop: 1 },
   
   panel: {
-    backgroundColor: C.surface,
+    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
     borderRadius: 18,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: C.border,
-    shadowColor: '#2b3437',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.04,
-    shadowRadius: 18,
-    elevation: 2,
   },
   toolbar: {
     flexDirection: 'row',
@@ -488,14 +496,14 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: C.border,
     flexWrap: 'wrap',
-    backgroundColor: '#FAFBFD',
+    backgroundColor: T.bg,
   },
   searchWrap: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#EDF1F7',
+    backgroundColor: T.bg,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 9,
@@ -505,7 +513,7 @@ const s = StyleSheet.create({
   },
   searchWrapActive: {
     borderColor: C.primary,
-    backgroundColor: C.surface,
+    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
   },
   searchInput: { flex: 1, fontSize: 14, color: C.text, outlineStyle: 'none' as any },
   
@@ -513,7 +521,7 @@ const s = StyleSheet.create({
   filterChip: {
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#EDF1F7',
+    backgroundColor: T.bg,
     borderWidth: 1,
     borderColor: 'transparent',
     overflow: 'hidden',
@@ -522,45 +530,39 @@ const s = StyleSheet.create({
     backgroundColor: C.primary,
     borderColor: C.primary,
   },
-  filterTxt: { fontSize: 13, fontWeight: '600', color: C.textMuted, paddingHorizontal: 14 },
-  filterTxtActive: { color: '#ffffff', fontWeight: '700' },
+  filterTxt: { fontSize: 13, fontFamily: F.semibold, color: C.textMuted, paddingHorizontal: 14 },
+  filterTxtActive: { color: '#ffffff', fontFamily: F.bold },
   
   tableHead: {
     flexDirection: 'row',
-    backgroundColor: '#F1F4F9',
+    backgroundColor: T.bg,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
-  th: { fontSize: 11, fontWeight: '800', color: C.textMuted, letterSpacing: 0.8, textTransform: 'uppercase' },
+  th: { fontSize: 11, fontFamily: F.extrabold, color: C.textMuted, letterSpacing: 0.8, textTransform: 'uppercase' },
   
   listContent: { padding: 16, backgroundColor: C.surface },
   
   cardRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: C.surface,
+    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 12,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: C.border,
     borderLeftWidth: 5,
-    shadowColor: '#2b3437',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02,
-    shadowRadius: 6,
   },
   col: { justifyContent: 'center' },
   
   profileCell: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatarCircle: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  avatarTxt: { fontSize: 13, fontWeight: '800' },
+  avatarTxt: { fontSize: 13, fontFamily: F.extrabold },
   
   td: { fontSize: 14, color: C.text },
-  tdBold: { fontSize: 14, fontWeight: '700', color: C.text },
+  tdBold: { fontSize: 14, fontFamily: F.bold, color: C.text },
   tdSub: { fontSize: 12, color: C.textMuted, marginTop: 2 },
   
   dateTimeCell: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -573,43 +575,39 @@ const s = StyleSheet.create({
     maxWidth: 100,
     height: 34,
     backgroundColor: C.success,
-    borderRadius: 8,
+    borderRadius: 10,
     overflow: 'hidden',
+    justifyContent: 'center',
   },
-  btnApproveTxt: { color: '#fff', fontSize: 13, fontWeight: '700', marginLeft: 4 },
+  btnApproveTxt: { color: '#fff', fontSize: 13, fontFamily: F.bold, marginLeft: 4 },
   btnReject: {
     flex: 1,
     maxWidth: 80,
     height: 34,
     backgroundColor: C.dangerBg,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: C.danger + '25',
+    borderRadius: 10,
     overflow: 'hidden',
+    justifyContent: 'center',
   },
-  btnRejectTxt: { color: C.danger, fontSize: 13, fontWeight: '700', marginLeft: 4 },
+  btnRejectTxt: { color: C.danger, fontSize: 13, fontFamily: F.bold, marginLeft: 4 },
   btnInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   
-  actionDoneText: { fontSize: 13, fontWeight: '600', color: C.textLight },
+  actionDoneText: { fontSize: 13, fontFamily: F.semibold, color: C.textLight },
   
   center: { alignItems: 'center', paddingVertical: 54, gap: 12 },
-  centerTxt: { fontSize: 14, color: C.textLight, fontWeight: '600' },
+  centerTxt: { fontSize: 14, color: C.textLight, fontFamily: F.semibold },
   retryBtn: { paddingHorizontal: 20, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: C.border, marginTop: 8 },
-  retryTxt: { fontSize: 14, fontWeight: '700', color: C.primary },
+  retryTxt: { fontSize: 14, fontFamily: F.bold, color: C.primary },
 });
 
 const modal = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(27,38,49,0.5)', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(4px)' as any },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: T.bg,
     borderRadius: 24,
     padding: 32,
     width: 460,
     maxWidth: '90%',
-    shadowColor: '#1b2631',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.15,
-    shadowRadius: 30,
     alignItems: 'center',
   },
   headerIconWrap: {
@@ -621,7 +619,7 @@ const modal = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 20,
   },
-  title: { fontSize: 20, fontWeight: '800', color: C.text, marginBottom: 8, textAlign: 'center' },
+  title: { fontSize: 20, fontFamily: F.extrabold, color: C.text, marginBottom: 8, textAlign: 'center' },
   sub: { fontSize: 14, color: C.textMuted, marginBottom: 20, textAlign: 'center', lineHeight: 20 },
   input: {
     width: '100%',
@@ -635,11 +633,11 @@ const modal = StyleSheet.create({
     minHeight: 100,
     marginBottom: 24,
     outlineStyle: 'none' as any,
-    backgroundColor: '#FAFBFD',
+    backgroundColor: T.bg,
   },
   actions: { flexDirection: 'row', gap: 12, width: '100%' },
   btnCancel: { flex: 1, height: 42, borderRadius: 10, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
-  btnCancelTxt: { fontSize: 14, fontWeight: '700', color: C.textMuted },
+  btnCancelTxt: { fontSize: 14, fontFamily: F.bold, color: C.textMuted },
   btnReject: { flex: 1, height: 42, borderRadius: 10, backgroundColor: C.danger, overflow: 'hidden' },
-  btnRejectTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  btnRejectTxt: { fontSize: 14, fontFamily: F.bold, color: '#fff' },
 });

@@ -1,46 +1,31 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TextInput,
-  Pressable, ActivityIndicator, Animated, Image, Easing
+  View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, Image, useWindowDimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { apiLogin } from '@prototype/api-client';
+import { apiLogin, clearAuthSync } from '@prototype/api-client';
+import { T, F, Neu, FACE } from '../constants/sajiwa';
 
-const logoImg = require('../assets/images/logo.png');
+// Bolder depth for the hero only, same recipe as the mobile login stage
+const DISC = '-16px -16px 32px rgba(255,255,255,0.95), 16px 16px 34px rgba(122,134,168,0.55)';
+const WELL = 'inset 12px 12px 24px rgba(122,134,168,0.55), inset -12px -12px 24px rgba(255,255,255,0.95)';
+const SLAB = '-12px -12px 26px rgba(255,255,255,0.95), 12px 12px 28px rgba(122,134,168,0.5)';
 
-const C = {
-  background: '#f8f9fa',
-  surfaceContainerLowest: '#ffffff',
-  onSurface: '#2b3437',
-  onSurfaceVariant: '#586064',
-  primary: '#496175',
-  outline: '#737c7f',
-  error: '#9f403d',
-  border: '#eaeff1',
-};
+const DEMO_ACCOUNTS = [
+  { label: 'Akun Admin', icon: 'admin-panel-settings', email: 'admin@example.com', password: 'admin1234' },
+  { label: 'Akun Konselor', icon: 'support-agent', email: 'konselor@example.com', password: 'konselor1234' },
+] as const;
 
 export default function LoginScreen() {
-  const [email, setEmail]       = useState('');
+  const { width } = useWindowDimensions();
+  const wide = width >= 900;
+
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showPass, setShowPass] = useState(false);
-
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1, duration: 800, useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0, duration: 800,
-        easing: Easing.out(Easing.cubic), useNativeDriver: true,
-      })
-    ]).start();
-  }, []);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) return;
@@ -50,14 +35,12 @@ export default function LoginScreen() {
       const data = await apiLogin({ email: email.trim(), password });
       const role = data.user.role;
       if (role === 'admin' || role === 'pemangku_jabatan' || role === 'konselor') {
-        // Token already saved by apiLogin — force reload to let _layout pick it up
-        if (typeof window !== 'undefined') {
-          window.location.href = '/(dashboard)';
-        } else {
-          router.replace('/(dashboard)');
-        }
+        // Token already saved by apiLogin; a full reload lets the root layout pick it up
+        if (typeof window !== 'undefined') window.location.href = '/(dashboard)';
+        else router.replace('/(dashboard)');
       } else {
-        setError('Akses ditolak. Hanya admin/konselor/operator yang dapat masuk.');
+        clearAuthSync(); // a student token must not linger in the staff portal
+        setError('Portal ini khusus konselor dan admin. Mahasiswa masuk lewat aplikasi Sajiwa.');
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Login gagal');
@@ -66,187 +49,164 @@ export default function LoginScreen() {
     }
   };
 
+  const D = wide ? 300 : 220; // stage diameter
+  const RIM = Math.round(D * 0.09);
+  const W = D - RIM * 2;
+  const LIFT = Math.round(D * 0.3);
+
   return (
     <View style={s.root}>
-      <View style={s.navbar}>
-        <View style={s.navLeft}>
-          <Image source={logoImg} style={s.navLogo} resizeMode="contain" />
-          <Text style={s.navTitle}>Sajiwa</Text>
+      <View style={[s.split, !wide && { flexDirection: 'column', gap: 28 }]}>
+        {/* Hero: the companion climbing out of its portal, as on mobile */}
+        <View style={[s.hero, !wide && { alignItems: 'center' }]}>
+          <View style={{ width: D, height: D + LIFT, alignSelf: wide ? 'flex-start' : 'center' }}>
+            <View style={[s.disc, { width: D, height: D, borderRadius: D / 2 }]}>
+              <View style={{ width: W, height: W, borderRadius: W / 2, backgroundColor: T.bg, boxShadow: WELL }} />
+            </View>
+            <View
+              style={{
+                position: 'absolute', left: RIM, bottom: RIM, width: W, height: W + LIFT, overflow: 'hidden',
+                borderBottomLeftRadius: W / 2, borderBottomRightRadius: W / 2, alignItems: 'center', justifyContent: 'flex-end',
+              }}
+            >
+              <Image source={FACE.menyapa} style={{ width: W * 1.34, height: W * 1.34 }} resizeMode="contain" />
+            </View>
+            <View style={[s.bubble, { left: D * 0.7 }]}>
+              <Text style={s.bubbleText}>Selamat bertugas hari ini!</Text>
+            </View>
+          </View>
+
+          <Text style={[s.heroTitle, !wide && { textAlign: 'center' }]}>Ruang kerja konselor Sajiwa</Text>
+          <Text style={[s.heroSub, !wide && { textAlign: 'center' }]}>
+            Pantau sesi konseling, atur jadwal, dan tanggapi mahasiswa yang butuh bantuan.
+          </Text>
         </View>
-      </View>
 
-      <View style={s.main}>
-        <Animated.View style={[s.card, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-          <View style={s.cardHeader}>
-            <Text style={s.title}>Admin Portal</Text>
-            <Text style={s.subtitle}>Silakan masuk untuk mengelola sistem.</Text>
+        {/* Form on a raised slab */}
+        <View style={s.card}>
+          <View style={s.brandRow}>
+            <Image source={require('../assets/images/logo.png')} style={s.logo} resizeMode="contain" />
+            <Text style={s.brandName}>Sajiwa</Text>
+          </View>
+          <Text style={s.title}>Masuk ke portal</Text>
+          <Text style={s.subtitle}>Khusus konselor, admin, dan pemangku jabatan.</Text>
+
+          <Text style={s.fieldLabel}>Email</Text>
+          <View style={s.inputWrap}>
+            <MaterialIcons name="mail-outline" size={20} color={T.sub} />
+            <TextInput
+              style={s.input}
+              placeholder="nama@undip.ac.id"
+              placeholderTextColor={T.muted}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
+              editable={!loading}
+              onSubmitEditing={handleLogin}
+            />
           </View>
 
-          <View style={s.fieldGroup}>
-            <Text style={s.fieldLabel}>EMAIL ADDRESS</Text>
-            <View style={s.inputWrap}>
-              <MaterialIcons name="mail-outline" size={20} color={C.outline} style={{ marginRight: 12 }} />
-              <TextInput
-                style={s.input}
-                placeholder="admin@sajiwa.com"
-                placeholderTextColor={C.outline + '80'}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={setEmail}
-                editable={!loading}
-              />
-            </View>
-          </View>
-
-          <View style={s.fieldGroup}>
-            <Text style={s.fieldLabel}>PASSWORD</Text>
-            <View style={s.inputWrap}>
-              <MaterialIcons name="lock-outline" size={20} color={C.outline} style={{ marginRight: 12 }} />
-              <TextInput
-                style={[s.input, { flex: 1 }]}
-                placeholder="••••••••"
-                placeholderTextColor={C.outline + '80'}
-                secureTextEntry={!showPass}
-                value={password}
-                onChangeText={setPassword}
-                editable={!loading}
-              />
-              <Pressable onPress={() => setShowPass(!showPass)}>
-                <MaterialIcons name={showPass ? 'visibility-off' : 'visibility'} size={20} color={C.outline} />
-              </Pressable>
-            </View>
+          <Text style={s.fieldLabel}>Kata sandi</Text>
+          <View style={s.inputWrap}>
+            <MaterialIcons name="lock-outline" size={20} color={T.sub} />
+            <TextInput
+              style={s.input}
+              placeholder="Minimal 8 karakter"
+              placeholderTextColor={T.muted}
+              secureTextEntry={!showPass}
+              value={password}
+              onChangeText={setPassword}
+              editable={!loading}
+              onSubmitEditing={handleLogin}
+            />
+            <Pressable onPress={() => setShowPass(!showPass)} accessibilityLabel={showPass ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}>
+              <MaterialIcons name={showPass ? 'visibility-off' : 'visibility'} size={20} color={T.sub} />
+            </Pressable>
           </View>
 
           {error && (
             <View style={s.errorBox}>
-              <MaterialIcons name="error-outline" size={16} color={C.error} />
+              <MaterialIcons name="error-outline" size={16} color={T.coral} />
               <Text style={s.errorTxt}>{error}</Text>
             </View>
           )}
 
           <Pressable
-            style={(state: any) => [
-              s.btn,
-              state.hovered && { backgroundColor: '#3d5569' },
-              loading && { opacity: 0.7 }
-            ]}
+            style={(state: any) => [s.btn, state.pressed && { boxShadow: Neu.inset }, (loading || !email || !password) && { opacity: 0.6 }]}
             onPress={handleLogin}
-            disabled={loading}
+            disabled={loading || !email || !password}
           >
-            {loading
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={s.btnTxt}>Sign In to Dashboard</Text>
-            }
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnTxt}>Masuk</Text>}
           </Pressable>
 
-          <Text style={s.hint}>Access restricted to Admin, Konselor & Operator roles.</Text>
-        </Animated.View>
+          {/* Dev only: one-tap fill for the seeded accounts (apps/backend/scripts/seed_dev_users.py) */}
+          {__DEV__ && (
+            <View style={s.demoRow}>
+              {DEMO_ACCOUNTS.map((a) => (
+                <Pressable
+                  key={a.email}
+                  onPress={() => { setEmail(a.email); setPassword(a.password); setError(null); }}
+                  style={(state: any) => [s.demoBtn, state.hovered && { boxShadow: Neu.raised }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Isi akun demo ${a.label}`}
+                >
+                  <MaterialIcons name={a.icon} size={16} color={T.primary} />
+                  <Text style={s.demoTxt}>{a.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </View>
       </View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.background },
-  navbar: {
-    height: 64,
-    backgroundColor: 'rgba(248, 249, 250, 0.7)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    position: 'absolute',
-    top: 0, left: 0, right: 0,
-    zIndex: 50,
+  root: { flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center', padding: 32 },
+  split: { width: '100%', maxWidth: 1040, flexDirection: 'row', alignItems: 'center', gap: 64 },
+
+  hero: { flex: 1, gap: 14 },
+  disc: { position: 'absolute', bottom: 0, backgroundColor: T.bg, boxShadow: DISC, alignItems: 'center', justifyContent: 'center' },
+  bubble: {
+    position: 'absolute', top: 0, width: 190, backgroundColor: T.bg, boxShadow: Neu.raisedSm,
+    paddingHorizontal: 16, paddingVertical: 12, borderRadius: 18, borderBottomLeftRadius: 4,
   },
-  navLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  navLogo: { width: 32, height: 32 },
-  navTitle: {
-    fontSize: 20,
-    fontFamily: 'PlusJakartaSans_800ExtraBold',
-    color: C.onSurface,
-    letterSpacing: -0.5,
-  },
-  main: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 460,
-    backgroundColor: C.surfaceContainerLowest,
-    borderRadius: 16,
-    padding: 40,
-    shadowColor: '#2b3437',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.06,
-    shadowRadius: 40,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  cardHeader: { marginBottom: 32, alignItems: 'center' },
-  title: {
-    fontSize: 28,
-    fontFamily: 'PlusJakartaSans_800ExtraBold',
-    color: C.onSurface,
-    letterSpacing: -0.5,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    fontFamily: 'PlusJakartaSans_500Medium',
-    color: C.onSurfaceVariant,
-  },
-  fieldGroup: { marginBottom: 24 },
-  fieldLabel: {
-    fontSize: 12,
-    fontFamily: 'PlusJakartaSans_700Bold',
-    color: C.outline,
-    letterSpacing: 1.5,
-    marginBottom: 8,
-  },
+  bubbleText: { fontSize: 15, lineHeight: 20, fontFamily: F.bold, color: T.ink },
+  heroTitle: { fontSize: 34, lineHeight: 42, fontFamily: F.extrabold, color: T.ink, letterSpacing: -1, marginTop: 18, maxWidth: 520 },
+  heroSub: { fontSize: 16, lineHeight: 24, fontFamily: F.medium, color: T.sub, maxWidth: 460 },
+
+  card: { width: '100%', maxWidth: 420, padding: 32, borderRadius: 32, backgroundColor: T.bg, boxShadow: SLAB, alignSelf: 'center' },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 18 },
+  logo: { width: 26, height: 26 },
+  brandName: { fontSize: 16, fontFamily: F.extrabold, color: T.primary },
+  title: { fontSize: 26, fontFamily: F.extrabold, color: T.ink, letterSpacing: -0.6 },
+  subtitle: { fontSize: 14, fontFamily: F.medium, color: T.sub, marginTop: 4, marginBottom: 24 },
+
+  fieldLabel: { fontSize: 13, fontFamily: F.bold, color: T.ink, marginBottom: 8 },
   inputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#d1dce0',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: C.background,
+    flexDirection: 'row', alignItems: 'center', gap: 12, height: 52, paddingHorizontal: 16, marginBottom: 18,
+    borderRadius: 16, backgroundColor: T.bg, boxShadow: Neu.inset,
   },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: 'PlusJakartaSans_500Medium',
-    color: C.onSurface,
-    outlineStyle: 'none' as any,
-  },
+  input: { flex: 1, height: '100%', fontSize: 15, fontFamily: F.medium, color: T.ink, outlineStyle: 'none' as any },
+
   errorBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#fff7f6',
-    borderRadius: 8,
-    padding: 12, marginBottom: 24,
-    borderWidth: 1, borderColor: '#fe8983',
+    flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 14, marginBottom: 16,
+    backgroundColor: 'rgba(217,103,78,0.12)',
   },
-  errorTxt: { fontSize: 14, fontFamily: 'PlusJakartaSans_600SemiBold', color: C.error, flex: 1 },
+  errorTxt: { flex: 1, fontSize: 13, fontFamily: F.semibold, color: T.coral },
+
   btn: {
-    backgroundColor: C.primary,
-    borderRadius: 8,
-    paddingVertical: 16,
-    alignItems: 'center',
-    transition: 'all 0.2s' as any,
+    height: 54, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginTop: 4,
+    backgroundColor: T.primary, boxShadow: '6px 8px 18px rgba(38,53,110,0.35)',
   },
-  btnTxt: { color: '#f3f8ff', fontSize: 16, fontFamily: 'PlusJakartaSans_700Bold' },
-  hint: {
-    fontSize: 13,
-    fontFamily: 'PlusJakartaSans_500Medium',
-    color: C.outline,
-    textAlign: 'center',
-    marginTop: 24,
+  btnTxt: { color: T.onPrimary, fontSize: 16, fontFamily: F.bold },
+
+  demoRow: { flexDirection: 'row', gap: 10, marginTop: 20, justifyContent: 'center', flexWrap: 'wrap' },
+  demoBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9,
+    borderRadius: 999, backgroundColor: T.bg, boxShadow: Neu.raisedSm,
   },
+  demoTxt: { fontSize: 13, fontFamily: F.semibold, color: T.primary },
 });

@@ -1,93 +1,95 @@
 import { Slot, router, usePathname } from 'expo-router';
-import { View, Text, StyleSheet, Pressable, ScrollView, Animated } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Image } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import React, { useRef } from 'react';
+import React, { useEffect, useState } from 'react';
+import { getStoredUserSync, apiGetAttention } from '@prototype/api-client';
+import { T, F, Neu, FACE } from '../../constants/sajiwa';
 
-const Colors = {
-  sidebarBg: '#f1f4f9', 
-  sidebarActiveItem: '#dde3eb',
-  sidebarHoverItem: '#e4e8ef',
-  
-  textMuted: '#596067', 
-  textStrong: '#356385', 
-  
-  primary: '#356385', 
-  primaryText: '#f6f9ff',
-  
-  bgWhite: '#FFFFFF',
-};
+type Item = { icon: keyof typeof MaterialIcons.glyphMap; label: string; href?: string; match?: string; adminOnly?: boolean; badge?: 'crisis' };
 
-// NavItem Reaktif
-const NavItem = ({ icon, label, active = false, onPress }: { icon: any, label: string, active?: boolean, onPress?: () => void }) => {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+const MENU: Item[] = [
+  { icon: 'space-dashboard', label: 'Ringkasan', href: '/(dashboard)', match: '/' },
+  { icon: 'event-note', label: 'Daftar Konsultasi', href: '/(dashboard)/schedule', match: 'schedule' },
+  { icon: 'event-available', label: 'Atur Ketersediaan', href: '/(dashboard)/availability', match: 'availability' },
+  { icon: 'notifications-active', label: 'Peringatan Krisis', href: '/(dashboard)/crisis', match: 'crisis', badge: 'crisis' },
+  { icon: 'insights', label: 'Insight Mahasiswa', href: '/(dashboard)/insights', match: 'insights' },
+  { icon: 'assessment', label: 'Laporan', href: '/(dashboard)/reports', match: 'reports', adminOnly: true },
+  { icon: 'call', label: 'Hotline', href: '/(dashboard)/hotlines', match: 'hotlines', adminOnly: true },
+];
 
-  const onPressIn = () => { Animated.spring(scaleAnim, { toValue: 0.95, useNativeDriver: true, speed: 20 }).start(); };
-  const onPressOut = () => { Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 20 }).start(); };
-
+const NavItem = ({ item, active, count = 0 }: { item: Item; active: boolean; count?: number }) => {
+  const disabled = !item.href;
   return (
-    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-      <Pressable 
-        onPressIn={onPressIn}
-        onPressOut={onPressOut}
-        onPress={onPress}
-        style={(state: any) => [
-          styles.navItem, 
-          active && styles.navItemActive, 
-          state.hovered && !active && styles.navItemHovered,
-        ]}
-      >
-        <MaterialIcons 
-          name={icon} 
-          size={20} 
-          color={active ? Colors.textStrong : Colors.textMuted} 
-        />
-        <Text style={[styles.navText, active && styles.navTextActive]}>
-          {label}
-        </Text>
-      </Pressable>
-    </Animated.View>
+    <Pressable
+      onPress={() => item.href && !active && router.push(item.href as any)}
+      disabled={disabled}
+      accessibilityRole="link"
+      accessibilityState={{ selected: active, disabled }}
+      style={(state: any) => [
+        styles.navItem,
+        active && { boxShadow: Neu.inset },
+        !active && !disabled && state.hovered && { boxShadow: Neu.raisedSm },
+      ]}
+    >
+      <MaterialIcons name={item.icon} size={20} color={active ? T.primary : disabled ? T.muted : T.sub} />
+      <Text style={[styles.navText, active && styles.navTextActive, disabled && { color: T.muted }]}>{item.label}</Text>
+      {disabled && <Text style={styles.soon}>Segera</Text>}
+      {count > 0 && (
+        <View style={styles.badge} accessibilityLabel={`${count} belum ditinjau`}>
+          <Text style={styles.badgeTxt}>{count > 99 ? '99+' : count}</Text>
+        </View>
+      )}
+    </Pressable>
   );
 };
 
 export default function DashboardLayout() {
   const pathname = usePathname();
+  const user = getStoredUserSync<{ nama?: string; role?: string }>();
+  const isActive = (m?: string) =>
+    m === '/' ? pathname === '/' || pathname === '/(dashboard)' : !!m && pathname.includes(m);
+  const [crisis, setCrisis] = useState(0);
+  // Unread crisis signals from the student app, refreshed on every page change
+  useEffect(() => {
+    apiGetAttention({ unreadOnly: true, pageSize: 1 }).then((r) => setCrisis(r.total)).catch(() => {});
+  }, [pathname]);
+  const isStaffAdmin = user?.role === 'admin' || user?.role === 'pemangku_jabatan';
+  const initials = (user?.nama || 'S').split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase()).join('');
+
   return (
     <View style={styles.container}>
-      {/* Sidebar - MindGuard Admin */}
       <View style={styles.sidebar}>
-        
-        {/* Brand */}
-        <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>MindGuard Admin</Text>
-          <Text style={styles.logoSubText}>Mental Health Portal</Text>
+        {/* Brand: same companion as the student app */}
+        <View style={styles.brand}>
+          <View style={styles.brandWell}>
+            <Image source={FACE.senang} style={styles.brandFace} resizeMode="contain" />
+          </View>
+          <View>
+            <Text style={styles.brandName}>Sajiwa</Text>
+            <Text style={styles.brandSub}>Portal Konselor & Admin</Text>
+          </View>
         </View>
 
-        {/* Menu Items */}
-        <ScrollView style={styles.navMenu} contentContainerStyle={{ gap: 4 }}>
-          <NavItem icon="dashboard"             label="Overview"            active={pathname === '/(dashboard)'}     onPress={() => router.push('/(dashboard)')} />
-          <NavItem icon="event"                 label="Daftar Konsultasi"  active={pathname.includes('schedule')}   onPress={() => router.push('/(dashboard)/schedule')} />
-          <NavItem icon="event-available"       label="Atur Ketersediaan"  active={pathname.includes('availability')} onPress={() => router.push('/(dashboard)/availability')} />
-          <NavItem icon="analytics"             label="Student Insights"   active={false} />
-          <NavItem icon="notifications-active" label="Alerts"             active={false} />
-          <NavItem icon="psychology"            label="Consultations"      active={false} />
-          <NavItem icon="assessment"            label="Reports"            active={false} />
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
+          {MENU.filter((it) => !it.adminOnly || isStaffAdmin).map((it) => (
+            <NavItem key={it.label} item={it} active={isActive(it.match)} count={it.badge === 'crisis' ? crisis : 0} />
+          ))}
         </ScrollView>
 
-        {/* Bottom Section */}
-        <View style={styles.bottomMenu}>
-          <Pressable style={(state: any) => [
-            styles.generateBtn,
-            state.hovered && { opacity: 0.9 }
-          ]}>
-            <Text style={styles.generateBtnText}>Generate Report</Text>
-          </Pressable>
-          
-          <NavItem icon="settings" label="Settings" />
-          <NavItem icon="help" label="Support" />
-        </View>
+        {/* Who is signed in */}
+        {user && (
+          <View style={styles.userCard}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.userName} numberOfLines={1}>{user.nama}</Text>
+              <Text style={styles.userRole}>{user.role === 'pemangku_jabatan' ? 'Pemangku jabatan' : user.role}</Text>
+            </View>
+          </View>
+        )}
       </View>
 
-      {/* Main Content */}
       <View style={styles.main}>
         <Slot />
       </View>
@@ -96,87 +98,36 @@ export default function DashboardLayout() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: '#f8f9fd', // Sajiwa Background
-  },
+  container: { flex: 1, flexDirection: 'row', backgroundColor: T.bg },
   sidebar: {
-    width: 256, 
-    height: '100%',
-    backgroundColor: Colors.sidebarBg,
-    paddingVertical: 32,
-    paddingHorizontal: 16,
-    zIndex: 50,
+    width: 264, height: '100%', backgroundColor: T.bg, paddingVertical: 28, paddingHorizontal: 18, zIndex: 50,
+    boxShadow: '8px 0px 24px rgba(122,134,168,0.18)',
   },
-  logoContainer: {
-    marginBottom: 32,
-    paddingHorizontal: 16,
+
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 30, paddingHorizontal: 4 },
+  brandWell: {
+    width: 56, height: 56, borderRadius: 28, backgroundColor: T.bg, boxShadow: Neu.inset,
+    alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden',
   },
-  logoText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.textStrong,
-    letterSpacing: -0.5,
+  brandFace: { width: 58, height: 58, marginBottom: -4 },
+  brandName: { fontSize: 20, fontFamily: F.extrabold, color: T.primary, letterSpacing: -0.5 },
+  brandSub: { fontSize: 12, fontFamily: F.medium, color: T.sub, marginTop: 1 },
+
+  navItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16 },
+  navText: { flex: 1, fontSize: 14, fontFamily: F.medium, color: T.sub },
+  navTextActive: { color: T.primary, fontFamily: F.bold },
+  badge: { minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: 11, backgroundColor: T.coral, alignItems: 'center', justifyContent: 'center' },
+  badgeTxt: { fontSize: 11, fontFamily: F.extrabold, color: '#fff' },
+  soon: { fontSize: 10, fontFamily: F.bold, color: T.muted, letterSpacing: 0.3 },
+
+  userCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 20,
+    backgroundColor: T.bg, boxShadow: Neu.raisedSm,
   },
-  logoSubText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: Colors.textMuted,
-    marginTop: 2,
-  },
-  navMenu: {
-    flex: 1,
-  },
-  navItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 6,
-    transition: 'all 0.2s' as any,
-  },
-  navItemActive: {
-    backgroundColor: Colors.sidebarActiveItem,
-  },
-  navItemHovered: {
-    backgroundColor: Colors.sidebarHoverItem,
-  },
-  navText: {
-    fontSize: 14,
-    color: Colors.textMuted,
-    fontWeight: '500',
-    letterSpacing: -0.2,
-  },
-  navTextActive: {
-    color: Colors.textStrong,
-    fontWeight: '600',
-  },
-  bottomMenu: {
-    marginTop: 'auto',
-    gap: 4,
-  },
-  generateBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginHorizontal: 8,
-    marginBottom: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-  },
-  generateBtnText: {
-    color: Colors.primaryText,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  main: {
-    flex: 1,
-    position: 'relative', 
-    backgroundColor: '#f8f9fd'
-  }
+  avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: T.primary, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: T.onPrimary, fontSize: 13, fontFamily: F.extrabold },
+  userName: { fontSize: 13, fontFamily: F.bold, color: T.ink },
+  userRole: { fontSize: 12, fontFamily: F.medium, color: T.sub, textTransform: 'capitalize' },
+
+  main: { flex: 1, position: 'relative', backgroundColor: T.bg },
 });

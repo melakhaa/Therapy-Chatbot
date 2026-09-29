@@ -5,15 +5,19 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { apiGetJadwalSaya, apiUpdateJadwalStatus, JadwalSlot } from '@prototype/api-client';
+import {
+  apiGetJadwalSaya, apiUpdateJadwalStatus, apiGetAdminSchedules, apiUpdateAdminSchedule, getStoredUserSync, JadwalSlot,
+} from '@prototype/api-client';
+
+import { T, F, Neu } from '../../constants/sajiwa';
 
 const C = {
-  bg: '#f8f9fd', surface: '#ffffff', surfaceLow: '#f1f4f9', border: '#e4e8ef',
-  primary: '#356385', primaryLight: '#eef3f8', onPrimary: '#f6f9ff',
-  text: '#2b3437', textMuted: '#596067', textLight: '#8a9299',
-  success: '#2e7d52', successBg: '#e8f5ee',
-  warning: '#895900', warningBg: '#fff3e0',
-  danger: '#9f403d', dangerBg: '#fff0f0',
+  bg: T.bg, surface: T.bg, surfaceLow: T.bg, border: T.hairline,
+  primary: T.primary, primaryLight: 'rgba(38,53,110,0.08)', onPrimary: T.onPrimary,
+  text: T.ink, textMuted: T.sub, textLight: T.muted,
+  success: T.sage, successBg: T.sageFill,
+  warning: T.amber, warningBg: 'rgba(212,150,74,0.18)',
+  danger: T.coral, dangerBg: 'rgba(217,103,78,0.14)',
 };
 
 const statusMeta = (s: string) => ({
@@ -45,7 +49,7 @@ const badge = StyleSheet.create({
   },
   txt: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: F.bold,
     letterSpacing: -0.2,
   },
 });
@@ -109,8 +113,15 @@ const GlacialAnim = ({ children, delay = 0, style }: { children: React.ReactNode
   );
 };
 
+type Slot = JadwalSlot & { counselor_name?: string };
+
 export default function ManageJadwalScreen() {
-  const [jadwal, setJadwal] = useState<JadwalSlot[]>([]);
+  // Admins manage every counselor's slots (what students see in the app's Konseling tab);
+  // counselors manage their own.
+  const role = getStoredUserSync<{ role?: string }>()?.role;
+  const isAdmin = role === 'admin';
+  const [jadwal, setJadwal] = useState<Slot[]>([]);
+  const [counselor, setCounselor] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -118,8 +129,13 @@ export default function ManageJadwalScreen() {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await apiGetJadwalSaya();
-      setJadwal(res.jadwal || []);
+      if (isAdmin) {
+        const res = await apiGetAdminSchedules({ dateFrom: new Date().toISOString().slice(0, 10) });
+        setJadwal(res.schedules);
+      } else {
+        const res = await apiGetJadwalSaya();
+        setJadwal(res.jadwal || []);
+      }
     } catch (e: any) {
       setError(e.message || 'Gagal memuat jadwal');
     } finally {
@@ -136,7 +152,8 @@ export default function ManageJadwalScreen() {
   const handleCancel = async (id: string) => {
     if (typeof window !== 'undefined' && !window.confirm('Batalkan jadwal ketersediaan ini?')) return;
     try {
-      await apiUpdateJadwalStatus(id, 'dibatalkan');
+      if (isAdmin) await apiUpdateAdminSchedule(id, 'dibatalkan');
+      else await apiUpdateJadwalStatus(id, 'dibatalkan');
       load();
     } catch (e: any) {
       alert(e.message);
@@ -148,8 +165,12 @@ export default function ManageJadwalScreen() {
       {/* Header */}
       <View style={s.pageHeader}>
         <View>
-          <Text style={s.pageEye}>Sistem Manajemen</Text>
-          <Text style={s.pageTitle}>Ketersediaan Jadwal</Text>
+          <Text style={s.pageTitle}>Atur Ketersediaan</Text>
+          <Text style={s.pageSub}>
+            {isAdmin
+              ? 'Slot semua konselor mulai hari ini. Slot tersedia langsung muncul di menu Konseling aplikasi.'
+              : 'Slot sesimu. Slot tersedia langsung bisa dipesan mahasiswa dari aplikasi.'}
+          </Text>
         </View>
         <View style={s.headerActions}>
           <Animated.View style={s.refreshBtnWrap}>
@@ -194,6 +215,19 @@ export default function ManageJadwalScreen() {
         ))}
       </View>
 
+      {isAdmin && jadwal.length > 0 && (
+        <View style={s.chips}>
+          {['all', ...Array.from(new Set(jadwal.map((j) => j.counselor_name || '-')))].map((name) => {
+            const on = counselor === name;
+            return (
+              <Pressable key={name} onPress={() => setCounselor(name)} style={[s.chip, on && { boxShadow: Neu.inset }]}>
+                <Text style={[s.chipTxt, on && { color: C.primary, fontFamily: F.bold }]}>{name === 'all' ? 'Semua konselor' : name}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
       {/* List Panel */}
       <View style={s.panel}>
         {/* Table Head */}
@@ -214,15 +248,15 @@ export default function ManageJadwalScreen() {
           ) : error ? (
             <View style={s.center}>
               <MaterialIcons name="error-outline" size={44} color={C.danger} />
-              <Text style={[s.centerTxt, { color: C.danger, fontWeight: '700' }]}>{error}</Text>
+              <Text style={[s.centerTxt, { color: C.danger, fontFamily: F.bold }]}>{error}</Text>
             </View>
           ) : jadwal.length === 0 ? (
             <View style={s.center}>
               <MaterialIcons name="event-busy" size={44} color={C.textLight} />
-              <Text style={s.centerTxt}>Belum ada ketersediaan jadwal yang Anda buat.</Text>
+              <Text style={s.centerTxt}>{isAdmin ? 'Belum ada slot konselor mulai hari ini.' : 'Belum ada ketersediaan jadwal yang Anda buat.'}</Text>
             </View>
           ) : (
-            jadwal.map((j, i) => {
+            jadwal.filter((j) => counselor === 'all' || j.counselor_name === counselor).map((j, i) => {
               const durationMins = (() => {
                 const start = j.waktu_mulai.split(':').map(Number);
                 const end = j.waktu_selesai.split(':').map(Number);
@@ -245,7 +279,8 @@ export default function ManageJadwalScreen() {
                           <Text style={s.tdBold}>{fmtDate(j.tanggal)}</Text>
                           <View style={s.timeRow}>
                             <MaterialIcons name="access-time" size={14} color={C.textMuted} />
-                            <Text style={s.tdSub}>{j.waktu_mulai} – {j.waktu_selesai}</Text>
+                            <Text style={s.tdSub}>{j.waktu_mulai.slice(0, 5)} – {j.waktu_selesai.slice(0, 5)}</Text>
+                            {j.counselor_name ? <Text style={s.tdSub}>· {j.counselor_name}</Text> : null}
                           </View>
                         </View>
                       </View>
@@ -291,43 +326,39 @@ export default function ManageJadwalScreen() {
 }
 
 const s = StyleSheet.create({
+  pageSub: { fontSize: 14, fontFamily: F.medium, color: C.textMuted, marginTop: 4, maxWidth: 620 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
+  chip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 14, backgroundColor: C.bg, boxShadow: Neu.raisedSm },
+  chipTxt: { fontSize: 13, fontFamily: F.semibold, color: C.textMuted },
   root: { flex: 1, backgroundColor: C.bg },
   content: { padding: 32, paddingBottom: 60 },
   pageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 },
-  pageEye: { fontSize: 12, fontWeight: '700', color: C.textLight, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 },
-  pageTitle: { fontSize: 28, fontWeight: '800', color: C.text, letterSpacing: -0.5 },
+  pageEye: { fontSize: 12, fontFamily: F.bold, color: C.textLight, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 },
+  pageTitle: { fontSize: 28, fontFamily: F.extrabold, color: C.text, letterSpacing: -0.5 },
   headerActions: { flexDirection: 'row', gap: 12 },
   
   btnRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   refreshBtnWrap: {
     height: 38,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: C.border,
-    backgroundColor: C.surface,
+    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
     overflow: 'hidden',
-    shadowColor: '#2b3437',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
   },
   refreshBtnInner: {
     paddingHorizontal: 16,
     height: '100%',
   },
-  refreshTxt: { fontSize: 13, fontWeight: '700', color: C.primary },
+  refreshTxt: { fontSize: 13, fontFamily: F.bold, color: C.primary },
   
   createBtnWrap: {
     height: 38,
-    borderRadius: 10,
+    borderRadius: 12,
     backgroundColor: C.primary,
-    overflow: 'hidden',
-    shadowColor: C.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    boxShadow: '4px 6px 14px rgba(38,53,110,0.3)',
   },
-  createTxt: { fontSize: 13, fontWeight: '700', color: '#fff', paddingHorizontal: 16 },
+  createTxt: { fontSize: 13, fontFamily: F.bold, color: '#fff' },
 
   statsSummary: { flexDirection: 'row', gap: 16, marginBottom: 28, flexWrap: 'wrap' },
   statCardWrap: { flexBasis: 240, flexGrow: 1 },
@@ -335,61 +366,41 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    backgroundColor: C.surface,
+    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
     borderRadius: 16,
     padding: 20,
-    borderWidth: 1,
-    borderColor: C.border,
-    shadowColor: '#2b3437',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
-    elevation: 2,
   },
   statIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  statVal: { fontSize: 26, fontWeight: '800', color: C.text, lineHeight: 30, letterSpacing: -0.5 },
-  statLabel: { fontSize: 13, fontWeight: '700', color: C.text, marginTop: 2 },
+  statVal: { fontSize: 26, fontFamily: F.extrabold, color: C.text, lineHeight: 30, letterSpacing: -0.5 },
+  statLabel: { fontSize: 13, fontFamily: F.bold, color: C.text, marginTop: 2 },
   statDesc: { fontSize: 11, color: C.textMuted, marginTop: 1 },
 
   panel: {
-    backgroundColor: C.surface,
+    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
     borderRadius: 18,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: C.border,
-    shadowColor: '#2b3437',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.04,
-    shadowRadius: 18,
-    elevation: 2,
   },
   tableHead: {
     flexDirection: 'row',
-    backgroundColor: '#F1F4F9',
+    backgroundColor: T.bg,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
-  th: { fontSize: 11, fontWeight: '800', color: C.textMuted, letterSpacing: 0.8, textTransform: 'uppercase' },
+  th: { fontSize: 11, fontFamily: F.extrabold, color: C.textMuted, letterSpacing: 0.8, textTransform: 'uppercase' },
   
   listContent: { padding: 16, backgroundColor: C.surface },
   
   cardRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: C.surface,
+    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 12,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: C.border,
     borderLeftWidth: 5,
-    shadowColor: '#2b3437',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02,
-    shadowRadius: 6,
   },
   col: { justifyContent: 'center' },
   
@@ -399,9 +410,9 @@ const s = StyleSheet.create({
   
   durationCell: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   
-  tdBold: { fontSize: 14, fontWeight: '700', color: C.text },
+  tdBold: { fontSize: 14, fontFamily: F.bold, color: C.text },
   tdSub: { fontSize: 12, color: C.textMuted },
-  tdSubBold: { fontSize: 13, fontWeight: '600', color: C.textMuted },
+  tdSubBold: { fontSize: 13, fontFamily: F.semibold, color: C.textMuted },
   
   actionCell: { alignItems: 'center', justifyContent: 'center' },
   btnReject: {
@@ -414,10 +425,10 @@ const s = StyleSheet.create({
     borderColor: C.danger + '25',
     overflow: 'hidden',
   },
-  btnRejectTxt: { color: C.danger, fontSize: 12, fontWeight: '700', marginLeft: 4 },
+  btnRejectTxt: { color: C.danger, fontSize: 12, fontFamily: F.bold, marginLeft: 4 },
   btnInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  actionDoneText: { fontSize: 13, fontWeight: '600', color: C.textLight },
+  actionDoneText: { fontSize: 13, fontFamily: F.semibold, color: C.textLight },
   
   center: { alignItems: 'center', paddingVertical: 54, gap: 12 },
-  centerTxt: { fontSize: 14, color: C.textLight, fontWeight: '600' },
+  centerTxt: { fontSize: 14, color: C.textLight, fontFamily: F.semibold },
 });

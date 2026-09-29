@@ -92,9 +92,13 @@ export async function apiFetch<T = unknown>(
         }
       }
 
-      await clearAuth();
-      if (unauthorizedCallback) {
-        unauthorizedCallback();
+      // Only a 401 that refresh couldn't fix means the session is gone. A 403 (role not allowed),
+      // 404/405 or 5xx is an error for this request alone and must not log the user out.
+      if (res.status === 401 && auth) {
+        await clearAuth();
+        if (unauthorizedCallback) {
+          unauthorizedCallback();
+        }
       }
 
       let detail = `HTTP ${res.status}`;
@@ -512,4 +516,128 @@ export async function apiUpdateJadwalStatus(jadwal_id: string, status: 'tersedia
 
 export async function apiGetKonselor(): Promise<{ users: UserRow[] }> {
   return apiFetch<{ users: UserRow[] }>('/accounts/konselor');
+}
+//  Staff dashboard: data coming from the student app
+
+export type SignalType = 'safety' | 'request' | 'assessment';
+
+export interface AttentionSignal {
+  log_id: string;
+  user_id: string | null;
+  assessment_id: string | null;
+  is_read: boolean;
+  notified_at: string;
+  nama: string | null;
+  nim: string | null;
+  signal_type: SignalType;
+}
+
+export interface AttentionResponse {
+  signals: AttentionSignal[];
+  summary: { signal_type: SignalType; total: number; unread: number }[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export async function apiGetAttention(opts: { signal?: SignalType; unreadOnly?: boolean; page?: number; pageSize?: number } = {}) {
+  const q = new URLSearchParams();
+  if (opts.signal) q.set('signal', opts.signal);
+  if (opts.unreadOnly) q.set('unread_only', 'true');
+  q.set('page', String(opts.page ?? 1));
+  q.set('page_size', String(opts.pageSize ?? 20));
+  return apiFetch<AttentionResponse>(`/admin/attention?${q}`);
+}
+
+export async function apiMarkAttentionRead(log_id: string) {
+  return apiFetch(`/admin/attention/${log_id}/read`, { method: 'PATCH' });
+}
+
+export type MoodKey = 'Calm' | 'Focused' | 'Tired' | 'Anxious';
+
+export interface StudentInsights {
+  days: number;
+  students_total: number;
+  students_new: number;
+  students_active: number;
+  journals_total: number;
+  checkins_total: number;
+  chat_sessions_total: number;
+  mood_distribution: Partial<Record<MoodKey, number>>;
+  mood_daily: { date: string; mood: MoodKey; count: number }[];
+  chat_daily: { date: string; count: number }[];
+}
+
+export async function apiGetInsights(days = 30) {
+  return apiFetch<StudentInsights>(`/admin/insights?days=${days}`);
+}
+
+export interface AnalyticsResponse {
+  date_from: string;
+  date_to: string;
+  registered_students: number;
+  assessment_total: number;
+  severity_distribution: { severity: string; count: number }[];
+  assessment_trend: { date: string; count: number }[];
+  booking_total: number;
+  booking_status: { status: string; count: number }[];
+}
+
+export async function apiGetAnalytics(date_from?: string, date_to?: string) {
+  const q = new URLSearchParams();
+  if (date_from) q.set('date_from', date_from);
+  if (date_to) q.set('date_to', date_to);
+  return apiFetch<AnalyticsResponse>(`/admin/analytics?${q}`);
+}
+
+export interface OrgSchedule {
+  jadwal_id: string;
+  konselor_id: string;
+  counselor_name: string;
+  tanggal: string;
+  waktu_mulai: string;
+  waktu_selesai: string;
+  status: string;
+  booking_id: string | null;
+  booking_status: string | null;
+}
+
+export async function apiGetAdminSchedules(opts: { dateFrom?: string; dateTo?: string; counselorId?: string } = {}) {
+  const q = new URLSearchParams();
+  if (opts.dateFrom) q.set('date_from', opts.dateFrom);
+  if (opts.dateTo) q.set('date_to', opts.dateTo);
+  if (opts.counselorId) q.set('counselor_id', opts.counselorId);
+  return apiFetch<{ schedules: OrgSchedule[]; total: number }>(`/admin/schedules?${q}`);
+}
+
+export async function apiCreateAdminSchedule(payload: { counselor_id: string; tanggal: string; waktu_mulai: string; waktu_selesai: string }) {
+  return apiFetch('/admin/schedules', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function apiUpdateAdminSchedule(jadwal_id: string, status: 'tersedia' | 'dipesan' | 'selesai' | 'dibatalkan') {
+  return apiFetch(`/admin/schedules/${jadwal_id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+
+export interface HotlineRow {
+  hotline_id: string;
+  nama: string;
+  nomor: string;
+  deskripsi: string | null;
+  created_at: string;
+}
+
+export async function apiAdminGetHotlines() {
+  return apiFetch<{ hotlines: HotlineRow[]; total: number }>('/admin/hotlines');
+}
+
+export async function apiAdminCreateHotline(payload: { nama: string; nomor: string; deskripsi?: string }) {
+  return apiFetch<{ hotline: HotlineRow }>('/admin/hotlines', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function apiAdminUpdateHotline(hotline_id: string, payload: { nama?: string; nomor?: string; deskripsi?: string }) {
+  return apiFetch<{ hotline: HotlineRow }>(`/admin/hotlines/${hotline_id}`, { method: 'PUT', body: JSON.stringify(payload) });
+}
+
+export async function apiAdminDeleteHotline(hotline_id: string) {
+  return apiFetch(`/admin/hotlines/${hotline_id}`, { method: 'DELETE' });
 }

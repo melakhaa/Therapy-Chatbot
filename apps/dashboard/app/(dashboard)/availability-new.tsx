@@ -5,15 +5,17 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { apiBuatJadwal } from '@prototype/api-client';
+import { apiBuatJadwal, apiCreateAdminSchedule, apiGetKonselor, getStoredUserSync } from '@prototype/api-client';
+
+import { T, F, Neu } from '../../constants/sajiwa';
 
 const C = {
-  bg: '#f8f9fd', surface: '#ffffff', surfaceLow: '#f1f4f9', border: '#e4e8ef',
-  primary: '#356385', primaryLight: '#eef3f8', onPrimary: '#f6f9ff',
-  text: '#2b3437', textMuted: '#596067', textLight: '#8a9299',
-  success: '#2e7d52', successBg: '#e8f5ee',
-  warning: '#895900', warningBg: '#fff3e0',
-  danger: '#9f403d', dangerBg: '#fff0f0',
+  bg: T.bg, surface: T.bg, surfaceLow: T.bg, border: T.hairline,
+  primary: T.primary, primaryLight: 'rgba(38,53,110,0.08)', onPrimary: T.onPrimary,
+  text: T.ink, textMuted: T.sub, textLight: T.muted,
+  success: T.sage, successBg: T.sageFill,
+  warning: T.amber, warningBg: 'rgba(212,150,74,0.18)',
+  danger: T.coral, dangerBg: 'rgba(217,103,78,0.14)',
 };
 
 // Micro-interaction press animation wrapper
@@ -77,6 +79,17 @@ export default function TambahJadwalScreen() {
     waktu_selesai: '10:00' 
   });
   const [duration, setDuration] = useState(60);
+  // Admins open slots on behalf of a counselor; counselors create their own
+  const isAdmin = getStoredUserSync<{ role?: string }>()?.role === 'admin';
+  const [counselors, setCounselors] = useState<{ user_id: string; nama: string }[]>([]);
+  const [counselorId, setCounselorId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isAdmin) return;
+    apiGetKonselor().then((r) => {
+      setCounselors(r.users as any);
+      setCounselorId((r.users[0] as any)?.user_id ?? null);
+    }).catch(() => {});
+  }, []);
   const [saving, setSaving] = useState(false);
   
   // Focus states
@@ -102,7 +115,12 @@ export default function TambahJadwalScreen() {
     }
     setSaving(true);
     try {
-      await apiBuatJadwal(formData);
+      if (isAdmin) {
+        if (!counselorId) { alert('Pilih konselor terlebih dahulu'); return; }
+        await apiCreateAdminSchedule({ counselor_id: counselorId, ...formData });
+      } else {
+        await apiBuatJadwal(formData);
+      }
       router.back();
     } catch (e: any) {
       alert(e.message || 'Gagal membuat jadwal');
@@ -129,7 +147,6 @@ export default function TambahJadwalScreen() {
           </InteractiveBtn>
         </View>
         <View>
-          <Text style={s.pageEye}>Sistem Manajemen</Text>
           <Text style={s.pageTitle}>Tambah Jadwal Baru</Text>
         </View>
       </View>
@@ -142,6 +159,22 @@ export default function TambahJadwalScreen() {
             <Text style={s.cardSub}>Tentukan tanggal dan jam Anda bersedia memberikan pelayanan konseling.</Text>
 
             <View style={s.formBody}>
+              {isAdmin && (
+                <View style={s.formGroup}>
+                  <Text style={s.label}>Untuk konselor</Text>
+                  <View style={s.counselorRow}>
+                    {counselors.map((k) => {
+                      const on = counselorId === k.user_id;
+                      return (
+                        <Pressable key={k.user_id} onPress={() => setCounselorId(k.user_id)} style={[s.counselorChip, on && { boxShadow: Neu.inset }]}>
+                          <Text style={[s.counselorTxt, on && { color: C.primary, fontFamily: F.bold }]}>{k.nama}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
               {/* Date Input */}
               <View style={s.formGroup}>
                 <Text style={s.label}>Pilih Tanggal</Text>
@@ -199,10 +232,10 @@ export default function TambahJadwalScreen() {
               {/* End Time (Auto-calculated) */}
               <View style={s.formGroup}>
                 <Text style={s.label}>Waktu Selesai (Otomatis)</Text>
-                <View style={[s.inputContainer, { backgroundColor: '#F1F4F9', borderColor: '#E2E8F0' }]}>
+                <View style={[s.inputContainer, { backgroundColor: T.bg, borderColor: '#E2E8F0' }]}>
                   <MaterialIcons name="lock-outline" size={18} color={C.textLight} style={s.inputIcon} />
                   <TextInput
-                    style={[s.inputNative, { color: C.textLight, fontWeight: '600' }]}
+                    style={[s.inputNative, { color: C.textLight, fontFamily: F.semibold }]}
                     editable={false}
                     value={formData.waktu_selesai}
                   />
@@ -280,6 +313,9 @@ export default function TambahJadwalScreen() {
 }
 
 const s = StyleSheet.create({
+  counselorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  counselorChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, backgroundColor: C.bg, boxShadow: Neu.raisedSm },
+  counselorTxt: { fontSize: 13, fontFamily: F.semibold, color: C.textMuted },
   root: { flex: 1, backgroundColor: C.bg },
   content: { padding: 32, maxWidth: 1200, alignSelf: 'center', width: '100%', paddingBottom: 60 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 28 },
@@ -287,38 +323,25 @@ const s = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: C.surface,
-    borderWidth: 1,
-    borderColor: C.border,
+    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
     overflow: 'hidden',
-    shadowColor: '#2b3437',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
   },
-  pageEye: { fontSize: 12, fontWeight: '700', color: C.textLight, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 },
-  pageTitle: { fontSize: 28, fontWeight: '800', color: C.text, letterSpacing: -0.5 },
+  pageEye: { fontSize: 12, fontFamily: F.bold, color: C.textLight, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 },
+  pageTitle: { fontSize: 28, fontFamily: F.extrabold, color: C.text, letterSpacing: -0.5 },
 
   mainLayout: { flexDirection: 'row', gap: 28, flexWrap: 'wrap' },
   formCardWrap: { flexBasis: 600, flexGrow: 2 },
   formCard: {
-    backgroundColor: C.surface,
+    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
     borderRadius: 20,
     padding: 32,
-    borderWidth: 1,
-    borderColor: C.border,
-    shadowColor: '#2b3437',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.04,
-    shadowRadius: 18,
-    elevation: 3,
   },
-  cardTitle: { fontSize: 20, fontWeight: '800', color: C.text, marginBottom: 8, letterSpacing: -0.3 },
+  cardTitle: { fontSize: 20, fontFamily: F.extrabold, color: C.text, marginBottom: 8, letterSpacing: -0.3 },
   cardSub: { fontSize: 14, color: C.textMuted, marginBottom: 28, lineHeight: 20 },
   
   formBody: { gap: 20 },
   formGroup: { gap: 8 },
-  label: { fontSize: 13, fontWeight: '700', color: C.text, marginLeft: 2 },
+  label: { fontSize: 13, fontFamily: F.bold, color: C.text, marginLeft: 2 },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -326,15 +349,15 @@ const s = StyleSheet.create({
     borderColor: C.border,
     borderRadius: 12,
     paddingHorizontal: 14,
-    backgroundColor: '#FAFBFD',
+    backgroundColor: T.bg,
     height: 48,
   },
   inputContainerActive: {
     borderColor: C.primary,
-    backgroundColor: C.surface,
+    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
   },
   inputIcon: { marginRight: 10 },
-  inputNative: { flex: 1, fontSize: 15, color: C.text, outlineStyle: 'none' as any, fontWeight: '500' },
+  inputNative: { flex: 1, fontSize: 15, color: C.text, outlineStyle: 'none' as any, fontFamily: F.medium },
   row: { flexDirection: 'row', gap: 16, flexWrap: 'wrap' },
   
   presetRow: { flexDirection: 'row', gap: 6, flex: 1 },
@@ -344,19 +367,19 @@ const s = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1.5,
     borderColor: C.border,
-    backgroundColor: '#fff',
+    backgroundColor: T.bg,
     overflow: 'hidden',
   },
   presetBtnActive: {
     borderColor: C.primary,
     backgroundColor: C.primaryLight,
   },
-  presetTxt: { fontSize: 13, fontWeight: '600', color: C.textMuted },
-  presetTxtActive: { color: C.primary, fontWeight: '700' },
+  presetTxt: { fontSize: 13, fontFamily: F.semibold, color: C.textMuted },
+  presetTxtActive: { color: C.primary, fontFamily: F.bold },
   
   hint: { fontSize: 12, color: C.textLight, marginLeft: 2 },
   infoBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.primaryLight, padding: 12, borderRadius: 10, marginTop: 4 },
-  infoText: { fontSize: 12, color: C.primary, fontWeight: '600', flex: 1, lineHeight: 16 },
+  infoText: { fontSize: 12, color: C.primary, fontFamily: F.semibold, flex: 1, lineHeight: 16 },
 
   footer: { flexDirection: 'row', justifyContent: 'flex-end', gap: 14, marginTop: 32, paddingTop: 24, borderTopWidth: 1, borderTopColor: C.border },
   btnCancel: {
@@ -367,24 +390,20 @@ const s = StyleSheet.create({
     overflow: 'hidden',
     minWidth: 100,
   },
-  btnCancelTxt: { fontSize: 14, fontWeight: '700', color: C.textMuted },
+  btnCancelTxt: { fontSize: 14, fontFamily: F.bold, color: C.textMuted },
   btnSave: {
     height: 44,
     backgroundColor: C.primary,
     borderRadius: 10,
     overflow: 'hidden',
     minWidth: 160,
-    shadowColor: C.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
   },
-  btnSaveTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  btnSaveTxt: { fontSize: 14, fontFamily: F.bold, color: '#fff' },
   btnInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 
   sideInfo: { flexBasis: 300, flexGrow: 1, gap: 20 },
   tipCard: {
-    backgroundColor: '#fffbf0',
+    backgroundColor: T.bg,
     padding: 24,
     borderRadius: 16,
     borderWidth: 1,
@@ -394,7 +413,7 @@ const s = StyleSheet.create({
     borderLeftColor: '#d4b106',
   },
   tipHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  tipTitle: { fontSize: 15, fontWeight: '800', color: '#b27b00' },
+  tipTitle: { fontSize: 15, fontFamily: F.extrabold, color: '#b27b00' },
   tipText: { fontSize: 13, color: '#8c6b00', lineHeight: 20 },
   
   summaryCard: {
@@ -402,14 +421,10 @@ const s = StyleSheet.create({
     padding: 24,
     borderRadius: 16,
     gap: 16,
-    shadowColor: C.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
   },
-  summaryTitle: { fontSize: 17, fontWeight: '800', color: '#fff' },
+  summaryTitle: { fontSize: 17, fontFamily: F.extrabold, color: '#fff' },
   summaryDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.15)' },
   summaryRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  summaryLabel: { fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  summaryVal: { fontSize: 14, color: '#fff', fontWeight: '700', marginTop: 2, lineHeight: 18 },
+  summaryLabel: { fontSize: 11, color: 'rgba(255,255,255,0.7)', fontFamily: F.semibold, textTransform: 'uppercase', letterSpacing: 0.5 },
+  summaryVal: { fontSize: 14, color: '#fff', fontFamily: F.bold, marginTop: 2, lineHeight: 18 },
 });

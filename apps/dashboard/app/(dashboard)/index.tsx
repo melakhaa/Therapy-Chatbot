@@ -5,31 +5,35 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { Stat, Grid, Card, Bars, MOOD } from '../../components/Dash';
 import {
-  apiGetDashboard, apiGetAccounts, clearAuthSync,
+  apiGetDashboard, apiGetAccounts, apiGetInsights, apiGetAttention, type StudentInsights,
+  clearAuthSync,
   getStoredUserSync, type DashboardData, type UserRow,
 } from '@prototype/api-client';
 
+import { T, F, Neu } from '../../constants/sajiwa';
+
 // ── Palette ───────────────────────────────────────────────────────────────────
 const Colors = {
-  bgApp: '#f8f9fd',
-  bgCard: '#ffffff',
-  textDark: '#2d3339',
-  textMuted: '#596067',
-  border: '#eaeef4',
-  primary: '#356385',
-  primaryContainer: '#a4d1f8',
-  tertiary: '#5a5c85',
-  tertiaryContainer: '#cdcefe',
-  error: '#a83836',
-  errorContainer: '#fa746f',
-  secondaryContainer: '#d4e4f6',
-  onSecondaryContainer: '#445462',
+  bgApp: T.bg,
+  bgCard: T.bg,
+  textDark: T.ink,
+  textMuted: T.sub,
+  border: T.hairline,
+  primary: T.primary,
+  primaryContainer: 'rgba(38,53,110,0.10)',
+  tertiary: T.sage,
+  tertiaryContainer: T.sageFill,
+  error: T.coral,
+  errorContainer: T.coralFill,
+  secondaryContainer: 'rgba(38,53,110,0.08)',
+  onSecondaryContainer: T.primary,
 };
 
 const ROLE_COLOR: Record<string, string> = {
-  admin: '#356385', pemangku_jabatan: '#5a5c85',
-  konselor: '#0ea5e9', mahasiswa: '#10b981',
+  admin: T.primary, pemangku_jabatan: T.primaryDim,
+  konselor: T.amber, mahasiswa: T.sage,
 };
 
 // ── Animation helpers ─────────────────────────────────────────────────────────
@@ -180,9 +184,21 @@ export default function DashboardScreen() {
 
   const adminUser = getStoredUserSync<{ nama: string; email: string; role: string }>();
 
+  // /accounts is admin-only: counselors don't call it (and don't see the user table)
+  const canManageUsers = ['admin', 'pemangku_jabatan'].includes(adminUser?.role ?? '');
+
+  // What's happening in the student app this week + crisis signals waiting for staff
+  const [week, setWeek] = useState<StudentInsights | null>(null);
+  const [crisisUnread, setCrisisUnread] = useState<number | null>(null);
+  const fetchAppActivity = () => {
+    apiGetInsights(7).then(setWeek).catch(() => {});
+    apiGetAttention({ unreadOnly: true, pageSize: 1 }).then((r) => setCrisisUnread(r.total)).catch(() => {});
+  };
+
   useEffect(() => {
     fetchDashboard();
-    fetchUsers();
+    fetchAppActivity();
+    if (canManageUsers) fetchUsers();
   }, []);
 
   const fetchDashboard = async () => {
@@ -241,11 +257,11 @@ export default function DashboardScreen() {
       {/* TOP HEADER */}
       <View style={styles.header}>
         <View style={styles.headerLeftFlex}>
-          <Text style={styles.headerTitle}>System Overview</Text>
+          <Text style={styles.headerTitle}>Ringkasan</Text>
           <View style={styles.searchBox}>
             <MaterialIcons name="search" size={18} color={Colors.textMuted} />
             <TextInput
-              placeholder="Search users, alerts..."
+              placeholder="Cari pengguna..."
               placeholderTextColor={Colors.textMuted}
               style={styles.searchInput}
               value={search}
@@ -255,7 +271,7 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.headerRight}>
-          <InteractiveBtn>
+          <InteractiveBtn onPress={() => { fetchDashboard(); fetchAppActivity(); if (canManageUsers) fetchUsers(); }}>
             <View style={styles.iconBtn}>
               <MaterialIcons name="refresh" size={20} color={Colors.textMuted} />
             </View>
@@ -287,40 +303,64 @@ export default function DashboardScreen() {
       {/* MAIN SCROLL */}
       <ScrollView contentContainerStyle={styles.scrollContent}>
 
-        {/* METRICS */}
-        <GlacialAnim delay={0}>
-          <View style={styles.metricsGrid}>
+        {/* WHAT NEEDS ATTENTION: each card opens the page where it's handled */}
+        <Grid min={230}>
+          <Stat
+            icon="notification-important" tone={crisisUnread ? 'coral' : 'sage'}
+            value={crisisUnread ?? '…'} label="Peringatan krisis"
+            hint={crisisUnread ? 'Belum ditinjau' : 'Semua sudah ditinjau'}
+            onPress={() => router.push('/(dashboard)/crisis')}
+          />
+          <Stat
+            icon="event-note" tone={pendingBookings ? 'amber' : 'sage'}
+            value={loadingDB ? '…' : pendingBookings} label="Booking menunggu"
+            hint="Konfirmasi di Daftar Konsultasi"
+            onPress={() => router.push('/(dashboard)/schedule')}
+          />
+          <Stat
+            icon="groups" tone="navy"
+            value={week ? week.students_active : '…'} label="Mahasiswa aktif"
+            hint={week ? `7 hari terakhir, dari ${week.students_total}` : '7 hari terakhir'}
+            onPress={() => router.push('/(dashboard)/insights')}
+          />
+          <Stat
+            icon="assignment-late" tone={severeCases ? 'coral' : 'navy'}
+            value={loadingDB ? '…' : severeCases} label="Asesmen berat"
+            hint={`${totalAssessment} asesmen seluruhnya`}
+          />
+        </Grid>
 
-            <MetricCard
-              icon="group" iconBg="rgba(164,209,248,0.3)" iconColor={Colors.primary}
-              badge={`${totalUsers} users`} badgeBg="rgba(164,209,248,0.2)" badgeColor={Colors.primary}
-              label="Total Pengguna" value={loadingUsers ? '…' : String(totalUsers)}
-              notice="Terdaftar di platform"
-            />
-
-            <MetricCard
-              icon="assignment" iconBg="rgba(205,206,254,0.3)" iconColor={Colors.tertiary}
-              badge="asesmen" badgeBg="rgba(205,206,254,0.2)" badgeColor={Colors.tertiary}
-              label="Total Asesmen" value={loadingDB ? '…' : String(totalAssessment)}
-              notice="Seluruh periode"
-            />
-
-            <MetricCard
-              icon="emergency-share" iconBg="rgba(250,116,111,0.2)" iconColor={Colors.error}
-              badge={severeCases > 0 ? `+${severeCases}` : '0'} badgeBg="rgba(250,116,111,0.1)" badgeColor={Colors.error}
-              label="Kasus Severe" value={loadingDB ? '…' : String(severeCases)}
-              notice="Perlu intervensi segera" valueStyle={{ color: Colors.error }}
-            />
-
-            <MetricCard
-              icon="notifications-active" iconBg="rgba(250,116,111,0.15)" iconColor="#f97316"
-              badge={`${pendingBookings} pending`} badgeBg="rgba(249,115,22,0.1)" badgeColor="#f97316"
-              label="Guardrail Triggers" value={loadingDB ? '…' : String(guardrailHits)}
-              notice={`${pendingBookings} booking menunggu`}
-            />
-
-          </View>
-        </GlacialAnim>
+        {/* FROM THE STUDENT APP (aggregate, no private text) */}
+        {week && (
+          <Card
+            title="Dari aplikasi mahasiswa minggu ini"
+            hint="Jumlah agregat dari jurnal, check-in, dan chat. Isi pribadi tidak ditampilkan."
+            right={
+              <Pressable onPress={() => router.push('/(dashboard)/insights')}>
+                <Text style={styles.linkTxt}>Lihat insight lengkap</Text>
+              </Pressable>
+            }
+          >
+            <View style={styles.appRow}>
+              <View style={styles.appNums}>
+                {[
+                  { n: week.journals_total, l: 'jurnal ditulis' },
+                  { n: week.checkins_total, l: 'check-in suasana hati' },
+                  { n: week.chat_sessions_total, l: 'sesi chat dengan Sajiwa' },
+                  { n: week.students_new, l: 'pengguna baru' },
+                ].map((x) => (
+                  <View key={x.l} style={styles.appNum}>
+                    <Text style={styles.appNumVal}>{x.n}</Text>
+                    <Text style={styles.appNumLbl}>{x.l}</Text>
+                  </View>
+                ))}
+              </View>
+              <View style={{ flex: 1, minWidth: 280 }}>
+                <Bars rows={(['Calm', 'Focused', 'Tired', 'Anxious'] as const).map((m) => ({ label: MOOD[m].label, value: week.mood_distribution[m] ?? 0, color: MOOD[m].color }))} />
+              </View>
+            </View>
+          </Card>
+        )}
 
         {/* CHARTS */}
         <GlacialAnim delay={100}>
@@ -359,7 +399,7 @@ export default function DashboardScreen() {
                     return (
                       <View key={key} style={{ marginBottom: 14 }}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <Text style={{ fontSize: 12, fontWeight: '600', color: Colors.textDark, textTransform: 'capitalize' }}>{key}</Text>
+                          <Text style={{ fontSize: 12, fontFamily: F.semibold, color: Colors.textDark, textTransform: 'capitalize' }}>{key}</Text>
                           <Text style={{ fontSize: 12, color: Colors.textMuted }}>{val} ({pct}%)</Text>
                         </View>
                         <View style={{ height: 6, backgroundColor: Colors.border, borderRadius: 99, overflow: 'hidden' }}>
@@ -374,7 +414,8 @@ export default function DashboardScreen() {
           </View>
         </GlacialAnim>
 
-        {/* USER TABLE */}
+        {/* USER TABLE (admin only) */}
+        {canManageUsers && (
         <GlacialAnim delay={200}>
           <View style={styles.tableCardContainer}>
             <View style={styles.tableHeaderFlex}>
@@ -430,7 +471,7 @@ export default function DashboardScreen() {
                       key={u.user_id}
                       style={(state: any) => [
                         styles.trBox,
-                        state.hovered && { backgroundColor: '#f1f4f9' },
+                        state.hovered && { backgroundColor: T.bg },
                         idx === filteredUsers.length - 1 && { borderBottomWidth: 0 },
                       ]}
                     >
@@ -468,6 +509,7 @@ export default function DashboardScreen() {
             </View>
           </View>
         </GlacialAnim>
+        )}
 
       </ScrollView>
     </View>
@@ -495,70 +537,70 @@ function MetricCard({ icon, iconBg, iconColor, badge, badgeBg, badgeColor, label
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
+  linkTxt: { fontSize: 13, fontFamily: F.bold, color: T.primary },
+  appRow: { flexDirection: 'row', gap: 28, flexWrap: 'wrap', alignItems: 'center' },
+  appNums: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, flex: 1, minWidth: 320 },
+  appNum: { flexBasis: '46%', flexGrow: 1, padding: 14, borderRadius: 18, backgroundColor: T.bg, boxShadow: Neu.inset },
+  appNumVal: { fontSize: 24, fontFamily: F.extrabold, color: T.ink },
+  appNumLbl: { fontSize: 12, fontFamily: F.semibold, color: T.sub },
   container: { flex: 1, backgroundColor: Colors.bgApp },
   header: {
-    height: 64, backgroundColor: 'rgba(248,249,253,0.9)',
+    height: 64, backgroundColor: T.bg,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 32, position: 'absolute', top: 0, left: 0, right: 0,
     zIndex: 40, backdropFilter: 'blur(16px)' as any,
-    shadowColor: Colors.textDark, shadowOpacity: 0.05, shadowRadius: 32,
-    shadowOffset: { width: 0, height: 10 }, elevation: 2,
   } as any,
   headerLeftFlex: { flexDirection: 'row', alignItems: 'center', gap: 24, flex: 1 },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: Colors.textDark, letterSpacing: -0.5 },
+  headerTitle: { fontSize: 20, fontFamily: F.bold, color: Colors.textDark, letterSpacing: -0.5 },
   searchBox: {
     flexDirection: 'row', alignItems: 'center', width: 320,
-    backgroundColor: '#dde3eb', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 6,
+    backgroundColor: T.bg, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 6,
   },
   searchInput: { flex: 1, fontSize: 14, color: Colors.textDark, outlineStyle: 'none' as any, marginLeft: 8 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   iconBtn: { padding: 8, borderRadius: 999 },
   verticalRule: { width: 1, height: 32, backgroundColor: 'rgba(172,179,186,0.2)', marginHorizontal: 4 },
   profileSection: { flexDirection: 'row', alignItems: 'center' },
-  adminLabel: { fontSize: 12, fontWeight: '700', color: Colors.textDark },
+  adminLabel: { fontSize: 12, fontFamily: F.bold, color: Colors.textDark },
   adminSub: { fontSize: 10, color: Colors.textMuted },
   logoutBtn: { padding: 8, borderRadius: 8, marginLeft: 8 },
 
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#fff5f5', paddingHorizontal: 32, paddingVertical: 12,
+    backgroundColor: T.bg, paddingHorizontal: 32, paddingVertical: 12,
     marginTop: 64, borderBottomWidth: 1, borderColor: '#fecaca',
   },
   errorBannerTxt: { fontSize: 13, color: Colors.error, flex: 1 },
-  retryTxt: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+  retryTxt: { fontSize: 13, fontFamily: F.bold, color: Colors.primary },
 
   scrollContent: { padding: 32, paddingTop: 88, gap: 32, alignSelf: 'center', width: '100%' },
 
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 24 },
   metricCard: {
-    flexBasis: 220, flexGrow: 1, backgroundColor: Colors.bgCard, borderRadius: 12, padding: 24,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.02, shadowRadius: 24, elevation: 2,
+    flexBasis: 220, flexGrow: 1, backgroundColor: Colors.bgCard, boxShadow: Neu.raisedSm, borderRadius: 12, padding: 24,
   },
   cardHeaderFlex: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   bentoIcon: { padding: 8, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   badgePill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
-  badgeText: { fontSize: 12, fontWeight: '600' },
-  metricLabel: { fontSize: 14, fontWeight: '500', color: Colors.textMuted },
-  metricVal: { fontSize: 30, fontWeight: '800', color: Colors.textDark, marginTop: 4, letterSpacing: -1 },
+  badgeText: { fontSize: 12, fontFamily: F.semibold },
+  metricLabel: { fontSize: 14, fontFamily: F.medium, color: Colors.textMuted },
+  metricVal: { fontSize: 30, fontFamily: F.extrabold, color: Colors.textDark, marginTop: 4, letterSpacing: -1 },
   metricNotice: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 8 },
 
   chartSectionsWrapper: { flexDirection: 'row', flexWrap: 'wrap', gap: 24 },
   chartBlockPrimary: {
-    flexBasis: 600, flexGrow: 3, backgroundColor: Colors.bgCard, borderRadius: 12, padding: 32,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.02, shadowRadius: 24, elevation: 2,
+    flexBasis: 600, flexGrow: 3, backgroundColor: Colors.bgCard, boxShadow: Neu.raisedSm, borderRadius: 12, padding: 32,
   },
   chartBlockSecondary: {
-    flexBasis: 280, flexGrow: 1, backgroundColor: Colors.bgCard, borderRadius: 12, padding: 32,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.02, shadowRadius: 24, elevation: 2,
+    flexBasis: 280, flexGrow: 1, backgroundColor: Colors.bgCard, boxShadow: Neu.raisedSm, borderRadius: 12, padding: 32,
   },
   chartHeaderBlock: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 40 },
-  chartTitle: { fontSize: 18, fontWeight: '700', color: Colors.textDark, letterSpacing: -0.5 },
+  chartTitle: { fontSize: 18, fontFamily: F.bold, color: Colors.textDark, letterSpacing: -0.5 },
   chartSubtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
   chartBgBox: { minHeight: 240, overflow: 'visible' },
 
   tableCardContainer: {
-    backgroundColor: Colors.bgCard, borderRadius: 16, overflow: 'hidden',
-    shadowColor: Colors.textDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 32,
+    backgroundColor: Colors.bgCard, boxShadow: Neu.raisedSm, borderRadius: 16, overflow: 'hidden',
   },
   tableHeaderFlex: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 24 },
   tableActionsFilter: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -566,21 +608,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: Colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8,
   },
-  exportListTxt: { color: '#FFF', fontSize: 14, fontWeight: '600' },
-  theadBox: { flexDirection: 'row', backgroundColor: '#f1f4f9', paddingHorizontal: 24, paddingVertical: 16 },
-  thCell: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, letterSpacing: 1 },
+  exportListTxt: { color: '#FFF', fontSize: 14, fontFamily: F.semibold },
+  theadBox: { flexDirection: 'row', backgroundColor: T.bg, paddingHorizontal: 24, paddingVertical: 16 },
+  thCell: { fontSize: 11, fontFamily: F.bold, color: Colors.textMuted, letterSpacing: 1 },
   trBox: {
     flexDirection: 'row', paddingHorizontal: 24, paddingVertical: 14,
     borderBottomWidth: 1, borderColor: Colors.border, transition: 'all 0.15s',
   } as any,
   tdBox: { justifyContent: 'center' },
   avatarCircle: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  avatarTxt: { fontSize: 13, fontWeight: '800' },
-  nmTxt: { fontSize: 14, fontWeight: '700', color: Colors.textDark },
+  avatarTxt: { fontSize: 13, fontFamily: F.extrabold },
+  nmTxt: { fontSize: 14, fontFamily: F.bold, color: Colors.textDark },
   deptTxt: { fontSize: 10, color: Colors.textMuted },
   rolePill: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
-  roleTxt: { fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
-  tdTxt: { fontSize: 13, fontWeight: '500', color: Colors.textMuted },
+  roleTxt: { fontSize: 10, fontFamily: F.bold, textTransform: 'capitalize' },
+  tdTxt: { fontSize: 13, fontFamily: F.medium, color: Colors.textMuted },
 });
 
 

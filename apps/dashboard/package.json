@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@expo-google-fonts/dm-serif-display": "^0.4.2",
+    "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "@expo/vector-icons": "^15.0.3",
     "@prototype/api-client": "*",
     "@prototype/ui-shared": "*",
