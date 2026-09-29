@@ -26,7 +26,8 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
 | `users` | Account + `role` + `password_hash` (oauth was removed with Supabase) |
 | `assessments` | PHQ-9 / GAD-7 / SRQ results, `score`, `severity` |
 | `guardrail_logs` | High-risk trigger log (chat + assessments) |
-| `messages` | Encrypted chat turns (`route_used`); `session_id` is client-generated text |
+| `messages` | Encrypted chat turns (`route_used`); belongs to a `sessions` row |
+| `sessions` | Chat session owner, title, lifetime; `messages.session_id` is client-generated but pinned to `(session_id, user_id)` by FK |
 | `documents` | RAG chunks: `content`, `embedding vector(768)`, `metadata` |
 | `hotline` | Crisis contact list |
 | `journals` | Private student journal entries |

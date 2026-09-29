@@ -7,6 +7,32 @@ and line reference below was verified against that revision.
 Goal: `session_id` becomes a real entity, Hana sees conversation history, and crisis
 content never reaches the LLM.
 
+## Status
+
+| Phase | State |
+|---|---|
+| 0 — `sessions` table + FK | **done** |
+| 1 — prompt memory | **done** |
+| 2 — session pointer + `/chat/history` | **done** |
+| 3 — real streaming | not done (recommended skip — RN `fetch` can't read a stream) |
+| 4 — crisis text out of plaintext | **done** |
+| 5 — fail loudly without Ollama | not done (optional; `MockEncoder` still degrades routing) |
+
+Verified: `db/test_rls.sql` passes, 25 unit tests pass (`tests/test_chat_history.py` covers the
+crisis filter in `load_history`), `scripts/api_smoke.py` ALL PASSED against a live stack, and a
+manual two-turn check confirmed the follow-up "siapa namaku?" is answered from history.
+
+Deviations from the plan below:
+
+- `sessions` has no counselor/admin read policy — nothing reads session metadata yet. Add it when
+  a dashboard endpoint actually lists sessions.
+- `messages` carries a composite FK `(session_id, user_id) → sessions` and `user_id` is now
+  `not null`, so a message cannot be attached to another student's session at all.
+- The history loader lives in `services/chatbot/history.py`, not `core.py`: importing `core.py`
+  builds the semantic router (needs Ollama + `ENCRYPTION_KEY`), which would have made the unit
+  test violate the suite's "no DB/AI" contract.
+- `/chat` writes session row + optional crisis log + both turns in one transaction (`_persist_turn`).
+
 Migration story: the schema is the source of truth in `db/init/*.sql` and is applied by
 `docker compose up` on an empty volume (`docs/project-conventions.md`, and the wipe procedure
 is spelled out in `apps/backend/AGENTS.md`), so Phase 0 means **wiping the local dev DB**

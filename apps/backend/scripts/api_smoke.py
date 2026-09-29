@@ -105,6 +105,13 @@ assess_id = r.get("assessment_id")
 n = sql("select count(*) from guardrail_logs where user_id = %s", (stu_id,))[0][0]
 check("severe assessment logged to guardrail_logs", n >= 1, n)
 
+row = sql("select source, triggered_input from guardrail_logs "
+          "where assessment_id = %s", (assess_id,))
+check("assessment log carries source + assessment_id",
+      bool(row) and row[0][0] == "assessment", row)
+check("assessment log stores no clinical detail in plaintext",
+      bool(row) and row[0][1] is None, row)
+
 s, r = call("GET", "/assessment/history", token=stu_tok)
 check("assessment history", s == 200 and len(r["assessments"]) == 1, (s, r))
 
@@ -183,6 +190,27 @@ check("chat stored encrypted, not plaintext",
       all(not c.startswith("saya mau bunuh diri") and c.startswith("gAAAAA") for c, _ in rows),
       [c[:12] for c, _ in rows])
 
+sess = sql("select user_id from sessions where session_id = %s", (f"chat-{SFX}",))
+check("chat session row created and owned by the student",
+      len(sess) == 1 and str(sess[0][0]) == stu_id, sess)
+
+s, r = call("GET", f"/chat/history?session_id=chat-{SFX}", token=stu_tok)
+msgs = r.get("messages", [])
+check("history endpoint returns the decrypted transcript",
+      s == 200 and len(msgs) >= 4 and msgs[0]["role"] == "user"
+      and any(m["text"] == "saya mau bunuh diri" for m in msgs), (s, msgs[:2]))
+check("history is oldest-first",
+      all(msgs[i]["created_at"] <= msgs[i + 1]["created_at"] for i in range(len(msgs) - 1)),
+      [m["created_at"] for m in msgs])
+
+s, r = call("GET", f"/chat/history?session_id=chat-{SFX}", token=None)
+check("history requires auth", s in (401, 403), (s, r))
+
+guard = sql("select triggered_input from guardrail_logs where session_id = %s", (f"chat-{SFX}",))
+check("crisis log stored encrypted, not plaintext",
+      bool(guard) and guard[0][0].startswith("gAAAAA")
+      and "bunuh diri" not in guard[0][0], guard)
+
 print("== guardrail must never miss a crisis message ==")
 CRISIS = [
     "saya ingin mengakhiri hidup saya",
@@ -223,6 +251,9 @@ s, r = call("POST", "/auth/register", {"email": other_email, "password": stu_pw,
 other_tok = r["session"]["access_token"]
 s, r = call("GET", "/journal", token=other_tok)
 check("student B sees zero of A's journals", s == 200 and len(r["journals"]) == 0, (s, r))
+s, r = call("GET", f"/chat/history?session_id=chat-{SFX}", token=other_tok)
+check("student B sees zero of A's chat messages",
+      s == 200 and len(r["messages"]) == 0, (s, r))
 s, r = call("GET", "/assessment/history", token=other_tok)
 check("student B sees zero of A's assessments", s == 200 and len(r["assessments"]) == 0, (s, r))
 s, r = call("GET", "/booking/saya", token=other_tok)

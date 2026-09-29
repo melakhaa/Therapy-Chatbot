@@ -16,7 +16,10 @@ user message
            └─ "rag"            → retrieve_docs() → LLM answer   rag.py
 ```
 
-`core.py` builds the single router and exposes `chat(user_message)`:
+`core.py` builds the single router and exposes
+`chat(user_message, session_id=None, user_id=None, route=None)`. Callers that already routed
+(`routes/chat.py` does, for the guardrail decision) pass `route=` so the message is not embedded
+twice; `route=None` routes internally for one-off callers like `/chat/stream`.
 
 ```python
 semantic_router = SemanticRouter(

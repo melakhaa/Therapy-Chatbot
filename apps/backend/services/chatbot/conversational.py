@@ -1,8 +1,7 @@
-from langchain_ollama import ChatOllama
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from semantic_router import Route
 
-llm = ChatOllama(model="llama3.2:3b")
+from services.chatbot.llm import llm
 
 conversational_route = Route(
     name="conversational",
@@ -28,10 +27,10 @@ SYSTEM_PROMPT = """Kamu adalah asisten psikologi yang empatik dan suportif berna
 Kamu berbicara dalam Bahasa Indonesia yang hangat dan mudah dipahami.
 Dengarkan dan validasi perasaan pengguna, jangan menghakimi."""
 
-def get_conversational_response(user_message: str) -> str:
-    # ponytail: stateless per request, no chat memory. Load last N messages from `messages` by session_id if context needed.
+def get_conversational_response(user_message: str, history: list | None = None) -> str:
     response = llm.invoke([
-        HumanMessage(content=SYSTEM_PROMPT),
+        SystemMessage(content=SYSTEM_PROMPT),
+        *(history or []),
         HumanMessage(content=user_message),
     ])
     return response.content

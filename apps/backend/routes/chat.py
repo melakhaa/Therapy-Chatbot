@@ -6,8 +6,8 @@ from dotenv import load_dotenv
 import json
 
 from auth import get_current_user
-from core.security import encrypt_text
-from core.db import db
+from core.security import decrypt_text, encrypt_text
+from core.db import db, query
 from services.chatbot.core import chat as chat_fn, semantic_router
 from services.chatbot.guardrail import HARDCODED_RESPONSE
 from services.chatbot.rag import retrieve_docs
@@ -22,7 +22,7 @@ chat_router = APIRouter(prefix="/chat", tags=["Chat"])
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
-    user_id: Optional[str] = None
+    # No user_id: identity always comes from the JWT (`get_current_user`), never the body.
 
 @guardrail_router.post("/check")
 def check_safety_guardrail(request: ChatRequest):
@@ -52,33 +52,35 @@ def retrieve_rag_context(request: ChatRequest, user=Depends(get_current_user)):
 @chat_router.post("/stream")
 def stream_chat_response(request: ChatRequest, user=Depends(get_current_user)):
     def generate():
-        response = chat_fn(request.message)
+        response = chat_fn(request.message, session_id=request.session_id, user_id=user.id)
         for word in response.split(" "):
             yield f"data: {json.dumps({'token': word + ' '})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
-@chat_router.post("/history")
-def save_chat_history(request: ChatRequest, user=Depends(get_current_user)):
-    if not request.session_id:
-        return {"status": "skipped", "reason": "no session_id"}
-
-    result = semantic_router(request.message)
-    route_used = result.name or "conversational"
-    response_text = chat_fn(request.message)
-
-    with db(user.id) as conn:
-        conn.cursor().executemany(
-            "insert into messages (session_id, user_id, role, content, route_used) "
-            "values (%s, %s, %s, %s, %s)",
-            [
-                (request.session_id, user.id, "user", encrypt_text(request.message), route_used),
-                (request.session_id, user.id, "assistant", encrypt_text(response_text), route_used),
-            ],
+def _persist_turn(conn, request: ChatRequest, user_id, route: str, response_text: str, is_high_risk: bool):
+    """One transaction: session row (idempotent), optional crisis log, then both turns."""
+    conn.execute(
+        "insert into sessions (session_id, user_id, title) values (%s, %s, %s) "
+        "on conflict (session_id) do nothing",
+        (request.session_id, user_id, request.message[:80]),
+    )
+    if is_high_risk:
+        conn.execute(
+            "insert into guardrail_logs (session_id, user_id, triggered_input) "
+            "values (%s, %s, %s)",
+            (request.session_id, user_id, encrypt_text(request.message)),
         )
+    conn.cursor().executemany(
+        "insert into messages (session_id, user_id, role, content, route_used) "
+        "values (%s, %s, %s, %s, %s)",
+        [
+            (request.session_id, user_id, "user", encrypt_text(request.message), route),
+            (request.session_id, user_id, "assistant", encrypt_text(response_text), route),
+        ],
+    )
 
-    return {"status": "saved", "route": route_used, "response": response_text}
 
 @chat_router.post("")
 def chat_unified(request: ChatRequest, user=Depends(get_current_user)):
@@ -88,29 +90,46 @@ def chat_unified(request: ChatRequest, user=Depends(get_current_user)):
 
     if is_high_risk:
         response_text = HARDCODED_RESPONSE
-        if request.session_id:
-            with db(user.id) as conn:
-                conn.execute(
-                    "insert into guardrail_logs (session_id, user_id, triggered_input) "
-                    "values (%s, %s, %s)",
-                    (request.session_id, user.id, request.message),
-                )
     else:
-        response_text = chat_fn(request.message)
+        # Routed above, so chat() must not route again; it only loads history and generates.
+        response_text = chat_fn(
+            request.message,
+            session_id=request.session_id,
+            user_id=user.id,
+            route=route,
+        )
 
     if request.session_id:
         with db(user.id) as conn:
-            conn.cursor().executemany(
-                "insert into messages (session_id, user_id, role, content, route_used) "
-                "values (%s, %s, %s, %s, %s)",
-                [
-                    (request.session_id, user.id, "user", encrypt_text(request.message), route),
-                    (request.session_id, user.id, "assistant", encrypt_text(response_text), route),
-                ],
-            )
+            _persist_turn(conn, request, user.id, route, response_text, is_high_risk)
 
     return {
         "response": response_text,
         "route": route,
         "is_high_risk": is_high_risk,
     }
+
+
+@chat_router.get("/history")
+def chat_history(session_id: str, limit: int = 50, user=Depends(get_current_user)):
+    """The caller's own transcript. RLS scopes it to `user.id`; never expose this to admins."""
+    rows = query(
+        "select role, content, route_used, created_at from messages "
+        "where session_id = %s order by created_at asc limit %s",
+        (session_id, min(max(limit, 1), 200)), user_id=user.id,
+    )
+
+    messages = []
+    for row in rows:
+        try:
+            text = decrypt_text(row["content"])
+        except Exception:
+            continue
+        messages.append({
+            "role": row["role"],
+            "text": text,
+            "route": row["route_used"],
+            "created_at": row["created_at"],
+        })
+
+    return {"session_id": session_id, "messages": messages}

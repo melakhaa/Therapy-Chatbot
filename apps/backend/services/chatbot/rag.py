@@ -1,8 +1,9 @@
-from langchain_ollama import ChatOllama, OllamaEmbeddings
-from langchain_core.messages import HumanMessage
+from langchain_ollama import OllamaEmbeddings
+from langchain_core.messages import HumanMessage, SystemMessage
 from semantic_router import Route
 
 from core.db import query
+from services.chatbot.llm import llm
 
 # nomic-embed-text-v2-moe expects task prefixes; query and document must use their
 # matching pair or similarity silently degrades. Single source of truth for the
@@ -27,7 +28,6 @@ rag_route = Route(
     ]
 )
 
-llm = ChatOllama(model="llama3.2:3b")
 embeddings = OllamaEmbeddings(model=EMBED_MODEL)
 
 def retrieve_docs(text: str, k: int = 5):
@@ -37,24 +37,26 @@ def retrieve_docs(text: str, k: int = 5):
         (str(query_embedding), 0.3, k),
     )
 
-def get_rag_response(user_message: str) -> str:
-    # ponytail: stateless per request, no chat memory. Load last N messages from `messages` by session_id if context needed.
-    docs = retrieve_docs(user_message)
-    
-    if not docs:
-        return "Maaf, saya tidak menemukan informasi terkait di dokumen."
-    
-    context = "\n---\n".join([d["content"] for d in docs])
-
-    prompt = f"""Gunakan konteks berikut untuk menjawab pertanyaan dalam Bahasa Indonesia.
+RAG_SYSTEM_PROMPT = """Gunakan konteks berikut untuk menjawab pertanyaan dalam Bahasa Indonesia.
 Jika tidak ada di konteks, katakan kamu tidak tahu.
 
 Konteks:
-{context}
+{context}"""
 
-Pertanyaan: {user_message}"""
 
-    response = llm.invoke([HumanMessage(content=prompt)])
+def get_rag_response(user_message: str, history: list | None = None) -> str:
+    docs = retrieve_docs(user_message)
+
+    if not docs:
+        return "Maaf, saya tidak menemukan informasi terkait di dokumen."
+
+    context = "\n---\n".join([d["content"] for d in docs])
+
+    response = llm.invoke([
+        SystemMessage(content=RAG_SYSTEM_PROMPT.format(context=context)),
+        *(history or []),
+        HumanMessage(content=user_message),
+    ])
 
     return response.content
 

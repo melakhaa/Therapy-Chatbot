@@ -4,6 +4,7 @@ from semantic_router import SemanticRouter
 from semantic_router.encoders import OllamaEncoder
 from services.chatbot.guardrail import guardrail_route, HARDCODED_RESPONSE, is_crisis
 from services.chatbot.conversational import conversational_route, get_conversational_response
+from services.chatbot.history import load_history
 from services.chatbot.rag import rag_route, get_rag_response, EMBED_MODEL
 
 try:
@@ -40,17 +41,23 @@ def semantic_router(message: str) -> RouteResult:
     return _router(message)
 
 
-def chat(user_message: str) -> str:
-    result = semantic_router(user_message)
+def chat(
+    user_message: str,
+    session_id: str | None = None,
+    user_id: str | None = None,
+    route: str | None = None,
+) -> str:
+    """Answer one turn. `route` is accepted so callers that already routed do not pay for it twice."""
+    route = route or (semantic_router(user_message).name or "conversational")
 
-    if result.name == "guardrail":
+    if route == "guardrail":
         return HARDCODED_RESPONSE
-    elif result.name == "conversational":
-        return get_conversational_response(user_message)
-    elif result.name == "rag":
-        return get_rag_response(user_message)
-    else:
-        return get_conversational_response(user_message)
+
+    history = load_history(session_id, user_id)
+
+    if route == "rag":
+        return get_rag_response(user_message, history)
+    return get_conversational_response(user_message, history)
 
 if __name__ == "__main__":
     tests = [
