@@ -48,9 +48,12 @@ def attention_signals(
     page_size: int = Query(20, ge=1, le=100),
     admin=Depends(admin_access),
 ):
-    # Older assessment logs only recorded a safe prefix in triggered_input. It is
-    # used solely for classification here and is never returned to the client.
-    kind = "case when g.assessment_id is not null or g.triggered_input like '[ASSESSMENT]%' then 'assessment' else 'safety' end"
+    # Classification only. `source`/`assessment_id` are authoritative now; the LIKE arm only
+    # keeps rows written before `source` existed readable. Never returned to the client.
+    kind = (
+        "case when g.assessment_id is not null or g.source = 'assessment' "
+        "or g.triggered_input like '[ASSESSMENT]%' then 'assessment' else 'safety' end"
+    )
     source = (
         "from guardrail_logs g left join users u on u.user_id = g.user_id "
         f"where (%s::text is null or ({kind}) = %s) and (%s = false or g.is_read = false)"
