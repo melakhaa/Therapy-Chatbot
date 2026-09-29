@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import { AdminAuth } from '@/components/admin/AdminAuth';
-import { apiGetAnalytics } from '@/services/operationsData';
+import { apiCreateReportAudit, apiGetReportData, apiGetScopedAnalytics } from '@prototype/api-client';
 import { useAdminResource } from '@/hooks/useAdminResource';
 import { Button, ErrorState, LoadingState } from '@/components/ui';
 
@@ -13,7 +13,11 @@ function FormalReport() {
   const params = useLocalSearchParams<{ from?: string; to?: string; mode?: string; faculty?: string; department?: string }>();
   const from = typeof params.from === 'string' ? params.from : '2026-09-01', to = typeof params.to === 'string' ? params.to : '2026-09-30';
   const confidential = params.mode === 'confidential';
-  const loader = useCallback(() => apiGetAnalytics(from, to), [from, to]); const resource = useAdminResource(loader);
+  const facultyId = typeof params.faculty === 'string' ? params.faculty : '', unitId = typeof params.department === 'string' ? params.department : '';
+  const [exportError, setExportError] = useState('');
+  const loader = useCallback(() => apiGetScopedAnalytics(from, to, facultyId || undefined, unitId || undefined), [from, to, facultyId, unitId]); const resource = useAdminResource(loader);
+  const confidentialLoader = useCallback(() => apiGetReportData(from, to, 'confidential', facultyId || undefined, unitId || undefined), [from, to, facultyId, unitId]);
+  const confidentialResource = useAdminResource(confidentialLoader, confidential);
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const node = document.createElement('style'); node.dataset.sanctuaryPrint = 'true';
@@ -22,10 +26,11 @@ function FormalReport() {
   }, []);
   if (resource.loading) return <LoadingState />; if (resource.error || !resource.data) return <View style={{ padding: 30 }}><ErrorState message={resource.error || 'Laporan tidak tersedia.'} retry={resource.reload} /></View>;
   const data = resource.data; const severity = Object.fromEntries(data.severity_distribution.map(item => [item.severity, item.count]));
-  const scope = 'Universitas Diponegoro';
+  const scope = unitId ? 'Unit Akademik Terpilih' : facultyId ? 'Fakultas Terpilih' : 'Universitas Diponegoro';
+  const exportReport = async () => { try { setExportError(''); await apiCreateReportAudit({ report_mode: confidential ? 'confidential' : 'aggregate', faculty_id: facultyId || undefined, academic_unit_id: unitId || undefined, date_from: from, date_to: to }); if (Platform.OS === 'web') window.print(); } catch { setExportError('Audit ekspor gagal disimpan. Laporan belum dicetak.'); } };
   return <ScrollView style={r.screen} contentContainerStyle={{ padding: 24 }}>
-    <View {...({ className: 'report-toolbar' } as object)} style={r.toolbar}><Button label="Cetak / Simpan PDF" icon="picture-as-pdf" onPress={() => { if (Platform.OS === 'web') window.print(); }} /><Text style={r.toolbarText}>Pratinjau laporan · tema cetak terang tetap</Text></View>
-    <View {...({ className: 'report-page' } as object)} style={r.page}>
+    <View {...({ className: 'report-toolbar' } as object)} style={r.toolbar}><Button label="Cetak / Simpan PDF" icon="picture-as-pdf" onPress={() => { void exportReport(); }} /><Text style={r.toolbarText}>Pratinjau laporan · tema cetak terang tetap</Text></View>
+    {exportError && <ErrorState message={exportError} />}<View {...({ className: 'report-page' } as object)} style={r.page}>
       <View style={r.cover}>
         <View style={r.brandRow}><LogoSlot label="UNDIP" /><View style={{ flex: 1 }} /><LogoSlot label="SANCTUARY" icon="spa" /></View>
         <View style={r.coverCenter}><Text style={r.university}>UNIVERSITAS DIPONEGORO</Text><Text style={r.sanctuary}>SANCTUARY</Text><View style={r.rule} /><Text style={r.reportTitle}>LAPORAN PEMANTAUAN KESEHATAN MENTAL MAHASISWA</Text><Text style={r.period}>{formatID(from)} — {formatID(to)}</Text><Text style={r.scope}>{scope}</Text>{confidential && <Text style={r.confidential}>DOKUMEN RAHASIA · PERHATIAN KHUSUS</Text>}</View>
@@ -39,9 +44,9 @@ function FormalReport() {
       <Section number="04" title="Distribusi tingkat stres tercatat"><BarRows rows={data.severity_distribution.map(item => ({ label: labelStatus(item.severity), value: item.count }))} /><Text style={r.caption}>Gambar 1. Distribusi klasifikasi stres yang tersimpan selama periode laporan.</Text></Section>
       <Section number="05" title="Tren asesmen"><View style={r.trend}>{data.assessment_trend.map(item => <View key={item.date} style={r.trendItem}><View style={[r.trendBar, { height: 18 + item.count * 8 }]} /><Text style={r.axis}>{item.date.slice(5)}</Text><Text style={r.axis}>{item.count}</Text></View>)}</View><Text style={r.caption}>Gambar 2. Jumlah pengiriman asesmen berdasarkan tanggal.</Text></Section>
       <View {...({ className: 'page-break' } as object)}><ReportHeader confidential={confidential} /></View>
-      <Section number="06" title="Analisis cakupan akademik"><PendingText text="Metadata Fakultas dan Departemen belum tersedia dari API produksi. Bagian ini menunggu integrasi backend." /></Section>
+      <Section number="06" title="Analisis cakupan akademik"><BarRows rows={data.academic_breakdown.map(item => ({ label: item.academic_unit_name || item.faculty_name, value: item.assessment_count }))} /><Text style={r.caption}>Distribusi pengiriman asesmen berdasarkan cakupan akademik terpilih.</Text></Section>
       <Section number="07" title="Utilisasi konseling"><ReportTable headers={['Status booking', 'Jumlah']} rows={data.booking_status.map(item => [labelStatus(item.status), String(item.count)])} /></Section>
-      {confidential && <Section number="08" title="Perhatian khusus"><View style={r.warning}><MaterialIcons name="lock" color="#9e3548" size={20} /><Text style={r.warningText}>Bagian ini bersifat rahasia dan hanya untuk tindak lanjut administratif yang berwenang.</Text></View><PendingText text="Ekspor identitas terbatas, konfirmasi kewenangan, dan audit laporan memerlukan dukungan backend. Tidak ada identitas mahasiswa produksi yang disusun dari endpoint lain." /></Section>}
+      {confidential && <Section number="08" title="Perhatian khusus"><View style={r.warning}><MaterialIcons name="lock" color="#9e3548" size={20} /><Text style={r.warningText}>Bagian ini bersifat rahasia dan hanya untuk tindak lanjut administratif yang berwenang.</Text></View>{confidentialResource.loading ? <LoadingState /> : confidentialResource.error ? <ErrorState message={confidentialResource.error} retry={confidentialResource.reload} /> : <ReportTable headers={['Mahasiswa', 'NIM', 'Fakultas / Unit', 'Sinyal']} rows={(confidentialResource.data?.attention_students || []).map(item => [item.nama, item.nim || '—', item.academic_unit_name || item.faculty_name || 'Belum ditentukan', item.signal_type])} />}</Section>}
       <Section number={confidential ? '09' : '08'} title="Catatan metodologi"><Text style={r.body}>Jumlah asesmen adalah jumlah pengiriman, bukan mahasiswa unik. Sanctuary menampilkan tingkat stres yang telah dicatat oleh sistem saat ini dan tidak menghitung ulang skor. Sinyal asesmen dan sinyal Safety Guardrail tetap merupakan kategori yang terpisah.</Text></Section>
       <Section number={confidential ? '10' : '09'} title="Pernyataan kerahasiaan"><Text style={r.body}>Laporan ini digunakan untuk pemantauan operasional yang berwenang. Dilarang menyebarkan informasi kepada pihak yang tidak memiliki kewenangan. Laporan tidak memuat percakapan chatbot, jurnal, jawaban asesmen, teks pemicu guardrail, kata sandi, token, atau rahasia internal.</Text></Section>
       <View style={r.footer}><Text style={r.small}>SANCTUARY · UNIVERSITAS DIPONEGORO</Text><Text style={r.small}>Dihasilkan {new Date().toLocaleString('id-ID')}</Text></View>
@@ -56,7 +61,6 @@ function Metric({ value, label }: { value: number; label: string }) { return <Vi
 function InfoGrid({ values }: { values: string[][] }) { return <View style={r.infoGrid}>{values.map(item => <View key={item[0]} style={r.infoItem}><Text style={r.infoLabel}>{item[0].toUpperCase()}</Text><Text style={r.infoValue}>{item[1]}</Text></View>)}</View>; }
 function BarRows({ rows }: { rows: { label: string; value: number }[] }) { const max = Math.max(1, ...rows.map(item => item.value)); return <View style={{ gap: 12 }}>{rows.map(item => <View key={item.label}><View style={r.barLabel}><Text style={r.body}>{item.label}</Text><Text style={r.barValue}>{item.value}</Text></View><View style={r.barTrack}><View style={[r.barFill, { width: item.value / max * 600 }]} /></View></View>)}</View>; }
 function ReportTable({ headers, rows }: { headers: string[]; rows: string[][] }) { return <View style={r.table}><View style={r.tableRow}>{headers.map(item => <Text key={item} style={[r.cell, r.tableHead]}>{item}</Text>)}</View>{rows.map((row, index) => <View key={index} style={r.tableRow}>{row.map((item, cell) => <Text key={cell} style={r.cell}>{item}</Text>)}</View>)}</View>; }
-function PendingText({ text }: { text: string }) { return <View style={r.pending}><Text style={r.body}>{text}</Text></View>; }
 function formatID(value: string) { return new Date(value + 'T12:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }); }
 function labelStatus(value: string) { return ({ minimal: 'Minimal', mild: 'Ringan', moderate: 'Sedang', severe: 'Berat', menunggu: 'Menunggu', dikonfirmasi: 'Dikonfirmasi', selesai: 'Selesai', dibatalkan: 'Dibatalkan' } as Record<string, string>)[value] || value; }
 

@@ -200,6 +200,11 @@ export interface UserRow {
   nim?: string;
   role: string;
   created_at: string;
+  faculty_id?: string | null;
+  faculty_name?: string | null;
+  academic_unit_id?: string | null;
+  academic_unit_name?: string | null;
+  unit_type?: 'department' | 'study_program' | null;
 }
 
 export async function apiGetAccounts(): Promise<{ users: UserRow[]; total: number }> {

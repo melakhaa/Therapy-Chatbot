@@ -2,6 +2,8 @@ import React, { type ReactNode } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { adminTheme as c } from '@/constants/adminTheme';
+import { MotionSurface, useReducedMotion } from '@/components/admin/AdminMotion';
+import { useAdminExperience } from '@/components/admin/AdminExperience';
 
 export const ui = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
@@ -26,40 +28,47 @@ export function Button({ label, onPress, disabled, tone = 'primary', icon }: {
   </Pressable>;
 }
 export function Page({ title, subtitle, action, children }: { title: string; subtitle: string; action?: ReactNode; children: ReactNode }) {
+  const { language } = useAdminExperience();
   return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 24, gap: 22, width: '100%', maxWidth: 1500, alignSelf: 'center' }} keyboardShouldPersistTaps="handled">
     <View style={[ui.row, { justifyContent: 'space-between' }]}><View style={{ flex: 1, minWidth: 180, gap: 5 }}><Text accessibilityRole="header" style={ui.title}>{title}</Text><Text style={ui.muted}>{subtitle}</Text></View>{action}</View>{children}
-    <Text style={[ui.muted, { textAlign: 'center', marginTop: 12 }]}>Sanctuary · Mendukung kesehatan mental mahasiswa</Text>
+    <Text style={[ui.muted, { textAlign: 'center', marginTop: 12 }]}>{language === 'id' ? 'Sanctuary · Mendukung kesehatan mental mahasiswa' : 'Sanctuary · Supporting student mental health'}</Text>
   </ScrollView>;
 }
 export function Card({ title, subtitle, action, children }: { title?: string; subtitle?: string; action?: ReactNode; children: ReactNode }) {
   return <View style={ui.card}>{title && <View style={[ui.row, { justifyContent: 'space-between' }]}><View style={{ flex: 1, gap: 5 }}><Text style={ui.heading}>{title}</Text>{subtitle && <Text style={ui.muted}>{subtitle}</Text>}</View>{action}</View>}{children}</View>;
 }
 export function Badge({ value }: { value: string }) {
+  const { language } = useAdminExperience();
   const severe = ['severe', 'dibatalkan'].includes(value);
   const moderate = ['moderate', 'menunggu', 'dipesan'].includes(value);
   const mild = ['mild', 'konselor'].includes(value);
   const color = severe ? c.danger : moderate ? c.warning : mild ? c.lavender : c.primary;
   const bg = severe ? c.dangerSoft : moderate ? c.warningSoft : mild ? c.lavenderSoft : c.primarySoft;
-  return <View style={{ alignSelf: 'flex-start', backgroundColor: bg, borderRadius: 6, paddingHorizontal: 9, paddingVertical: 5 }}><Text style={{ color, fontSize: 11, fontWeight: '600' }}>{value.replaceAll('_', ' ')}</Text></View>;
+  const labels: Record<string, string> = language === 'id' ? { active: 'aktif', inactive: 'nonaktif', confirmed: 'dikonfirmasi', completed: 'selesai', cancelled: 'dibatalkan', rescheduled: 'dijadwal ulang', no_show: 'tidak hadir', available: 'tersedia', blocked: 'diblokir', waiting: 'menunggu', assigned: 'ditugaskan', study_program: 'program studi', department: 'departemen' } : {};
+  return <View style={{ alignSelf: 'flex-start', backgroundColor: bg, borderRadius: 6, paddingHorizontal: 9, paddingVertical: 5 }}><Text style={{ color, fontSize: 11, fontWeight: '600' }}>{labels[value] || value.replaceAll('_', ' ')}</Text></View>;
 }
 export function Notice({ children, danger = false }: { children: ReactNode; danger?: boolean }) {
   return <View accessibilityRole={danger ? 'alert' : undefined} style={{ padding: 14, borderRadius: 10, backgroundColor: danger ? c.dangerSoft : c.primarySoft, flexDirection: 'row', gap: 10 }}>
     <MaterialIcons name={danger ? 'error-outline' : 'info-outline'} color={danger ? c.danger : c.primary} size={18} /><Text style={[ui.text, { flex: 1, color: danger ? c.danger : c.primary }]}>{children}</Text>
   </View>;
 }
-export function LoadingState() { return <View style={{ padding: 50, alignItems: 'center', gap: 12 }}><ActivityIndicator color={c.primary} /><Text style={ui.muted}>Memuat data…</Text></View>; }
-export function EmptyState({ message = 'Belum ada catatan untuk ditampilkan.' }: { message?: string }) {
-  return <View style={{ padding: 35, alignItems: 'center', gap: 12 }}><MaterialIcons name="inbox" size={32} color={c.muted} /><Text style={[ui.muted, { textAlign: 'center' }]}>{message}</Text></View>;
+export function LoadingState() { const { language } = useAdminExperience(); return <View style={{ padding: 50, alignItems: 'center', gap: 12 }}><ActivityIndicator color={c.primary} /><Text style={ui.muted}>{language === 'id' ? 'Memuat data…' : 'Loading data…'}</Text></View>; }
+export function EmptyState({ message }: { message?: string }) {
+  const { language } = useAdminExperience();
+  return <View style={{ padding: 35, alignItems: 'center', gap: 12 }}><MaterialIcons name="inbox" size={32} color={c.muted} /><Text style={[ui.muted, { textAlign: 'center' }]}>{message || (language === 'id' ? 'Belum ada catatan untuk ditampilkan.' : 'No records to display yet.')}</Text></View>;
 }
 export function ErrorState({ message, retry }: { message: string; retry?: () => void }) {
-  return <View style={{ gap: 12 }}><Notice danger>{message}</Notice>{retry && <View style={{ alignSelf: 'flex-start' }}><Button label="Coba lagi" onPress={retry} tone="quiet" /></View>}</View>;
+  const { language } = useAdminExperience();
+  return <View style={{ gap: 12 }}><Notice danger>{message}</Notice>{retry && <View style={{ alignSelf: 'flex-start' }}><Button label={language === 'id' ? 'Coba lagi' : 'Try again'} onPress={retry} tone="quiet" /></View>}</View>;
 }
 export function Field({ label, ...props }: TextInputProps & { label: string }) {
   return <View style={{ gap: 6, flexGrow: 1, minWidth: 150 }}><Text style={ui.muted}>{label}</Text><TextInput accessibilityLabel={label} placeholderTextColor={c.muted} {...props} style={[ui.input, props.style]} /></View>;
 }
-export function SearchInput({ value, onChangeText, placeholder = 'Cari nama, email, atau NIM…' }: { value: string; onChangeText: (v: string) => void; placeholder?: string }) {
+export function SearchInput({ value, onChangeText, placeholder }: { value: string; onChangeText: (v: string) => void; placeholder?: string }) {
+  const { language } = useAdminExperience();
+  const resolvedPlaceholder = placeholder || (language === 'id' ? 'Cari nama, email, atau NIM…' : 'Search name, email, or NIM…');
   return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, borderRadius: 9, paddingHorizontal: 12, flex: 1, minWidth: 190 }}>
-    <MaterialIcons name="search" color={c.muted} size={19} /><TextInput accessibilityLabel={placeholder} value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={c.muted} style={{ flex: 1, minWidth: 0, paddingVertical: 11, fontSize: 13, color: c.text }} />
+    <MaterialIcons name="search" color={c.muted} size={19} /><TextInput accessibilityLabel={resolvedPlaceholder} value={value} onChangeText={onChangeText} placeholder={resolvedPlaceholder} placeholderTextColor={c.muted} style={{ flex: 1, minWidth: 0, paddingVertical: 11, fontSize: 13, color: c.text }} />
   </View>;
 }
 export function FilterControl({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
@@ -81,15 +90,20 @@ export function DataTable<T>({ rows, columns, rowKey, empty }: { rows: T[]; colu
   </ScrollView>;
 }
 export function Pagination({ page, total, size = 20, onChange }: { page: number; total: number; size?: number; onChange: (p: number) => void }) {
+  const { language } = useAdminExperience();
   const pages = Math.max(1, Math.ceil(total / size));
-  return <View style={[ui.row, { justifyContent: 'space-between' }]}><Text style={ui.muted}>{total} catatan · Halaman {page} / {pages}</Text><View style={ui.row}><Button tone="quiet" label="Sebelumnya" disabled={page <= 1} onPress={() => onChange(page - 1)} /><Button tone="quiet" label="Berikutnya" disabled={page >= pages} onPress={() => onChange(page + 1)} /></View></View>;
+  return <View style={[ui.row, { justifyContent: 'space-between' }]}><Text style={ui.muted}>{language === 'id' ? `${total} catatan · Halaman ${page} / ${pages}` : `${total} records · Page ${page} / ${pages}`}</Text><View style={ui.row}><Button tone="quiet" label={language === 'id' ? 'Sebelumnya' : 'Previous'} disabled={page <= 1} onPress={() => onChange(page - 1)} /><Button tone="quiet" label={language === 'id' ? 'Berikutnya' : 'Next'} disabled={page >= pages} onPress={() => onChange(page + 1)} /></View></View>;
 }
 export function Dialog({ title, visible, onClose, children, busy = false }: { title: string; visible: boolean; onClose: () => void; children: ReactNode; busy?: boolean }) {
-  return <Modal visible={visible} transparent animationType="fade" onRequestClose={() => { if (!busy) onClose(); }}>
+  const reducedMotion = useReducedMotion();
+  const { language } = useAdminExperience();
+  return <Modal visible={visible} transparent animationType={reducedMotion ? "none" : "fade"} onRequestClose={() => { if (!busy) onClose(); }}>
     <View style={{ flex: 1, backgroundColor: c.overlay, alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <View accessibilityViewIsModal style={{ width: '100%', maxWidth: 540, maxHeight: '90%', backgroundColor: c.surface, borderRadius: 18, padding: 24 }}>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 18 }}><View style={[ui.row, { justifyContent: 'space-between' }]}><Text accessibilityRole="header" style={ui.heading}>{title}</Text><Button label="Tutup" tone="quiet" disabled={busy} onPress={onClose} /></View>{children}</ScrollView>
+      <MotionSurface style={{ width: '100%', maxWidth: 540, maxHeight: '90%', backgroundColor: c.surface, borderRadius: 18, padding: 24 }}>
+      <View accessibilityViewIsModal>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 18 }}><View style={[ui.row, { justifyContent: 'space-between' }]}><Text accessibilityRole="header" style={ui.heading}>{title}</Text><Button label={language === 'id' ? 'Tutup' : 'Close'} tone="quiet" disabled={busy} onPress={onClose} /></View>{children}</ScrollView>
       </View>
+      </MotionSurface>
     </View>
   </Modal>;
 }
@@ -99,4 +113,7 @@ export function StatCard({ label, value, icon, tone = 'teal', note }: { label: s
   return <View style={[ui.card, { flexGrow: 1, flexBasis: 205, gap: 10 }]}><View style={ui.row}><View style={{ padding: 10, borderRadius: 10, backgroundColor: bg }}><MaterialIcons name={icon} color={color} size={22} /></View><Text style={[ui.muted, { flex: 1 }]}>{label}</Text></View><Text style={{ color: c.text, fontSize: 30, fontWeight: '700' }}>{value}</Text><Text style={ui.muted}>{note}</Text></View>;
 }
 export function Avatar({ name }: { name: string }) { return <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: c.primary, fontWeight: '600' }}>{name.slice(0, 2).toUpperCase()}</Text></View>; }
-export function formatDate(value?: string | null) { return value ? new Date(value.length === 10 ? value + 'T12:00:00' : value).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'; }
+export function formatDate(value?: string | null) {
+  const language = typeof window !== 'undefined' ? window.localStorage.getItem('sanctuary_admin_language') : 'id';
+  return value ? new Date(value.length === 10 ? value + 'T12:00:00' : value).toLocaleDateString(language === 'en' ? 'en-US' : 'id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+}
