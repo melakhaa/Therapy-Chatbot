@@ -56,9 +56,34 @@ export async function clearAuth() {
     localStorage.removeItem('sanctuary_token');
     localStorage.removeItem('sanctuary_refresh_token');
     localStorage.removeItem('sanctuary_user');
+    localStorage.removeItem('sanctuary_chat_session');
   } else {
-    await AsyncStorage.multiRemove(['sanctuary_token', 'sanctuary_refresh_token', 'sanctuary_user']);
+    await AsyncStorage.multiRemove([
+      'sanctuary_token',
+      'sanctuary_refresh_token',
+      'sanctuary_user',
+      'sanctuary_chat_session',
+    ]);
   }
+}
+
+// ── Chat session pointer ──────────────────────────────────────────────────────
+// Only the id lives on the device; the transcript stays encrypted in Postgres. Cleared on
+// logout so the next student on a shared device never resumes someone else's session.
+
+export async function saveChatSessionId(id: string) {
+  if (Platform.OS === 'web') {
+    localStorage.setItem('sanctuary_chat_session', id);
+  } else {
+    await AsyncStorage.setItem('sanctuary_chat_session', id);
+  }
+}
+
+export async function getChatSessionId(): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    return localStorage.getItem('sanctuary_chat_session');
+  }
+  return await AsyncStorage.getItem('sanctuary_chat_session');
 }
 
 // Sync access for web dashboard that used sync calls
@@ -75,5 +100,6 @@ export function clearAuthSync() {
     localStorage.removeItem('sanctuary_token');
     localStorage.removeItem('sanctuary_refresh_token');
     localStorage.removeItem('sanctuary_user');
+    localStorage.removeItem('sanctuary_chat_session');
   }
 }

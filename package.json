@@ -1,6 +1,9 @@
 {
   "name": "prototype-monorepo",
   "private": true,
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"

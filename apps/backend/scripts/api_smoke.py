@@ -13,7 +13,7 @@ first admin and to verify DB state — the API itself always uses sanctuary_app)
 Exits non-zero on the first failing check.
 """
 
-import json, os, urllib.request, urllib.error, uuid, sys
+import json, os, urllib.request, urllib.error, uuid, sys, time
 import bcrypt, psycopg
 
 BASE = os.getenv("API_BASE", "http://localhost:8000")
@@ -37,6 +37,39 @@ def check(name, cond, detail=""):
     print(("  PASS  " if cond else "  FAIL  ") + name + ("" if cond else f"   -> {detail}"))
     if not cond:
         FAILS.append(name)
+
+def call_stream(path, body, token=None, timeout=180):
+    """POST and consume SSE frame by frame.
+
+    Returns (status, frames, first_token_ms, total_ms). The timings are what distinguish real
+    streaming from a finished response chopped up after the fact.
+    """
+    req = urllib.request.Request(BASE + path, method="POST")
+    req.add_header("Content-Type", "application/json")
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+
+    start = time.monotonic()
+    frames, first_token_ms = [], None
+    try:
+        with urllib.request.urlopen(req, json.dumps(body).encode(), timeout=timeout) as r:
+            status = r.status
+            for raw in r:
+                line = raw.decode().strip()
+                if not line.startswith("data:"):
+                    continue
+                payload = line[5:].strip()
+                if payload == "[DONE]":
+                    frames.append("[DONE]")
+                    break
+                frame = json.loads(payload)
+                frames.append(frame)
+                if first_token_ms is None and frame.get("token"):
+                    first_token_ms = (time.monotonic() - start) * 1000
+    except urllib.error.HTTPError as e:
+        return e.code, [], None, None
+
+    return status, frames, first_token_ms, (time.monotonic() - start) * 1000
 
 def sql(q, p=None):
     with psycopg.connect(DB, autocommit=True) as c:
@@ -104,6 +137,13 @@ assess_id = r.get("assessment_id")
 
 n = sql("select count(*) from guardrail_logs where user_id = %s", (stu_id,))[0][0]
 check("severe assessment logged to guardrail_logs", n >= 1, n)
+
+row = sql("select source, triggered_input from guardrail_logs "
+          "where assessment_id = %s", (assess_id,))
+check("assessment log carries source + assessment_id",
+      bool(row) and row[0][0] == "assessment", row)
+check("assessment log stores no clinical detail in plaintext",
+      bool(row) and row[0][1] is None, row)
 
 s, r = call("GET", "/assessment/history", token=stu_tok)
 check("assessment history", s == 200 and len(r["assessments"]) == 1, (s, r))
@@ -183,6 +223,53 @@ check("chat stored encrypted, not plaintext",
       all(not c.startswith("saya mau bunuh diri") and c.startswith("gAAAAA") for c, _ in rows),
       [c[:12] for c, _ in rows])
 
+sess = sql("select user_id from sessions where session_id = %s", (f"chat-{SFX}",))
+check("chat session row created and owned by the student",
+      len(sess) == 1 and str(sess[0][0]) == stu_id, sess)
+
+s, r = call("GET", f"/chat/history?session_id=chat-{SFX}", token=stu_tok)
+msgs = r.get("messages", [])
+check("history endpoint returns the decrypted transcript",
+      s == 200 and len(msgs) >= 4 and msgs[0]["role"] == "user"
+      and any(m["text"] == "saya mau bunuh diri" for m in msgs), (s, msgs[:2]))
+check("history is oldest-first",
+      all(msgs[i]["created_at"] <= msgs[i + 1]["created_at"] for i in range(len(msgs) - 1)),
+      [m["created_at"] for m in msgs])
+
+s, r = call("GET", f"/chat/history?session_id=chat-{SFX}", token=None)
+check("history requires auth", s in (401, 403), (s, r))
+
+guard = sql("select triggered_input from guardrail_logs where session_id = %s", (f"chat-{SFX}",))
+check("crisis log stored encrypted, not plaintext",
+      bool(guard) and guard[0][0].startswith("gAAAAA")
+      and "bunuh diri" not in guard[0][0], guard)
+
+print("== chat streaming ==")
+s, frames, first_ms, total_ms = call_stream(
+    "/chat/stream",
+    {"message": "jelaskan singkat apa itu depresi dan gejalanya", "session_id": f"stream-{SFX}"},
+    stu_tok,
+)
+tokens = [f["token"] for f in frames if isinstance(f, dict) and f.get("token")]
+meta = frames[0] if frames and isinstance(frames[0], dict) else {}
+check("stream opens with a metadata frame",
+      s == 200 and "is_high_risk" in meta and meta.get("route"), (s, meta))
+check("stream sends many token frames, not one blob", len(tokens) > 5, len(tokens))
+check("stream terminates with [DONE]", bool(frames) and frames[-1] == "[DONE]",
+      frames[-1] if frames else None)
+check("tokens keep arriving after the first",
+      first_ms is not None and total_ms and (total_ms - first_ms) > 1000,
+      f"first={first_ms:.0f}ms total={total_ms:.0f}ms")
+rows = sql("select count(*) from messages where session_id = %s", (f"stream-{SFX}",))
+check("streamed turn persisted after completion", rows[0][0] >= 2, rows)
+
+s, frames, _, _ = call_stream(
+    "/chat/stream", {"message": "saya mau bunuh diri", "session_id": f"sg-{SFX}"}, stu_tok)
+streamed = "".join(f["token"] for f in frames if isinstance(f, dict) and f.get("token"))
+check("crisis streams the fixed text, never LLM prose",
+      bool(frames) and frames[0].get("is_high_risk") is True and "119" in streamed,
+      (frames[0] if frames else None, streamed[:60]))
+
 print("== guardrail must never miss a crisis message ==")
 CRISIS = [
     "saya ingin mengakhiri hidup saya",
@@ -223,6 +310,9 @@ s, r = call("POST", "/auth/register", {"email": other_email, "password": stu_pw,
 other_tok = r["session"]["access_token"]
 s, r = call("GET", "/journal", token=other_tok)
 check("student B sees zero of A's journals", s == 200 and len(r["journals"]) == 0, (s, r))
+s, r = call("GET", f"/chat/history?session_id=chat-{SFX}", token=other_tok)
+check("student B sees zero of A's chat messages",
+      s == 200 and len(r["messages"]) == 0, (s, r))
 s, r = call("GET", "/assessment/history", token=other_tok)
 check("student B sees zero of A's assessments", s == 200 and len(r["assessments"]) == 0, (s, r))
 s, r = call("GET", "/booking/saya", token=other_tok)

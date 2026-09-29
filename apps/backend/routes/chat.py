@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
@@ -6,12 +6,11 @@ from dotenv import load_dotenv
 import json
 
 from auth import get_current_user
+from core.security import decrypt_text, encrypt_text
 from core.db import db, query
-from core.security import encrypt_text, decrypt_text
-from services.chatbot.core import chat as chat_fn, semantic_router
+from services.chatbot.core import chat as chat_fn, chat_stream, semantic_router
 from services.chatbot.guardrail import HARDCODED_RESPONSE
-from services.chatbot.rag import retrieve_docs, stream_rag_response
-from services.chatbot.conversational import stream_conversational_response
+from services.chatbot.rag import retrieve_docs
 
 load_dotenv()
 
@@ -24,77 +23,8 @@ chat_router = APIRouter(prefix="/chat", tags=["Chat"])
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
-    user_id: Optional[str] = None
-    history: Optional[list] = None
+    # No user_id: identity always comes from the JWT (`get_current_user`), never the body.
 
-
-# ── DB helpers (all run as the requesting user, so RLS applies) ────────────────
-
-def _ensure_session(session_id: str, user_id: str):
-    query(
-        "insert into chat_sessions (session_id, user_id) values (%s, %s) on conflict (session_id) do nothing",
-        (session_id, user_id),
-        user_id=user_id,
-    )
-
-
-def _save_messages(session_id: str, user_id: str, route: str, *turns: tuple[str, str]):
-    """turns: (role, plaintext). Content is always stored encrypted."""
-    with db(user_id) as conn:
-        conn.cursor().executemany(
-            "insert into messages (session_id, user_id, role, content, route_used) values (%s, %s, %s, %s, %s)",
-            [(session_id, user_id, role, encrypt_text(text), route) for role, text in turns],
-        )
-
-
-def _log_guardrail(session_id: Optional[str], user_id: str, message: str):
-    query(
-        "insert into guardrail_logs (session_id, user_id, triggered_input) values (%s, %s, %s)",
-        (session_id, user_id, message),
-        user_id=user_id,
-    )
-
-
-def _decrypt(content: str) -> str:
-    try:
-        return decrypt_text(content)
-    except Exception:
-        return content
-
-
-def _history(request: ChatRequest, user_id: str) -> list[dict]:
-    """Conversation context for the LLM: client-sent history, else the stored session."""
-    if request.history:
-        return [
-            {"role": m.get("role", "user"), "content": m.get("content", "")}
-            for m in request.history
-            if m.get("content")
-        ]
-    if not request.session_id:
-        return []
-    rows = query(
-        "select role, content from messages where session_id = %s order by created_at limit 20",
-        (request.session_id,),
-        user_id=user_id,
-    )
-    return [{"role": r["role"], "content": _decrypt(r["content"])} for r in rows]
-
-
-def _generate_session_title(session_id: str, user_id: str, first_message: str):
-    try:
-        rows = query("select title from chat_sessions where session_id = %s", (session_id,), user_id=user_id)
-        if rows and not rows[0]["title"]:
-            prompt = (
-                "Buatkan satu judul singkat (maksimal 5 kata) untuk percakapan yang diawali dengan pesan "
-                f"berikut: '{first_message}'. Hanya keluarkan judulnya saja tanpa tanda kutip atau penjelasan tambahan."
-            )
-            title = chat_fn(prompt).strip(" \n'\"")
-            query("update chat_sessions set title = %s where session_id = %s", (title, session_id), user_id=user_id)
-    except Exception:
-        pass
-
-
-# ── Routes ─────────────────────────────────────────────────────────────────────
 
 @guardrail_router.post("/check")
 def check_safety_guardrail(request: ChatRequest):
@@ -119,48 +49,68 @@ def retrieve_rag_context(request: ChatRequest, user=Depends(get_current_user)):
     return {"context": [{"content": d["content"], "metadata": d.get("metadata", {})} for d in docs]}
 
 
+def _sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload)}\n\n"
+
+
 @chat_router.post("/stream")
-def stream_chat_response(request: ChatRequest, background_tasks: BackgroundTasks, user=Depends(get_current_user)):
-    uid = str(user.id)
-    route = semantic_router(request.message).name or "conversational"
+def stream_chat_response(request: ChatRequest, user=Depends(get_current_user)):
+    """Real SSE: tokens as the model produces them. `[DONE]` terminates the stream."""
+    route_result = semantic_router(request.message)
+    route = route_result.name or "conversational"
+    is_high_risk = route == "guardrail"
 
     def generate():
-        # Guardrail: deterministic crisis response in one shot, never generated
-        if route == "guardrail":
-            yield f"data: {json.dumps({'token': HARDCODED_RESPONSE})}\n\n"
-            _log_guardrail(request.session_id, uid, request.message)
-            if request.session_id:
-                _ensure_session(request.session_id, uid)
-                _save_messages(request.session_id, uid, route, ("user", request.message), ("assistant", HARDCODED_RESPONSE))
-            yield f"data: {json.dumps({'done': True, 'is_high_risk': True, 'route': 'guardrail'})}\n\n"
+        # Metadata first, so the client can raise the crisis card without waiting for tokens.
+        yield _sse({"route": route, "is_high_risk": is_high_risk})
+
+        parts = []
+        try:
+            for chunk in chat_stream(
+                request.message,
+                session_id=request.session_id,
+                user_id=user.id,
+                route=route,
+            ):
+                parts.append(chunk)
+                yield _sse({"token": chunk})
+        except Exception:
+            # A truncated answer is not a turn: keep it out of history so the next request
+            # re-asks rather than continuing from half a reply.
+            yield _sse({"error": "generation_failed"})
             return
 
-        conv_history = _history(request, uid)
-
+        response_text = "".join(parts)
         if request.session_id:
-            _ensure_session(request.session_id, uid)
-            background_tasks.add_task(_generate_session_title, request.session_id, uid, request.message)
-            _save_messages(request.session_id, uid, route, ("user", request.message))
+            with db(user.id) as conn:
+                _persist_turn(conn, request, user.id, route, response_text, is_high_risk)
 
-        token_gen = (
-            stream_rag_response(request.message, history=conv_history)
-            if route == "rag"
-            else stream_conversational_response(request.message, history=conv_history)
-        )
-
-        full_response = []
-        try:
-            for token in token_gen:
-                full_response.append(token)
-                yield f"data: {json.dumps({'token': token})}\n\n"
-        finally:
-            # Persist the assistant turn even if the client disconnects mid-stream
-            if request.session_id and full_response:
-                _save_messages(request.session_id, uid, route, ("assistant", "".join(full_response)))
-
-        yield f"data: {json.dumps({'done': True, 'is_high_risk': False, 'route': route})}\n\n"
+        yield "data: [DONE]\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+def _persist_turn(conn, request: ChatRequest, user_id, route: str, response_text: str, is_high_risk: bool):
+    """One transaction: session row (idempotent), optional crisis log, then both turns."""
+    conn.execute(
+        "insert into sessions (session_id, user_id, title) values (%s, %s, %s) "
+        "on conflict (session_id) do nothing",
+        (request.session_id, user_id, request.message[:80]),
+    )
+    if is_high_risk:
+        conn.execute(
+            "insert into guardrail_logs (session_id, user_id, triggered_input) "
+            "values (%s, %s, %s)",
+            (request.session_id, user_id, encrypt_text(request.message)),
+        )
+    conn.cursor().executemany(
+        "insert into messages (session_id, user_id, role, content, route_used) "
+        "values (%s, %s, %s, %s, %s)",
+        [
+            (request.session_id, user_id, "user", encrypt_text(request.message), route),
+            (request.session_id, user_id, "assistant", encrypt_text(response_text), route),
+        ],
+    )
 
 
 class ReportRequest(BaseModel):
@@ -171,59 +121,62 @@ class ReportRequest(BaseModel):
 def report_to_team(request: ReportRequest, user=Depends(get_current_user)):
     """User tapped "Kabari tim Sajiwa" in the crisis sheet. Logged as an unread safety
     signal, which the counselor dashboard surfaces under /admin/attention."""
-    _log_guardrail(request.session_id, str(user.id), "[LAPORAN PENGGUNA] Minta dihubungi tim dari modal krisis")
+    query(
+        "insert into guardrail_logs (session_id, user_id, triggered_input) values (%s, %s, %s)",
+        (request.session_id, str(user.id), "[LAPORAN PENGGUNA] Minta dihubungi tim dari modal krisis"),
+        user_id=user.id,
+    )
     return {"status": "reported"}
-
-
-@chat_router.get("/sessions")
-def get_chat_sessions(user=Depends(get_current_user)):
-    rows = query(
-        "select session_id, user_id, title, started_at from chat_sessions where user_id = %s order by started_at desc",
-        (str(user.id),),
-        user_id=str(user.id),
-    )
-    return {"sessions": rows}
-
-
-@chat_router.get("/history/{session_id}")
-def get_chat_history(session_id: str, user=Depends(get_current_user)):
-    rows = query(
-        "select message_id as id, session_id, role, content, route_used, created_at "
-        "from messages where session_id = %s and user_id = %s order by created_at",
-        (session_id, str(user.id)),
-        user_id=str(user.id),
-    )
-    for r in rows:
-        r["content"] = _decrypt(r["content"])
-    return {"messages": rows}
-
-
-@chat_router.post("/history")
-def save_chat_history(request: ChatRequest, user=Depends(get_current_user)):
-    if not request.session_id:
-        return {"status": "skipped", "reason": "no session_id"}
-    uid = str(user.id)
-    route_used = semantic_router(request.message).name or "conversational"
-    response_text = chat_fn(request.message)
-    _ensure_session(request.session_id, uid)
-    _save_messages(request.session_id, uid, route_used, ("user", request.message), ("assistant", response_text))
-    return {"status": "saved", "route": route_used, "response": response_text}
 
 
 @chat_router.post("")
 def chat_unified(request: ChatRequest, user=Depends(get_current_user)):
-    uid = str(user.id)
-    route = semantic_router(request.message).name or "conversational"
+    route_result = semantic_router(request.message)
+    route = route_result.name or "conversational"
     is_high_risk = route == "guardrail"
 
     if is_high_risk:
         response_text = HARDCODED_RESPONSE
-        _log_guardrail(request.session_id, uid, request.message)
     else:
-        response_text = chat_fn(request.message, history=_history(request, uid))
+        # Routed above, so chat() must not route again; it only loads history and generates.
+        response_text = chat_fn(
+            request.message,
+            session_id=request.session_id,
+            user_id=user.id,
+            route=route,
+        )
 
     if request.session_id:
-        _ensure_session(request.session_id, uid)
-        _save_messages(request.session_id, uid, route, ("user", request.message), ("assistant", response_text))
+        with db(user.id) as conn:
+            _persist_turn(conn, request, user.id, route, response_text, is_high_risk)
 
-    return {"response": response_text, "route": route, "is_high_risk": is_high_risk}
+    return {
+        "response": response_text,
+        "route": route,
+        "is_high_risk": is_high_risk,
+    }
+
+
+@chat_router.get("/history")
+def chat_history(session_id: str, limit: int = 50, user=Depends(get_current_user)):
+    """The caller's own transcript. RLS scopes it to `user.id`; never expose this to admins."""
+    rows = query(
+        "select role, content, route_used, created_at from messages "
+        "where session_id = %s order by created_at asc limit %s",
+        (session_id, min(max(limit, 1), 200)), user_id=user.id,
+    )
+
+    messages = []
+    for row in rows:
+        try:
+            text = decrypt_text(row["content"])
+        except Exception:
+            continue
+        messages.append({
+            "role": row["role"],
+            "text": text,
+            "route": row["route_used"],
+            "created_at": row["created_at"],
+        })
+
+    return {"session_id": session_id, "messages": messages}

@@ -7,6 +7,12 @@
       "skillPath": "skills/brandkit/SKILL.md",
       "computedHash": "735007879f5110aeae1e981a53fe74a12afde70347f9773dacd50e4697a091bf"
     },
+    "browser": {
+      "source": "betterwright/betterwright",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "290f1ea1df087e6ac3c29792ffc85f36e4389bfe3124afda5b57977012803a0e"
+    },
     "caveman": {
       "source": "JuliusBrussee/caveman",
       "sourceType": "github",

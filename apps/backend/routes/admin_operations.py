@@ -20,6 +20,7 @@ staff_access = require_role("konselor", "admin", "pemangku_jabatan")
 report_access = require_role("admin", "pemangku_jabatan")
 
 
+
 class ScheduleCreate(BaseModel):
     counselor_id: UUID
     tanggal: date
@@ -52,11 +53,12 @@ def attention_signals(
     admin=Depends(staff_access),
 ):
     # 'request' = the student pressed "contact me" in the app's crisis dialog (routes/chat.py report_to_team).
-    # Older assessment logs only recorded a safe prefix in triggered_input. It is
-    # used solely for classification here and is never returned to the client.
+    # Classification only. `source`/`assessment_id` are authoritative now; the LIKE arm only
+    # keeps rows written before `source` existed readable. Never returned to the client.
     kind = (
-        "case when g.assessment_id is not null or g.triggered_input like '[ASSESSMENT]%%' then 'assessment' "
-        "when g.triggered_input like '[LAPORAN PENGGUNA]%%' then 'request' else 'safety' end"
+        "case when g.assessment_id is not null or g.source = 'assessment' "
+        "or g.triggered_input like '[ASSESSMENT]%' then 'assessment' "
+        "when g.triggered_input like '[LAPORAN PENGGUNA]%' then 'request' else 'safety' end"
     )
     source = (
         "from guardrail_logs g left join users u on u.user_id = g.user_id "
@@ -235,3 +237,4 @@ def student_insights(days: int = Query(30, ge=1, le=365), staff=Depends(staff_ac
     if row is None:
         raise HTTPException(403, "Akses ditolak")
     return row
+

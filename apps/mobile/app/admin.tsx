@@ -16,7 +16,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@prototype/ui-shared';
-import { apiFetch, apiLogout, getStoredUserSync } from '@prototype/api-client';
+import { apiFetch, apiLogout, clearAuth, getStoredUser } from '@prototype/api-client';
+
 
 interface UserRow {
   user_id: string;
@@ -51,8 +52,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const u = getStoredUserSync<{ nama: string }>();
-    if (u?.nama) setAdminName(u.nama);
+    getStoredUser<{ nama: string }>().then((u) => { if (u?.nama) setAdminName(u.nama); });
     fetchUsers();
     Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
   }, []);
@@ -84,7 +84,7 @@ export default function AdminDashboard() {
       { text: 'Batal', style: 'cancel' },
       {
         text: 'Logout', style: 'destructive',
-        onPress: async () => { await apiLogout(); router.replace('/'); },
+        onPress: async () => { await clearAuth(); router.replace('/'); },
       },
     ]);
   };
