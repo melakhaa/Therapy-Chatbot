@@ -46,6 +46,9 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
   Roles `mahasiswa | konselor | admin | pemangku_jabatan`; severity `minimal | mild | moderate | severe`.
 - `users` is the root identity table; child tables reference `users(user_id)`. There is no
   `auth.users`.
+- Rows owned by a session pin both ids: `messages(session_id, user_id)` references
+  `sessions(session_id, user_id)`. A client-supplied `session_id` is therefore safe to group on —
+  it cannot attach a row to another student's session.
 - Booking side effects (`jadwal` → `dipesan` / back to `tersedia`) are `SECURITY DEFINER` triggers,
   because the student who books cannot update the counselor's slot row directly.
 - Vector search: `documents.content`, `documents.embedding vector(768)`, `documents.metadata jsonb`;

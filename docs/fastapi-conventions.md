@@ -30,6 +30,9 @@ under [semantic-router-conventions.md](semantic-router-conventions.md) and
   `Literal[...]` for enums, `Field`/validators for constraints.
 - Protect handlers with `user=Depends(get_current_user)`; restrict with
   `Depends(require_role("konselor", "admin", "pemangku_jabatan"))`.
+  - **Identity always comes from the JWT.** Never accept a `user_id` field in a request body —
+    `ChatRequest` deliberately has none, because a body-supplied id is a client-chosen RLS identity.
+    Scope queries with `user_id=user.id`.
   - `admin.py` exports reusable guards: `operator_access` (konselor/admin/pemangku_jabatan) for
     assessment review, `directory_access` (admin/pemangku_jabatan) for identity profiles.
   - `admin_operations.py` uses a single `admin_access = require_role("admin")` for schedules,
@@ -46,7 +49,10 @@ under [semantic-router-conventions.md](semantic-router-conventions.md) and
 - Responses: plain dicts, `snake_case` keys; insert endpoints return the created row or
   `{entity, message}`. Always cast IDs with `str(user.id)`.
 - Streaming endpoint `POST /chat/stream` emits SSE frames `data: {"token": ...}\n\n`,
-  ending with `data: [DONE]`.
+  ending with `data: [DONE]`. It is *not* streaming yet — it computes the full reply and then
+  splits it, so it buys no latency (`ponytail:` comment in `routes/chat.py`).
+- `POST /chat` returns `{response, route, is_high_risk}` and persists the turn when a `session_id`
+  is supplied; `GET /chat/history?session_id=` returns the caller's own decrypted transcript.
 
 ## `/health` is the contract
 
