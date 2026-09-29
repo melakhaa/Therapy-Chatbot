@@ -26,7 +26,8 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
 | `users` | Account + `role` + `password_hash` (oauth was removed with Supabase) |
 | `assessments` | PHQ-9 / GAD-7 / SRQ results, `score`, `severity` |
 | `guardrail_logs` | High-risk trigger log (chat + assessments) |
-| `messages` | Encrypted chat turns (`route_used`); `session_id` is client-generated text |
+| `messages` | Encrypted chat turns (`route_used`); belongs to a `sessions` row |
+| `sessions` | Chat session owner, title, lifetime; `messages.session_id` is client-generated but pinned to `(session_id, user_id)` by FK |
 | `documents` | RAG chunks: `content`, `embedding vector(768)`, `metadata` |
 | `hotline` | Crisis contact list |
 | `journals` | Private student journal entries |
@@ -45,6 +46,9 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
   Roles `mahasiswa | konselor | admin | pemangku_jabatan`; severity `minimal | mild | moderate | severe`.
 - `users` is the root identity table; child tables reference `users(user_id)`. There is no
   `auth.users`.
+- Rows owned by a session pin both ids: `messages(session_id, user_id)` references
+  `sessions(session_id, user_id)`. A client-supplied `session_id` is therefore safe to group on —
+  it cannot attach a row to another student's session.
 - Booking side effects (`jadwal` → `dipesan` / back to `tersedia`) are `SECURITY DEFINER` triggers,
   because the student who books cannot update the counselor's slot row directly.
 - Vector search: `documents.content`, `documents.embedding vector(768)`, `documents.metadata jsonb`;

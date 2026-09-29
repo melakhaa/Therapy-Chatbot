@@ -14,16 +14,35 @@ All generation and embeddings run **locally via Ollama** through `langchain-olla
 
 ## Generation
 
-```python
-from langchain_ollama import ChatOllama
-from langchain_core.messages import HumanMessage
+One shared client, `services/chatbot/llm.py` — import it, never construct another
+`ChatOllama`:
 
-llm = ChatOllama(model="llama3.2:3b")
-llm.invoke([HumanMessage(content=prompt)]).content
+```python
+from langchain_core.messages import HumanMessage, SystemMessage
+from services.chatbot.llm import llm
+
+llm.invoke([SystemMessage(content=system), *history, HumanMessage(content=user)]).content
 ```
 
-Used in `conversational.py` (system prompt + user message) and `rag.py`
-(retrieved context + question). Responses are Bahasa Indonesia.
+Used in `conversational.py` (persona system prompt) and `rag.py` (retrieved context in the
+system message). Responses are Bahasa Indonesia. Instructions always go in a `SystemMessage`,
+never a `HumanMessage` — shared roles are the easy prompt-injection path.
+
+`llm.py` pins `num_ctx` (history is prepended, so the prompt grows), `keep_alive`, and an httpx
+timeout, all overridable via `OLLAMA_NUM_CTX` / `OLLAMA_TEMPERATURE` / `OLLAMA_TIMEOUT`.
+
+## Conversation memory
+
+The model is stateless: "memory" is the last `HISTORY_TURNS` rows re-read per request by
+`services/chatbot/history.py` (`load_history`) and prepended to the prompt, oldest first.
+Redis not needed — it is one indexed query.
+
+Two rules there, both load-bearing:
+
+- `route_used is distinct from 'guardrail'` — crisis turns must never reach the LLM (see the
+  non-negotiable below). Both rows of a crisis exchange carry that route.
+- `user_id` comes from the JWT, so RLS scopes the read; the amount of history is bounded by
+  `HISTORY_CHAR_CAP` to stay under `num_ctx`.
 
 ## RAG ingestion
 
@@ -51,8 +70,10 @@ Retrieval is `select * from match_documents(%s::vector, 0.3, k)` through `core/d
 - If Ollama isn't running, routing falls back to a zero-vector `MockEncoder` and answers degrade —
   treat "no Ollama" as a dev-only state.
 - Never send guardrail (crisis) messages to the LLM; they are handled by fixed responses
-  (see [semantic-router-conventions.md](semantic-router-conventions.md)).
-- `ponytail:` comments mark known limits (e.g. stateless per-request chat).
+  (see [semantic-router-conventions.md](semantic-router-conventions.md)). `load_history`
+  enforces this for the memory path; the chat route enforces it for the current turn.
+- `ponytail:` comments mark known limits (e.g. no streaming; `/chat/stream` fakes it by
+  splitting a finished response).
 
 ## Run
 

@@ -84,7 +84,7 @@ def health():
             "CB-05": "POST /router/intent",
             "CB-06": "POST /rag/context",
             "CB-07": "POST /chat/stream",
-            "CB-08": "POST /chat/history",
+            "CB-08": "GET  /chat/history",
             "CB-09": "POST /auth/login",
             "CB-10": "GET  /dashboard/data",
             "CB-11": "GET  /accounts",

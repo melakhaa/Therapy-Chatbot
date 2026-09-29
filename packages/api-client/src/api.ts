@@ -136,6 +136,23 @@ export async function apiChat(payload: ChatPayload): Promise<ChatResponse> {
   });
 }
 
+export interface ChatHistoryMessage {
+  role: 'user' | 'assistant';
+  text: string;
+  route: string | null;
+  created_at: string;
+}
+
+/** The caller's own transcript, decrypted server-side. Scoped to the JWT identity. */
+export async function apiChatHistory(
+  sessionId: string,
+  limit = 50
+): Promise<{ session_id: string; messages: ChatHistoryMessage[] }> {
+  return apiFetch(
+    `/chat/history?session_id=${encodeURIComponent(sessionId)}&limit=${limit}`
+  );
+}
+
 // ── Assessment ─────────────────────────────────────────────────────────────────
 
 export interface AnswerItem {

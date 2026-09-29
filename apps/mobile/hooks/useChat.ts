@@ -6,7 +6,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Animated } from 'react-native';
 import { analyzeStress, QUICK_REPLIES } from '@prototype/utils';
-import { apiChat } from '@prototype/api-client';
+import { apiChat, apiChatHistory, getChatSessionId, saveChatSessionId } from '@prototype/api-client';
 import type { Message } from '../components/chat/ChatBubble';
 
 export interface UseChatReturn {
@@ -22,12 +22,15 @@ export interface UseChatReturn {
   sendMessage: (text: string) => void;
   confirmReport: () => void;
   sendBtnScale: Animated.Value;
-  sessionId: string;
+  /** Null until the stored id resolves; no consumer should send before it is set. */
+  sessionId: string | null;
   isHighRisk: boolean;
+  isLoadingHistory: boolean;
 }
 
-// Generate session ID per chat session
-function generateSessionId() {
+// Session id lives in storage so a reload resumes the same conversation; the transcript
+// itself stays encrypted in Postgres and is refetched from /chat/history.
+function newSessionId() {
   return `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
@@ -49,9 +52,48 @@ export function useChat(): UseChatReturn {
   const [quickReplies, setQuickReplies] = useState(QUICK_REPLIES.initial);
   const [showQuickReplies, setShowQuickReplies] = useState(true);
   const [isHighRisk, setIsHighRisk]     = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
-  const sessionId   = useRef(generateSessionId()).current;
+  // Null until storage resolves, so sendMessage can't fire against an unloaded id.
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const sendBtnScale = useRef(new Animated.Value(1)).current;
+
+  // ── Resume the stored session, or start one ────────────────────
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const stored = await getChatSessionId();
+      if (cancelled) return;
+      const id = stored ?? newSessionId();
+      if (!stored) await saveChatSessionId(id);
+      setSessionId(id);
+
+      if (!stored) {
+        setIsLoadingHistory(false);
+        return;
+      }
+
+      try {
+        const { messages: history } = await apiChatHistory(id);
+        if (cancelled) return;
+        setMessages(
+          history.map((m, i) => ({
+            id: `hist-${i}-${m.created_at}`,
+            text: m.text,
+            sender: m.role === 'user' ? 'user' : 'ai',
+            timestamp: new Date(m.created_at),
+          }))
+        );
+      } catch {
+        // Offline or expired token: start from the greeting, history is not critical.
+      } finally {
+        if (!cancelled) setIsLoadingHistory(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Add AI message ─────────────────────────────────────────────
   const addAI = useCallback((text: string) => {
@@ -61,11 +103,12 @@ export function useChat(): UseChatReturn {
     ]);
   }, []);
 
-  // ── Greeting on mount ──────────────────────────────────────────
+  // ── Greeting on mount, only when there is no history to show ───
   useEffect(() => {
+    if (isLoadingHistory || messages.length > 0) return;
     const t = setTimeout(() => addAI(pickGreeting()), 600);
     return () => clearTimeout(t);
-  }, [addAI]);
+  }, [addAI, isLoadingHistory, messages.length]);
 
   // ── Re-analyze stress whenever messages change ─────────────────
   useEffect(() => {
@@ -91,7 +134,7 @@ export function useChat(): UseChatReturn {
   // ── Send message → backend ────────────────────────────────────
   const sendMessage = useCallback(
     (text: string) => {
-      if (!text.trim()) return;
+      if (!text.trim() || !sessionId) return;
 
       const userMsg: Message = {
         id: `user-${Date.now()}`,
@@ -156,6 +199,7 @@ export function useChat(): UseChatReturn {
     sendBtnScale,
     sessionId,
     isHighRisk,
+    isLoadingHistory,
   };
 }
 
