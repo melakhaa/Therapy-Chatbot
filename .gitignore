@@ -49,3 +49,6 @@ venv/
 env/
 # local validation exports
 /apps/dashboard/dist-*/
+
+# agent skills/plugins (pi-managed)
+.agents/

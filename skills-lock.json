@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "browser": {
+      "source": "betterwright/betterwright",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "290f1ea1df087e6ac3c29792ffc85f36e4389bfe3124afda5b57977012803a0e"
+    },
     "caveman": {
       "source": "JuliusBrussee/caveman",
       "sourceType": "github",
