@@ -6,7 +6,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Animated } from 'react-native';
 import { analyzeStress, QUICK_REPLIES } from '@prototype/utils';
-import { apiChat, apiChatHistory, getChatSessionId, saveChatSessionId } from '@prototype/api-client';
+import { apiChatHistory, apiChatStream, getChatSessionId, saveChatSessionId } from '@prototype/api-client';
 import type { Message } from '../components/chat/ChatBubble';
 
 export interface UseChatReturn {
@@ -103,6 +103,17 @@ export function useChat(): UseChatReturn {
     ]);
   }, []);
 
+  // ── Grow an AI bubble as tokens arrive ────────────────────────
+  // `replace` swaps the text (stream failed after partial output) instead of appending.
+  const upsertAI = useCallback((id: string, text: string, replace = false) => {
+    setMessages((prev) => {
+      if (!prev.some((m) => m.id === id)) {
+        return [...prev, { id, text, sender: 'ai', timestamp: new Date() }];
+      }
+      return prev.map((m) => (m.id === id ? { ...m, text: replace ? text : m.text + text } : m));
+    });
+  }, []);
+
   // ── Greeting on mount, only when there is no history to show ───
   useEffect(() => {
     if (isLoadingHistory || messages.length > 0) return;
@@ -111,7 +122,10 @@ export function useChat(): UseChatReturn {
   }, [addAI, isLoadingHistory, messages.length]);
 
   // ── Re-analyze stress whenever messages change ─────────────────
+  // Skipped while a reply streams in: every token would otherwise re-run the analysis.
   useEffect(() => {
+    if (isTyping) return;
+
     const level = analyzeStress(messages);
     setStressLevel(level);
 
@@ -122,7 +136,7 @@ export function useChat(): UseChatReturn {
       }, 900);
       return () => clearTimeout(t);
     }
-  }, [messages, alertTriggered]);
+  }, [messages, alertTriggered, isTyping]);
 
   // ── Upgrade quick replies on mid-stress ───────────────────────
   useEffect(() => {
@@ -154,26 +168,26 @@ export function useChat(): UseChatReturn {
         Animated.spring(sendBtnScale, { toValue: 1, useNativeDriver: true }),
       ]).start();
 
-      // Hit backend /chat
-      apiChat({ message: text.trim(), session_id: sessionId })
-        .then((res) => {
-          addAI(res.response);
-          if (res.is_high_risk) {
-            setIsHighRisk(true);
-            setShowAlert(true);
-            setAlertTriggered(true);
-          }
-        })
-        .catch(() => {
-          // Fallback jika backend tidak jalan
-          addAI('Maaf, aku sedang tidak bisa dihubungi. Coba lagi sebentar ya 🙏');
-        })
+      // Stream the reply: the bubble grows as tokens arrive, then the server persists the turn.
+      const aiId = `ai-${Date.now()}`;
+      const fallback = 'Maaf, aku sedang tidak bisa dihubungi. Coba lagi sebentar ya 🙏';
+
+      apiChatStream({ message: text.trim(), session_id: sessionId }, (event) => {
+        if (event.is_high_risk) {
+          setIsHighRisk(true);
+          setShowAlert(true);
+          setAlertTriggered(true);
+        }
+        if (event.token) upsertAI(aiId, event.token);
+        if (event.error) upsertAI(aiId, fallback, true);
+      })
+        .catch(() => upsertAI(aiId, fallback, true))
         .finally(() => {
           setIsTyping(false);
           setShowQuickReplies(true);
         });
     },
-    [addAI, sendBtnScale, sessionId]
+    [addAI, sendBtnScale, sessionId, upsertAI]
   );
 
   // ── Report confirmed ──────────────────────────────────────────

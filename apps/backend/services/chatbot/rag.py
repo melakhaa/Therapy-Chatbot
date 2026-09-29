@@ -3,7 +3,6 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from semantic_router import Route
 
 from core.db import query
-from services.chatbot.llm import llm
 
 # nomic-embed-text-v2-moe expects task prefixes; query and document must use their
 # matching pair or similarity silently degrades. Single source of truth for the
@@ -44,29 +43,37 @@ Konteks:
 {context}"""
 
 
-def get_rag_response(user_message: str, history: list | None = None) -> str:
+NO_CONTEXT_REPLY = "Maaf, saya tidak menemukan informasi terkait di dokumen."
+
+
+def build_messages(user_message: str, history: list | None = None) -> list | None:
+    """Prompt for a RAG turn, or None when retrieval found nothing.
+
+    None is not an error: the caller replies with NO_CONTEXT_REPLY so the model is never asked
+    to answer from an empty context. Generation lives in core.chat_stream.
+    """
     docs = retrieve_docs(user_message)
 
     if not docs:
-        return "Maaf, saya tidak menemukan informasi terkait di dokumen."
+        return None
 
     context = "\n---\n".join([d["content"] for d in docs])
 
-    response = llm.invoke([
+    return [
         SystemMessage(content=RAG_SYSTEM_PROMPT.format(context=context)),
         *(history or []),
         HumanMessage(content=user_message),
-    ])
+    ]
 
-    return response.content
 
 if __name__ == "__main__":
-    tests = [
+    from services.chatbot.core import chat
+
+    for t in [
         "apa itu depresi?",
         "siapa itu mr ambatunat?",
         "apa saja gejala depresi?",
-        "bagaimana cara menangani depresi?"
-    ]
-    for t in tests:
+        "bagaimana cara menangani depresi?",
+    ]:
         print(f"User: {t}")
-        print(f"RAG: {get_rag_response(t)}\n")
+        print(f"RAG: {chat(t)}\n")

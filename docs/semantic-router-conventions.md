@@ -16,10 +16,11 @@ user message
            └─ "rag"            → retrieve_docs() → LLM answer   rag.py
 ```
 
-`core.py` builds the single router and exposes
-`chat(user_message, session_id=None, user_id=None, route=None)`. Callers that already routed
+`core.py` builds the single router and exposes `chat_stream(user_message, session_id=None,
+user_id=None, route=None)`, with `chat(...)` as that generator joined. Callers that already routed
 (`routes/chat.py` does, for the guardrail decision) pass `route=` so the message is not embedded
-twice; `route=None` routes internally for one-off callers like `/chat/stream`.
+twice; `route=None` routes internally. The HTTP layer turns the generator into SSE — see
+[fastapi-conventions.md](fastapi-conventions.md).
 
 ```python
 semantic_router = SemanticRouter(
@@ -75,8 +76,9 @@ utterances, not new branching logic.
 
 - Keep one file per route; export the `Route` object and its handler.
 - `semantic_router` is a module-level singleton in `core.py` — don't rebuild per request.
-- `auto_sync="local"`; if the Ollama encoder is unreachable, `core.py` falls back to a
-  zero-vector `MockEncoder` (degraded routing).
+- `auto_sync="local"`; the router embeds every route utterance when it is constructed, so a dead
+  Ollama raises at **import** and the backend refuses to start (no zero-vector fallback — that would
+  mis-route silently). See [ollama-conventions.md](ollama-conventions.md).
 - Expose results over HTTP as `{ route, is_high_risk, response }` (`routes/chat.py`).
 - Every chatbot file has an `if __name__ == "__main__":` block of sample utterances to
   smoke-test routing. Use it when tuning utterances.

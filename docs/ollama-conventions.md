@@ -21,12 +21,18 @@ One shared client, `services/chatbot/llm.py` — import it, never construct anot
 from langchain_core.messages import HumanMessage, SystemMessage
 from services.chatbot.llm import llm
 
-llm.invoke([SystemMessage(content=system), *history, HumanMessage(content=user)]).content
+messages = [SystemMessage(content=system), *history, HumanMessage(content=user)]
+for chunk in llm.stream(messages):      # what core.chat_stream does
+    yield chunk.content
 ```
 
-Used in `conversational.py` (persona system prompt) and `rag.py` (retrieved context in the
-system message). Responses are Bahasa Indonesia. Instructions always go in a `SystemMessage`,
-never a `HumanMessage` — shared roles are the easy prompt-injection path.
+Generation happens in exactly one place, `core.chat_stream`. `/chat` is that generator joined, and
+`/chat/stream` forwards it as SSE — so the two endpoints cannot answer differently. The prompt is
+built by `build_messages()` in `conversational.py` (persona) or `rag.py` (retrieved context, or
+`None` when retrieval found nothing → `NO_CONTEXT_REPLY`).
+
+Instructions always go in a `SystemMessage`, never a `HumanMessage` — shared roles are the easy
+prompt-injection path.
 
 `llm.py` pins `num_ctx` (history is prepended, so the prompt grows), `keep_alive`, and an httpx
 timeout, all overridable via `OLLAMA_NUM_CTX` / `OLLAMA_TEMPERATURE` / `OLLAMA_TIMEOUT`.
@@ -67,13 +73,14 @@ Retrieval is `select * from match_documents(%s::vector, 0.3, k)` through `core/d
   pair matched or similarity degrades silently.
 - Changing an embedding prefix invalidates every stored vector: re-embed the `documents` table
   (`scripts/embed.py`) after any prefix or model change.
-- If Ollama isn't running, routing falls back to a zero-vector `MockEncoder` and answers degrade —
-  treat "no Ollama" as a dev-only state.
+- If Ollama isn't running the backend **fails to start**: `OllamaEncoder()` itself does not raise,
+  but `SemanticRouter(...)` embeds every route utterance at import, so the exception surfaces there
+  and nothing serves. That is deliberate — a zero-vector fallback would route every message to the
+  same route while looking healthy.
 - Never send guardrail (crisis) messages to the LLM; they are handled by fixed responses
   (see [semantic-router-conventions.md](semantic-router-conventions.md)). `load_history`
   enforces this for the memory path; the chat route enforces it for the current turn.
-- `ponytail:` comments mark known limits (e.g. no streaming; `/chat/stream` fakes it by
-  splitting a finished response).
+- `ponytail:` comments mark known limits (e.g. no per-user rate limit on generation).
 
 ## Run
 

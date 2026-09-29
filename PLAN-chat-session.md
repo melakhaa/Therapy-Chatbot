@@ -14,9 +14,9 @@ content never reaches the LLM.
 | 0 — `sessions` table + FK | **done** |
 | 1 — prompt memory | **done** |
 | 2 — session pointer + `/chat/history` | **done** |
-| 3 — real streaming | not done (recommended skip — RN `fetch` can't read a stream) |
+| 3 — real streaming | **done** — `llm.stream` in `core.chat_stream`, SSE read via `expo/fetch` |
 | 4 — crisis text out of plaintext | **done** |
-| 5 — fail loudly without Ollama | not done (optional; `MockEncoder` still degrades routing) |
+| 5 — fail loudly without Ollama | **done** — dead `MockEncoder` deleted; the existing crash is now documented |
 
 Verified: `db/test_rls.sql` passes, 25 unit tests pass (`tests/test_chat_history.py` covers the
 crisis filter in `load_history`), `scripts/api_smoke.py` ALL PASSED against a live stack, and a
@@ -29,6 +29,17 @@ web build takes the `localStorage` branch of `Platform.OS`, so `AsyncStorage` on
 as is the crisis alert modal in the UI.
 
 Deviations from the plan below:
+
+- **Phase 3 was worth doing**: `expo/fetch` streams on native and is `globalThis.fetch` on web, so the
+  platform risk the plan worried about did not materialise.
+- **Phase 5 needed no ENV flag.** The plan offered "delete the fallback, or gate it behind `ENV=dev`".
+  The fallback turned out to be unreachable: `OllamaEncoder()` does not raise at construction, so the
+  `except` never fired. What actually happens is that `SemanticRouter(...)` embeds route utterances at
+  import, so a dead Ollama raises there and the backend refuses to start. The code already failed
+  loudly — only the dead class and three lying doc claims needed removing.
+- Generation has **one** code path: `core.chat_stream` yields tokens, `chat()` is it joined, and
+  `/chat` + `/chat/stream` both route through it. `get_conversational_response` /
+  `get_rag_response` are gone; prompt building is `build_messages()` in each module.
 
 - `sessions` has no counselor/admin read policy — nothing reads session metadata yet. Add it when
   a dashboard endpoint actually lists sessions.

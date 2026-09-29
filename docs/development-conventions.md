@@ -83,4 +83,5 @@ cd apps/backend && venv/bin/python scripts/api_smoke.py
 - The backend connects as `sanctuary_app` (non-superuser) so RLS applies. Pointing `DATABASE_URL` at
   `sanctuary` silently disables every policy — see [security-conventions.md](security-conventions.md).
 - `db/test_rls.sql` is the RLS/auth self-check; run it after schema or policy changes.
-- No Ollama → zero-vector mock encoder, degraded chatbot answers.
+- No Ollama → the backend does not start (the router embeds route utterances at import). Fail loud,
+  never silently degrade: see [ollama-conventions.md](ollama-conventions.md).

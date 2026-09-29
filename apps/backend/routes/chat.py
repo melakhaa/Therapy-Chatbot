@@ -8,7 +8,7 @@ import json
 from auth import get_current_user
 from core.security import decrypt_text, encrypt_text
 from core.db import db, query
-from services.chatbot.core import chat as chat_fn, semantic_router
+from services.chatbot.core import chat as chat_fn, chat_stream, semantic_router
 from services.chatbot.guardrail import HARDCODED_RESPONSE
 from services.chatbot.rag import retrieve_docs
 
@@ -49,12 +49,42 @@ def retrieve_rag_context(request: ChatRequest, user=Depends(get_current_user)):
         ]
     }
 
+def _sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload)}\n\n"
+
+
 @chat_router.post("/stream")
 def stream_chat_response(request: ChatRequest, user=Depends(get_current_user)):
+    """Real SSE: tokens as the model produces them. `[DONE]` terminates the stream."""
+    route_result = semantic_router(request.message)
+    route = route_result.name or "conversational"
+    is_high_risk = route == "guardrail"
+
     def generate():
-        response = chat_fn(request.message, session_id=request.session_id, user_id=user.id)
-        for word in response.split(" "):
-            yield f"data: {json.dumps({'token': word + ' '})}\n\n"
+        # Metadata first, so the client can raise the crisis card without waiting for tokens.
+        yield _sse({"route": route, "is_high_risk": is_high_risk})
+
+        parts = []
+        try:
+            for chunk in chat_stream(
+                request.message,
+                session_id=request.session_id,
+                user_id=user.id,
+                route=route,
+            ):
+                parts.append(chunk)
+                yield _sse({"token": chunk})
+        except Exception:
+            # A truncated answer is not a turn: keep it out of history so the next request
+            # re-asks rather than continuing from half a reply.
+            yield _sse({"error": "generation_failed"})
+            return
+
+        response_text = "".join(parts)
+        if request.session_id:
+            with db(user.id) as conn:
+                _persist_turn(conn, request, user.id, route, response_text, is_high_risk)
+
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")

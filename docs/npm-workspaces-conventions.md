@@ -14,8 +14,10 @@ The single HTTP layer. `src/api.ts` wraps `fetch` with base URL, JSON headers, o
 apiFetch<T>(path, { method, body, auth = true, base })  // auth defaults true
 ```
 
-- Add one typed helper per backend endpoint (`apiChat`, `apiSubmitAssessment`, `apiSaveJournal`, ...).
+- Add one typed helper per backend endpoint (`apiChatStream`, `apiSubmitAssessment`, `apiSaveJournal`, ...).
 - Export request/response interfaces next to the helper.
+- Streaming endpoints use `apiChatStream`, which reads the SSE body with `expo/fetch` (React Native's
+  global `fetch` buffers the whole response; on web that module is just `globalThis.fetch`).
 - `auth: false` for login/register/hotline/guardrail.
 - `apiLogin` persists token + user via `src/storage.ts`.
 - `src/admin.ts` + `src/admin-operations.ts` hold the dashboard helpers (`apiGetAdminAssessments`,

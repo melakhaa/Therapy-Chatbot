@@ -48,7 +48,7 @@ Core React Native rules live in [react-native-conventions.md](react-native-conve
 
 ## Data & state
 
-- All network calls go through `@prototype/api-client` (`apiFetch`, `apiLogin`, `apiChat`, admin
+- All network calls go through `@prototype/api-client` (`apiFetch`, `apiLogin`, `apiChatStream`, admin
   helpers, ...). Never call `fetch` directly in a screen.
 - Auth state via `useAuth()` from `@prototype/ui-shared`.
 - Chat logic lives in `apps/mobile/hooks/useChat.ts`.
