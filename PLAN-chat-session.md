@@ -1,13 +1,17 @@
 # PLAN — real chat sessions + LLM memory
 
-**TEMPORARY FILE — delete before committing.** Not part of the repo's docs.
+Working implementation plan, tracked in-repo (root `AGENTS.md` stays the index; this is a
+plan, not a convention doc). Written against `main` at `68d3920` (post PR #15) — every file
+and line reference below was verified against that revision.
 
 Goal: `session_id` becomes a real entity, Hana sees conversation history, and crisis
 content never reaches the LLM.
 
-Migration story: schema is applied by `docker compose up` on an empty volume, so Phase 0
-means **wiping the local dev DB** (`down -v`). That also destroys the ingested `documents`
-vectors → re-run `scripts/embed.py`. No production data exists, so no migration framework.
+Migration story: the schema is the source of truth in `db/init/*.sql` and is applied by
+`docker compose up` on an empty volume (`docs/project-conventions.md`, and the wipe procedure
+is spelled out in `apps/backend/AGENTS.md`), so Phase 0 means **wiping the local dev DB**
+(`down -v`). That also destroys the ingested `documents` vectors → re-run `scripts/embed.py`.
+No production data exists, so no migration framework.
 
 Order is dependency-driven: 0 → 1 → 2 → 3 → 4 → 5.
 
@@ -62,9 +66,10 @@ on conflict do nothing;
 **RLS self-check:** add to `db/test_rls.sql` — user A creates a session + message, user B
 must see 0 rows from both.
 
-**Verify:** `docker compose down -v && docker compose up -d`, then the documented psql run
-of `db/test_rls.sql`, then re-seed users (`scripts/seed_dev_users.py`) and re-embed
-(`scripts/embed.py`) — the volume wipe took `documents` with it.
+**Verify:** `docker compose down -v && docker compose up -d` (`apps/backend/AGENTS.md`),
+then the `db/test_rls.sql` run from `docs/development-conventions.md:59`, then re-seed users
+(`scripts/seed_dev_users.py`) and re-embed (`scripts/embed.py`) — the volume wipe took
+`documents` with it.
 
 ---
 
@@ -226,7 +231,8 @@ def chat_history(session_id: str, limit: int = 50, user=Depends(get_current_user
 ```
 
 Decrypt-and-return is the student's own transcript, so this is fine — but it must **not**
-become an admin endpoint (project rule: no raw chat content for admins). Keep the
+become an admin endpoint: `docs/project-conventions.md` requires admin operational endpoints
+to never return raw chat or guardrail-trigger content. Keep the
 `konselor_admin_read_sessions` policy to session metadata only.
 
 ### 2c. Device pointer
@@ -281,8 +287,10 @@ Root cause, not symptom: `assessment.py:111` never uses the `source` column
 (`01_schema.sql:218` declares it) and instead smuggles `[ASSESSMENT]` into
 `triggered_input`, which is why `admin_operations.py:53` has to `LIKE` against plaintext.
 
-Two changes:
-1. `chat.py:94` → `encrypt_text(request.message)`; `assessment.py:111` → pass
+This violates the `docs/project-conventions.md` non-negotiable *"Never log or store raw chat
+content — it is Fernet-encrypted"* (see also `docs/security-conventions.md`). Two changes:
+
+1. `chat.py:94` → `encrypt_text(request.message)`; `assessment.py:111-112` → pass
    `source='assessment'` and replace the `[ASSESSMENT] ...` payload with something
    non-identifying (the score is also in `assessments`).
 2. `admin_operations.py:53` classification → `case when g.assessment_id is not null or
