@@ -6,6 +6,25 @@ web dashboard (risk monitoring, analytics, booking). An npm-workspace monorepo h
 the FastAPI backend (Python 3.12), and the shared TypeScript packages; Docker runs PostgreSQL 17 +
 pgvector, Ollama provides the local LLM/embeddings.
 
+## Structure
+
+```
+Therapy-Chatbot/
+├── apps/
+│   ├── mobile/        Expo React Native app (expo-router) — student-facing
+│   ├── dashboard/     Expo Router web app (react-native-web) — counselor/admin
+│   └── backend/       FastAPI (Python 3.12) API + routes/ + services/ + tests/
+├── packages/
+│   ├── api-client/    @prototype/api-client — fetch wrappers + cross-platform storage
+│   ├── ui-shared/     @prototype/ui-shared — theme, context, auth hook, animation
+│   └── utils/         @prototype/utils — stress detection, response parsers
+├── db/                init/ SQL (schema, auth) + test_rls.sql + pgadmin config
+├── docs/              Per-stack convention docs (linked below)
+├── docker-compose.yml PostgreSQL 17 + pgvector + pgAdmin
+├── package.json       Root workspace
+└── AGENTS.md          This file (each app also has a local AGENTS.md)
+```
+
 ## Commands
 
 ```bash
