@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, time
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -54,7 +54,9 @@ def get_today_journal(user=Depends(get_current_user)):
     rows = query(
         "select journal_id, content, mood, created_at from journals "
         "where user_id = %s and created_at >= %s order by created_at desc limit 1",
-        (user.id, f"{date.today().isoformat()}T00:00:00"),
+        # Offset-aware: `date.today()` is the server's local day, but a bare timestamp would be
+        # read in the DB session's timezone (UTC here), shifting the boundary for WIB mornings.
+        (user.id, datetime.combine(date.today(), time.min).astimezone().isoformat()),
         user_id=user.id,
     )
     return {"journal": rows[0] if rows else None}
