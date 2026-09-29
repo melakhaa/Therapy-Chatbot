@@ -22,6 +22,12 @@ Verified: `db/test_rls.sql` passes, 25 unit tests pass (`tests/test_chat_history
 crisis filter in `load_history`), `scripts/api_smoke.py` ALL PASSED against a live stack, and a
 manual two-turn check confirmed the follow-up "siapa namaku?" is answered from history.
 
+Also verified through the real UI (Expo web on :8081 driven with betterwright): after a full page
+reload the transcript is refetched from `GET /chat/history` and rendered instead of a fresh
+greeting, and a second UI turn answered from history. Still unverified: the **native** path — the
+web build takes the `localStorage` branch of `Platform.OS`, so `AsyncStorage` on device is untested,
+as is the crisis alert modal in the UI.
+
 Deviations from the plan below:
 
 - `sessions` has no counselor/admin read policy — nothing reads session metadata yet. Add it when
