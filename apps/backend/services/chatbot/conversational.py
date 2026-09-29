@@ -1,8 +1,6 @@
 from langchain_core.messages import HumanMessage, SystemMessage
 from semantic_router import Route
 
-from services.chatbot.llm import llm
-
 conversational_route = Route(
     name="conversational",
     utterances=[
@@ -27,20 +25,25 @@ SYSTEM_PROMPT = """Kamu adalah asisten psikologi yang empatik dan suportif berna
 Kamu berbicara dalam Bahasa Indonesia yang hangat dan mudah dipahami.
 Dengarkan dan validasi perasaan pengguna, jangan menghakimi."""
 
-def get_conversational_response(user_message: str, history: list | None = None) -> str:
-    response = llm.invoke([
+def build_messages(user_message: str, history: list | None = None) -> list:
+    """The prompt for one turn: persona, then prior turns, then the new message.
+
+    Generation itself lives in core.chat_stream — one path for both /chat and /chat/stream.
+    """
+    return [
         SystemMessage(content=SYSTEM_PROMPT),
         *(history or []),
         HumanMessage(content=user_message),
-    ])
-    return response.content
+    ]
+
 
 if __name__ == "__main__":
-    tests = [
+    from services.chatbot.core import chat
+
+    for t in [
         "halo, aku lagi sedih banget hari ini",
         "aku ngerasa sendirian",
         "makasih udah dengerin aku",
-    ]
-    for t in tests:
+    ]:
         print(f"User: {t}")
-        print(f"Hana: {get_conversational_response(t)}\n")
+        print(f"Hana: {chat(t)}\n")

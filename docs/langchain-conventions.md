@@ -16,20 +16,28 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from services.chatbot.llm import llm
 
 # conversational.py — persona in the system message, history between it and the new turn
-llm.invoke([SystemMessage(content=SYSTEM_PROMPT), *history, HumanMessage(content=user_message)]).content
+messages = build_messages(user_message, history)
 
-# rag.py — retrieved context goes in the system message too, never as a HumanMessage
-llm.invoke([SystemMessage(content=RAG_SYSTEM_PROMPT.format(context=context)), *history, HumanMessage(content=user_message)]).content
+# rag.py — retrieved context in the system message too, never as a HumanMessage
+messages = build_messages(user_message, history)   # None when retrieval found nothing
+
+# core.chat_stream — the only place generation happens
+for chunk in llm.stream(messages):
+    yield chunk.content
 ```
 
 - **Import the shared client from `services/chatbot/llm.py`**; never construct a second
   `ChatOllama`. It pins `num_ctx`, `keep_alive`, and a request timeout that a fresh client would
   silently lose.
+- **Prompt building and generation are separate**: `build_messages()` lives in `conversational.py`
+  (`rag.py` for the RAG path) and `core.chat_stream` is the only caller that generates. That is why
+  `/chat` and `/chat/stream` cannot answer differently.
+- Use `llm.stream(messages)`, not `invoke`. Non-streaming callers join the chunks, so there is one
+  token path rather than two that can drift apart.
 - Instructions belong in a `SystemMessage`. Putting them in a `HumanMessage` makes them
   indistinguishable from user text, which is the easy prompt-injection path.
 - `history` comes from `services/chatbot/history.py:load_history` — real preceding turns, oldest
   first, with crisis turns already filtered out. Never assemble it by hand.
-- Return the string via `response.content`; handlers wrap it in the API shape.
 - `OllamaEmbeddings(model=EMBED_MODEL)` is a module-level singleton in `rag.py`; retrieval embeds
   the query with `embeddings.embed_query(f"{QUERY_PREFIX}{text}")` and passes it to
   `match_documents(%s::vector, 0.3, k)` through `core.db.query`. `scripts/embed.py` imports the same

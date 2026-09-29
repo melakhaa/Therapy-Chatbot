@@ -48,11 +48,12 @@ under [semantic-router-conventions.md](semantic-router-conventions.md) and
 - Errors: `raise HTTPException(status_code=..., detail="Bahasa Indonesia message")`.
 - Responses: plain dicts, `snake_case` keys; insert endpoints return the created row or
   `{entity, message}`. Always cast IDs with `str(user.id)`.
-- Streaming endpoint `POST /chat/stream` emits SSE frames `data: {"token": ...}\n\n`,
-  ending with `data: [DONE]`. It is *not* streaming yet — it computes the full reply and then
-  splits it, so it buys no latency (`ponytail:` comment in `routes/chat.py`).
+- Streaming endpoint `POST /chat/stream` is real SSE: a metadata frame (`{route, is_high_risk}`)
+  first, then `{"token": ...}` frames as the model emits them, then `data: [DONE]`. The turn is
+  persisted only after the stream completes, so a truncated answer never enters history.
 - `POST /chat` returns `{response, route, is_high_risk}` and persists the turn when a `session_id`
   is supplied; `GET /chat/history?session_id=` returns the caller's own decrypted transcript.
+  Both `/chat` and `/chat/stream` generate through `core.chat_stream`, so they cannot drift.
 
 ## `/health` is the contract
 
