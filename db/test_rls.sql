@@ -68,6 +68,35 @@ begin
     null;  -- expected
   end;
 
+  -- chat sessions and their messages are private to their owner
+  perform set_config('app.current_user_id', '11111111-1111-1111-1111-111111111111', true);
+  insert into sessions (session_id, user_id, title) values
+    ('s-a', '11111111-1111-1111-1111-111111111111', 'halo');
+  insert into messages (session_id, user_id, role, content) values
+    ('s-a', '11111111-1111-1111-1111-111111111111', 'user', 'ciphertext');
+  perform set_config('app.current_user_id', '22222222-2222-2222-2222-222222222222', true);
+  select count(*) into n from sessions;
+  assert n = 0, 'RLS leak: B read A''s sessions';
+  select count(*) into n from messages;
+  assert n = 0, 'RLS leak: B read A''s messages';
+
+  -- B cannot create a session owned by A
+  begin
+    insert into sessions (session_id, user_id) values ('s-b', '11111111-1111-1111-1111-111111111111');
+    raise exception 'RLS leak: B created a session for A';
+  exception when insufficient_privilege then
+    null;  -- expected
+  end;
+
+  -- nor attach a message to A's session, even with B's own user_id (composite FK)
+  begin
+    insert into messages (session_id, user_id, role, content) values
+      ('s-a', '22222222-2222-2222-2222-222222222222', 'user', 'x');
+    raise exception 'FK leak: B attached a message to A''s session';
+  exception when foreign_key_violation or insufficient_privilege then
+    null;  -- expected
+  end;
+
   -- password reset path
   perform set_password('11111111-1111-1111-1111-111111111111', 'newhash');
   select count(*) into n from auth_lookup('a@test.local') where password_hash = 'newhash';
