@@ -125,7 +125,7 @@ export default function CrisisScreen() {
                       {sig.nama ?? 'Mahasiswa tanpa akun terhubung'}
                       {sig.nim ? <Text style={s.nim}>  ·  NIM {sig.nim}</Text> : null}
                     </Text>
-                    <Text style={s.meta}>{k.hint} · {ago(sig.notified_at)} ({fmtDate(sig.notified_at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})</Text>
+                    <Text style={s.meta}>{k.hint} · {ago(sig.notified_at || '')} ({fmtDate(sig.notified_at || '', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})</Text>
                   </View>
                   {!sig.is_read && (
                     <Btn label="Tandai ditinjau" icon="task-alt" small loading={busy === sig.log_id} onPress={() => markRead(sig.log_id)} />
