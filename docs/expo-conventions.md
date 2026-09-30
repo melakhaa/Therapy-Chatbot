@@ -37,7 +37,7 @@ Core React Native rules live in [react-native-conventions.md](react-native-conve
 - **Local UI kit** in `apps/mobile/components/ui/` (`Button`, `Badge`, `Divider`, `FadeIn`,
   `BottomNav`) and feature folders (`components/chat/`, `components/home/`), each with an
   `index.ts` barrel.
-- **Shared design system** from `@prototype/ui-shared` (`ThemeProvider`, `SanctuaryColors`,
+- **Shared design system** from `@prototype/ui-shared` (`ThemeProvider`, `SajiwaColors`,
   typography) — style from the theme, do not hardcode hex values.
 - Dashboard keeps its own `components/` (`components/admin/`, `components/ui/AdminUI.tsx` +
   `ProductPrimitives.tsx`), `constants/theme.ts` + `constants/adminTheme.ts`, and

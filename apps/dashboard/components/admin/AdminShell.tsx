@@ -23,7 +23,7 @@ export default function AdminShell() {
   const pathname = usePathname();
   const current = nav.find(n => pathname.startsWith(n.path))?.label || 'Student Detail';
   const sidebar = <ScrollView style={{ width: 224, flexGrow: 0, flexShrink: 0 }} contentContainerStyle={[s.sidebar, { flexGrow: 1 }]}>
-    <View style={[ui.row, { paddingVertical: 12 }]}><MaterialIcons name="spa" size={31} color={c.primary} /><View><Text style={s.brand}>Sanctuary</Text><Text style={[ui.muted, { fontSize: 9 }]}>A Safer Mind, A Brighter Tomorrow</Text></View></View>
+    <View style={[ui.row, { paddingVertical: 12 }]}><MaterialIcons name="spa" size={31} color={c.primary} /><View><Text style={s.brand}>Sajiwa</Text><Text style={[ui.muted, { fontSize: 9 }]}>A Safer Mind, A Brighter Tomorrow</Text></View></View>
     <Text style={[ui.muted, { fontSize: 10, letterSpacing: 1.5, marginTop: 24, marginBottom: 12 }]}>ADMIN WORKSPACE</Text>
     <View style={{ gap: 5 }}>{nav.map(item => { const active = pathname.startsWith(item.path); return <Pressable key={item.path} accessibilityRole="link" accessibilityLabel={item.label} accessibilityState={{ selected: active }} onPress={() => { setOpen(false); router.push(item.path as Href); }}
       style={({ pressed }) => [s.navItem, { backgroundColor: active ? c.primarySoft : pressed ? c.background : c.surface }]}>

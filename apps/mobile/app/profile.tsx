@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { apiFetch, apiGetChatSessions, apiGetJournals, apiGetBookingSaya, apiGetKonselor } from '@prototype/api-client';
+import { apiFetch, apiGetJournals, apiGetBookingSaya, apiGetKonselor } from '@prototype/api-client';
 
 import {
   BottomNav, FadeIn, NeuView, Button, ScreenHeader, useToast,
@@ -30,7 +30,6 @@ export default function ProfileScreen() {
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [joinedAt, setJoinedAt] = useState<string | null>(null);
-  const [sessions, setSessions] = useState(0);
   const [journals, setJournals] = useState<any[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [counselors, setCounselors] = useState<Record<string, string>>({});
@@ -38,13 +37,11 @@ export default function ProfileScreen() {
   useEffect(() => {
     async function load() {
       try {
-        const [me, chatRes, journalRes] = await Promise.all([
+        const [me, journalRes] = await Promise.all([
           apiFetch<{ created_at?: string }>('/auth/me'),
-          apiGetChatSessions(),
           apiGetJournals(100, 0),
         ]);
         setJoinedAt(me.created_at ?? null);
-        setSessions(chatRes.sessions?.length || 0);
         setJournals(journalRes.journals || []);
       } catch (err) {
         console.error('Failed to load profile stats:', err);
@@ -95,7 +92,6 @@ export default function ProfileScreen() {
     : null;
 
   const tiles = [
-    { icon: 'chatbubbles-outline', value: String(sessions), label: 'sesi percakapan', color: colors.primary, to: '/chat-history' },
     { icon: 'book-outline', value: String(journals.length), label: 'catatan jurnal', color: colors.sage, to: '/journal-history' },
     { icon: 'flame-outline', value: String(journey.streak), label: 'hari menulis berturut-turut', color: colors.stressMid, to: '/journal-history' },
     journey.topMood
@@ -107,7 +103,6 @@ export default function ProfileScreen() {
     {
       title: 'Aktivitas',
       items: [
-        { icon: 'time-outline', label: 'Riwayat chat', to: '/chat-history' },
         { icon: 'book-outline', label: 'Jurnal', to: '/journal-history', color: colors.sage },
         { icon: 'stats-chart-outline', label: 'Laporan mingguan', to: '/stats' },
       ],

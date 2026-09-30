@@ -19,12 +19,10 @@ router_router = APIRouter(prefix="/router", tags=["Router"])
 rag_router = APIRouter(prefix="/rag", tags=["RAG"])
 chat_router = APIRouter(prefix="/chat", tags=["Chat"])
 
-
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
     # No user_id: identity always comes from the JWT (`get_current_user`), never the body.
-
 
 @guardrail_router.post("/check")
 def check_safety_guardrail(request: ChatRequest):
@@ -36,18 +34,20 @@ def check_safety_guardrail(request: ChatRequest):
         "response": HARDCODED_RESPONSE if is_high_risk else None,
     }
 
-
 @router_router.post("/intent")
 def route_semantic_intent(request: ChatRequest):
     result = semantic_router(request.message)
     return {"route": result.name or "conversational"}
 
-
 @rag_router.post("/context")
 def retrieve_rag_context(request: ChatRequest, user=Depends(get_current_user)):
     docs = retrieve_docs(request.message)
-    return {"context": [{"content": d["content"], "metadata": d.get("metadata", {})} for d in docs]}
-
+    return {
+        "context": [
+            {"content": d["content"], "metadata": d.get("metadata", {})}
+            for d in docs
+        ]
+    }
 
 def _sse(payload: dict) -> str:
     return f"data: {json.dumps(payload)}\n\n"
@@ -88,7 +88,6 @@ def stream_chat_response(request: ChatRequest, user=Depends(get_current_user)):
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
-
 
 def _persist_turn(conn, request: ChatRequest, user_id, route: str, response_text: str, is_high_risk: bool):
     """One transaction: session row (idempotent), optional crisis log, then both turns."""

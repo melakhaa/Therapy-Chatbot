@@ -22,7 +22,7 @@ export default function OperationsOverview() {
   const upcoming = (schedules.data?.schedules || []).filter(item => item.status !== 'selesai' && item.status !== 'dibatalkan').slice(0, 4);
   const loading = dashboard.loading || accounts.loading || attention.loading || schedules.loading;
   const error = dashboard.error || accounts.error || attention.error || schedules.error;
-  return <Page title="Operations Overview" subtitle="What is happening in Sanctuary now, and what needs administrator attention?" action={<Button label="Refresh workspace" icon="refresh" tone="quiet" onPress={refresh} />}>
+  return <Page title="Operations Overview" subtitle="What is happening in Sajiwa now, and what needs administrator attention?" action={<Button label="Refresh workspace" icon="refresh" tone="quiet" onPress={refresh} />}>
     <View style={{ gap: 5 }}><Eyebrow>ADMIN OPERATIONS COMMAND CENTER</Eyebrow><Text style={[ui.muted, { fontSize: 11 }]}>Updated from the latest authorized records · {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</Text></View>
     {loading ? <LoadingState /> : error ? <ErrorState message={error} retry={refresh} /> : data && <>
       <View style={ui.grid}>

@@ -1,7 +1,7 @@
 -- Self-check for the RLS + auth layer. Run as the app role:
 --
---   docker exec -i -e PGPASSWORD=sanctuary_app sanctuary-db \
---     psql -v ON_ERROR_STOP=1 -U sanctuary_app -d sanctuary < db/test_rls.sql
+--   docker exec -i -e PGPASSWORD=sajiwa_app sajiwa-db \
+--     psql -v ON_ERROR_STOP=1 -U sajiwa_app -d sajiwa < db/test_rls.sql
 --
 -- Everything runs in one transaction and rolls back, so it leaves no data.
 

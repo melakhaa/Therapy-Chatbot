@@ -2,10 +2,5 @@
   "name": "@prototype/utils",
   "version": "1.0.0",
   "main": "src/index.ts",
-  "private": true,
-  "scripts": {
-    "lint": "echo 'No lint for utils'",
-    "typecheck": "echo 'No typecheck for utils'",
-    "test": "echo 'No test for utils'"
-  }
+  "private": true
 }

@@ -1,9 +1,9 @@
--- Sanctuary schema — pure PostgreSQL 17 + pgvector.
+-- Sajiwa schema — pure PostgreSQL 17 + pgvector.
 -- Applied once by docker compose on an empty volume (db/init/*.sql, alphabetical).
 --
 -- RLS identity: the backend sets it per transaction with
 --   select set_config('app.current_user_id', <uuid>, true)
--- and connects as the non-superuser role `sanctuary_app` (created in 02_auth.sql),
+-- and connects as the non-superuser role `sajiwa_app` (created in 02_auth.sql),
 -- so these policies are actually enforced.
 
 create extension if not exists vector;

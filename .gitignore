@@ -50,7 +50,7 @@ __pycache__/
 .venv/
 venv/
 env/
-# Local docker compose overrides (e.g. SANCTUARY_DB_PORT)
+# Local docker compose overrides (e.g. SAJIWA_DB_PORT)
 /.env
 *.zip
 

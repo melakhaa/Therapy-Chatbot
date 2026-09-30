@@ -57,8 +57,8 @@ Three tiers, all manual (no CI). Tiers 2 and 3 need the stack running; tier 1 is
 cd apps/backend && venv/bin/python -m unittest discover -s tests -v
 
 # 2. RLS isolation + auth functions, against the live DB
-docker exec -i -e PGPASSWORD=sanctuary_app sanctuary-db \
-  psql -v ON_ERROR_STOP=1 -U sanctuary_app -d sanctuary < db/test_rls.sql
+docker exec -i -e PGPASSWORD=sajiwa_app sajiwa-db \
+  psql -v ON_ERROR_STOP=1 -U sajiwa_app -d sajiwa < db/test_rls.sql
 
 # 3. end-to-end API check: auth, assessments, journals, jadwal/booking, dashboard,
 #    chat (real Ollama), chat-session persistence + history isolation, RLS isolation.
@@ -80,8 +80,8 @@ cd apps/backend && venv/bin/python scripts/api_smoke.py
 - Run the backend from `apps/backend` — imports are top-level (`from auth import ...`), not a package.
 - Schema lives in `db/init/*.sql`; edit it and `docker compose down -v && docker compose up -d` to
   re-apply. There is no migration framework, and wiping destroys local data.
-- The backend connects as `sanctuary_app` (non-superuser) so RLS applies. Pointing `DATABASE_URL` at
-  `sanctuary` silently disables every policy — see [security-conventions.md](security-conventions.md).
+- The backend connects as `sajiwa_app` (non-superuser) so RLS applies. Pointing `DATABASE_URL` at
+  `sajiwa` silently disables every policy — see [security-conventions.md](security-conventions.md).
 - `db/test_rls.sql` is the RLS/auth self-check; run it after schema or policy changes.
 - No Ollama → the backend does not start (the router embeds route utterances at import). Fail loud,
   never silently degrade: see [ollama-conventions.md](ollama-conventions.md).

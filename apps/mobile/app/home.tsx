@@ -9,7 +9,7 @@ import { Companion } from '../components/chat';
 import { useAuth } from '@prototype/ui-shared';
 import type { Expression } from '@prototype/utils';
 import {
-  apiSaveJournal, apiUpdateJournal, apiGetJournals, apiGetChatSessions, apiGetBookingSaya, apiGetKonselor,
+  apiSaveJournal, apiUpdateJournal, apiGetJournals, apiGetBookingSaya, apiGetKonselor,
 } from '@prototype/api-client';
 import { MOODS, Mood, moodOf, MOOD_COMPANION } from '../constants/moods';
 import { TRI, triRaised, triInset } from '../constants/palette';
@@ -44,7 +44,6 @@ export default function HomeScreen() {
   const now = useMemo(moment, []);
 
   const [journals, setJournals] = useState<any[]>([]);
-  const [lastSession, setLastSession] = useState<{ session_id: string; title?: string } | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [counselors, setCounselors] = useState<Record<string, string>>({});
   const [savingMood, setSavingMood] = useState<Mood | null>(null);
@@ -59,7 +58,6 @@ export default function HomeScreen() {
       toast.show('Data jurnal belum bisa dimuat. Periksa koneksimu.', 'error');
     }
     // Secondary blocks: fail quietly, they simply don't render
-    apiGetChatSessions().then((r) => setLastSession(r.sessions?.[0] ?? null)).catch(() => {});
     Promise.all([apiGetBookingSaya(), apiGetKonselor()])
       .then(([b, k]) => {
         setBookings(b.bookings as Booking[]);
@@ -199,19 +197,6 @@ export default function HomeScreen() {
               <Text style={s.heroCtaText}>Mulai cerita baru</Text>
               <Ionicons name="arrow-forward" size={18} color={TRI.navy} />
             </PressableScale>
-            {lastSession && (
-              <PressableScale
-                onPress={() => router.push(`/chat?sessionId=${lastSession.session_id}`)}
-                accessibilityRole="button"
-                accessibilityLabel={`Lanjutkan percakapan: ${lastSession.title || 'percakapan terakhir'}`}
-                style={s.resume}
-              >
-                <Ionicons name="time-outline" size={16} color="rgba(255,255,255,0.85)" />
-                <Text style={s.resumeText} numberOfLines={1}>
-                  Lanjutkan: <Text style={s.resumeTitle}>{lastSession.title || 'percakapan terakhir'}</Text>
-                </Text>
-              </PressableScale>
-            )}
           </View>
 
         {/* ── One-tap check-in (journal = sage) ── */}
@@ -388,9 +373,6 @@ const s = StyleSheet.create({
     backgroundColor: '#EEF1F7', boxShadow: '4px 6px 14px rgba(8,14,40,0.35)',
   },
   heroCtaText: { flex: 1, color: TRI.navy, fontSize: 16, fontFamily: 'PlusJakartaSans_800ExtraBold' },
-  resume: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 6, minHeight: 32 },
-  resumeText: { flex: 1, color: 'rgba(255,255,255,0.85)', fontSize: 14, fontFamily: 'PlusJakartaSans_500Medium' },
-  resumeTitle: { fontFamily: 'PlusJakartaSans_700Bold', color: '#fff' },
 
   section: { color: TRI.ink, fontSize: 17, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.3 },
   link: { fontSize: 14, fontFamily: 'PlusJakartaSans_700Bold' },
