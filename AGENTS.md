@@ -44,6 +44,7 @@ cd apps/dashboard && npm run lint                       # only configured linter
 
 ## Read when relevant
 
+- Run the whole stack locally (setup, URLs, logins, troubleshooting) → [docs/running-locally.md](docs/running-locally.md)
 - Install, run, tests, gotchas → [docs/development-conventions.md](docs/development-conventions.md)
 - Project-wide non-negotiables → [docs/project-conventions.md](docs/project-conventions.md)
 - Python / FastAPI / Pydantic → [docs/python-conventions.md](docs/python-conventions.md), [docs/fastapi-conventions.md](docs/fastapi-conventions.md), [docs/pydantic-conventions.md](docs/pydantic-conventions.md)

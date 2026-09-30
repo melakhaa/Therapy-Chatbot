@@ -103,6 +103,8 @@ npm install
 
 ## Running the Application
 
+> First-time setup, all URLs/logins, verification, and troubleshooting: **[docs/running-locally.md](docs/running-locally.md)**.
+
 ### Start Backend
 ```bash
 cd apps/backend
