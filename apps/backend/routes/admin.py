@@ -19,6 +19,8 @@ def list_assessments(
     instrument: Optional[Literal["PHQ-9", "GAD-7", "SRQ", "custom"]] = None,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
+    faculty_id: Optional[UUID] = None,
+    academic_unit_id: Optional[UUID] = None,
     page: int = Query(1, ge=1, le=2147483647),
     page_size: int = Query(20, ge=1, le=100),
     operator=Depends(operator_access),
@@ -28,16 +30,22 @@ def list_assessments(
     # LEFT JOIN preserves assessment visibility without bypassing users RLS.
     where = """
         from assessments a left join users u on u.user_id = a.user_id
+        left join student_academic_profiles sap on sap.user_id = a.user_id
         where (%s::text is null or a.severity = %s)
           and (%s::text is null or a.instrument_type = %s)
           and (%s::date is null or a.taken_at >= %s::date)
           and (%s::date is null or a.taken_at < %s::date + interval '1 day')
           and (%s = '' or u.nama ilike %s or u.nim ilike %s
                or a.user_id::text ilike %s)
+          and (%s::uuid is null or sap.faculty_id = %s::uuid)
+          and (%s::uuid is null or sap.academic_unit_id = %s::uuid)
     """
     term = "%" + search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    faculty = str(faculty_id) if faculty_id else None
+    academic_unit = str(academic_unit_id) if academic_unit_id else None
     params = (severity, severity, instrument, instrument, date_from, date_from,
-              date_to, date_to, search, term, term, term)
+              date_to, date_to, search, term, term, term,
+              faculty, faculty, academic_unit, academic_unit)
     total = query("select count(*) as total " + where, params, user_id=operator.id)[0]["total"]
     rows = query(
         "select a.assessment_id, a.user_id, a.instrument_type, a.score, "
@@ -51,7 +59,11 @@ def list_assessments(
 @router.get("/users/{user_id}")
 def user_detail(user_id: UUID, operator=Depends(directory_access)):
     rows = query(
-        "select user_id, nama, email, nim, role, created_at from users where user_id = %s",
+        "select u.user_id,u.nama,u.email,u.nim,u.role,u.created_at,sap.faculty_id,f.name as faculty_name,"
+        "sap.academic_unit_id,au.name as academic_unit_name,au.unit_type from users u "
+        "left join student_academic_profiles sap on sap.user_id=u.user_id "
+        "left join faculties f on f.faculty_id=sap.faculty_id "
+        "left join academic_units au on au.academic_unit_id=sap.academic_unit_id where u.user_id=%s",
         (str(user_id),), user_id=operator.id,
     )
     if not rows:

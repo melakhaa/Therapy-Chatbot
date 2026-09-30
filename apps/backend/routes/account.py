@@ -169,8 +169,11 @@ def get_my_profile(user=Depends(get_current_user)):
 def get_account_list(admin=Depends(require_role("admin", "pemangku_jabatan"))):
     try:
         rows = query(
-            "select user_id, nama, email, nim, role, created_at from users "
-            "order by created_at desc",
+            "select u.user_id,u.nama,u.email,u.nim,u.role,u.created_at,sap.faculty_id,f.name as faculty_name,"
+            "sap.academic_unit_id,au.name as academic_unit_name,au.unit_type from users u " +
+            "left join student_academic_profiles sap on sap.user_id=u.user_id " +
+            "left join faculties f on f.faculty_id=sap.faculty_id " +
+            "left join academic_units au on au.academic_unit_id=sap.academic_unit_id order by u.created_at desc",
             user_id=admin.id,
         )
         return {"users": rows, "total": len(rows)}

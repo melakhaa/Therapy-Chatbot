@@ -12,6 +12,7 @@ from routes.jadwal import router as jadwal_router
 from routes.journal import router as journal_router
 from routes.admin import router as admin_router
 from routes.admin_operations import router as admin_operations_router
+from routes.iteration3 import admin_router as iteration3_admin_router, student_router as counseling_request_router
 
 from routes.chat import (
     guardrail_router,
@@ -61,6 +62,8 @@ app.include_router(jadwal_router)
 app.include_router(journal_router)
 app.include_router(admin_router)
 app.include_router(admin_operations_router)
+app.include_router(iteration3_admin_router)
+app.include_router(counseling_request_router)
 
 
 @app.get("/", tags=["Health"])
