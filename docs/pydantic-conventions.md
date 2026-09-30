@@ -25,6 +25,8 @@ class AssessmentRequest(BaseModel):
 - `EmailStr` (from `pydantic[email]`) for account email fields.
 - There are no `response_model=` declarations — handlers return plain dicts
   (see [fastapi-conventions.md](fastapi-conventions.md)).
+- Security-sensitive bodies set `model_config = ConfigDict(extra="forbid")` (e.g.
+  `InstrumentSubmission`) so unexpected fields fail loudly instead of being ignored.
 
 ## Rules
 

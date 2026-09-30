@@ -51,5 +51,6 @@ Expect `NOTICE: all RLS/auth checks passed`.
 
 - `sajiwa` (the compose user) is a **superuser** and bypasses RLS — it is only for pgAdmin and
   admin `psql`. Never point the backend at it.
-- There is no migration framework. Editing `init/*.sql` requires `docker compose down -v` to take
-  effect, which destroys local data.
+- `migrations/*.sql` is the additive track after the baseline; the one-shot `migrate` service
+  applies it on every `docker compose up`. Editing the `init/*.sql` baseline requires
+  `docker compose down -v`, which destroys local data.
