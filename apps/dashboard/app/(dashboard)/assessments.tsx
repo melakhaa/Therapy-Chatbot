@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { apiGetAdminAssessments, apiGetDashboard } from '@prototype/api-client';
-import { AcademicScopeControl, type AcademicScope } from '@/components/admin/ProductPrimitives';
+import { AcademicMultiScopeControl, type AcademicMultiScope } from '@/components/admin/ProductPrimitives';
 import { useAdminResource } from '@/hooks/useAdminResource';
 import AssessmentTable from '@/components/admin/AssessmentTable';
 import { DistributionBars, Eyebrow, MethodologyNote, OperationalMetric, SectionHeader } from '@/components/admin/OperationsUI';
@@ -16,8 +16,8 @@ export default function AssessmentMonitoring() {
   const [sort, setSort] = useState('newest'); const [page, setPage] = useState(1);
   const [applied, setApplied] = useState({ search: '', date_from: '', date_to: '' });
   const [validation, setValidation] = useState('');
-  const [scope, setScope] = useState<AcademicScope>({ facultyId: '', departmentId: '' });
-  const loader = useCallback(() => apiGetAdminAssessments({ ...applied, severity, faculty_id: scope.facultyId, academic_unit_id: scope.departmentId, page }), [applied, severity, scope, page]);
+  const [scope, setScope] = useState<AcademicMultiScope>({ facultyIds: [], academicUnitIds: [] });
+  const loader = useCallback(() => apiGetAdminAssessments({ ...applied, severity, page, faculty_id: scope.facultyIds, academic_unit_id: scope.academicUnitIds }), [applied, severity, page, scope]);
   const results = useAdminResource(loader);
   const dashboard = useAdminResource(apiGetDashboard);
   const rows = useMemo(() => [...(results.data?.assessments || [])].sort((a, b) => sort === 'score' ? b.score - a.score : sort === 'oldest' ? String(a.taken_at).localeCompare(String(b.taken_at)) : String(b.taken_at).localeCompare(String(a.taken_at))), [results.data, sort]);
@@ -30,7 +30,7 @@ export default function AssessmentMonitoring() {
   const distribution = dashboard.data?.severity_distribution;
   return <Page title={id ? 'Pemantauan Asesmen' : 'Assessment Monitoring'} subtitle={id ? 'Pantau aktivitas asesmen mandiri stres terstandar dan hasil yang tercatat.' : 'Monitor standardized stress self-assessment activity and recorded results.'}>
     <View style={{ gap: 5 }}><Eyebrow>{id ? 'DASS-21 / SUBSKALA STRES / CAKUPAN ADMIN SAAT INI' : 'DASS-21 / STRESS SUBSCALE / CURRENT ADMIN SCOPE'}</Eyebrow><Text style={ui.muted}>{id ? 'Hasil adalah sinyal operasional dan klasifikasi tercatat, bukan diagnosis medis.' : 'Results are operational signals and recorded classifications, not medical diagnoses.'}</Text></View>
-    <Card><AcademicScopeControl value={scope} onChange={setScope} compact /></Card>
+    <Card><AcademicMultiScopeControl value={scope} onChange={value=>{setScope(value);setPage(1);}} compact /></Card>
     <View style={ui.grid}>
       <OperationalMetric label={id ? 'Total pengiriman' : 'Total submissions'} value={dashboard.data?.total_assessments ?? '—'} note={id ? 'Semua baris asesmen tercatat' : 'All recorded assessment rows'} icon="assignment" tone="purple" />
       <OperationalMetric label={id ? 'Hasil dalam tampilan' : 'Results in current view'} value={results.data?.total ?? '—'} note={id ? 'Setelah filter diterapkan' : 'After applied filters'} icon="filter-alt" />

@@ -14,10 +14,10 @@ import { adminMotion, MotionSurface, useReducedMotion } from './AdminMotion';
 type Icon = React.ComponentProps<typeof MaterialIcons>['name'];
 const sections: { key: string; items: { key: string; path: string; icon: Icon }[] }[] = [
   { key: 'overview', items: [{ key: 'overview', path: '/overview', icon: 'space-dashboard' }] },
-  { key: 'monitoring', items: [{ key: 'assessments', path: '/assessments', icon: 'assignment' }, { key: 'attention', path: '/attention', icon: 'health-and-safety' }, { key: 'reports', path: '/reports', icon: 'insights' }] },
-  { key: 'counseling', items: [{ key: 'schedule', path: '/schedule', icon: 'calendar-month' }, { key: 'counselors', path: '/counselors', icon: 'supervisor-account' }] },
-  { key: 'management', items: [{ key: 'students', path: '/students', icon: 'school' }, { key: 'hotlines', path: '/hotlines', icon: 'support-agent' }] },
-  { key: 'system', items: [{ key: 'settings', path: '/settings', icon: 'settings' }] },
+  { key: 'monitoring', items: [{ key: 'assessments', path: '/assessments', icon: 'assignment' }, { key: 'attention', path: '/attention', icon: 'health-and-safety' }, { key: 'students', path: '/students', icon: 'school' }] },
+  { key: 'counseling', items: [{ key: 'requests', path: '/counseling', icon: 'forum' }, { key: 'schedule', path: '/schedule', icon: 'calendar-month' }, { key: 'counselors', path: '/counselors', icon: 'supervisor-account' }] },
+  { key: 'analysis', items: [{ key: 'reports', path: '/reports', icon: 'insights' }] },
+  { key: 'system', items: [{ key: 'instruments', path: '/instruments', icon: 'fact-check' }, { key: 'hotlines', path: '/hotlines', icon: 'support-agent' }, { key: 'settings', path: '/settings', icon: 'settings' }] },
 ];
 const categoryIcon: Record<NotificationCategory, Icon> = { assessment: 'assignment-late', safety: 'health-and-safety', counseling: 'forum', schedule: 'event-busy', system: 'dns' };
 
@@ -29,10 +29,12 @@ export default function AdminShellV2() {
   const { language, setLanguage, themeMode, setThemeMode, t } = useAdminExperience();
   const reducedMotion = useReducedMotion();
   const compact = width < 1040, narrow = width < 720, phone = width < 500;
-  const [drawer, setDrawer] = useState(false), [collapsed, setCollapsed] = useState(false), [notificationsOpen, setNotificationsOpen] = useState(false), [profileOpen, setProfileOpen] = useState(false);
+  const [drawer, setDrawer] = useState(false), [collapsed, setCollapsed] = useState(false), [notificationsOpen, setNotificationsOpen] = useState(false), [profileOpen, setProfileOpen] = useState(false), [tourOpen, setTourOpen] = useState(false);
   const [category, setCategory] = useState('all');
   const notificationLoader = useCallback(() => apiGetNotifications(category === 'all' ? undefined : category), [category]);
   const notificationResource = useAdminResource(notificationLoader);
+  useEffect(() => { if (typeof window !== 'undefined' && window.localStorage.getItem('sanctuary_admin_tour_seen') !== 'yes') setTourOpen(true); }, []);
+  const closeTour = () => { setTourOpen(false); if (typeof window !== 'undefined') window.localStorage.setItem('sanctuary_admin_tour_seen', 'yes'); };
   const allNotifications = useMemo(() => (notificationResource.data?.notifications || []).map(item => ({ id: item.notification_id, category: item.category, title: item.title, detail: item.context || '', time: item.created_at, route: item.target_path || '/overview', persistedRead: !!item.read_at })), [notificationResource.data]);
   const visibleNotifications = useMemo(() => allNotifications.filter(item => category === 'all' || item.category === category), [allNotifications, category]);
   const unreadCount = allNotifications.filter(item => !item.persistedRead).length;
@@ -72,6 +74,7 @@ export default function AdminShellV2() {
         {compact ? <IconButton label={language === 'id' ? 'Buka navigasi' : 'Open navigation'} icon="menu" onPress={() => setDrawer(true)} /> : <IconButton label={collapsed ? (language === 'id' ? 'Perluas sidebar' : 'Expand sidebar') : (language === 'id' ? 'Ciutkan sidebar' : 'Collapse sidebar')} icon={collapsed ? 'last-page' : 'first-page'} onPress={() => setCollapsed(value => !value)} />}
         <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={s.breadcrumb}>Sajiwa / {current ? t('nav.' + current.key) : t('nav.students')}</Text>{!narrow && <Text style={s.contextSub}>Mental Health Early Warning & Counseling Operations</Text>}</View>
         {!phone && <SegmentedControl value={language} onChange={value => setLanguage(value as 'id' | 'en')} options={[{ value: 'id', label: 'ID' }, { value: 'en', label: 'EN' }]} />}
+        <IconButton label={language === 'id' ? 'Bantuan dan panduan' : 'Help and guided tour'} icon="help-outline" onPress={() => setTourOpen(true)} />
         <IconButton label={language === 'id' ? 'Ubah tema' : 'Change theme'} icon={themeMode === 'dark' ? 'dark-mode' : themeMode === 'light' ? 'light-mode' : 'brightness-auto'} onPress={() => setThemeMode(themeMode === 'system' ? 'light' : themeMode === 'light' ? 'dark' : 'system')} />
         <View><IconButton label={t('shell.notifications')} icon="notifications-none" onPress={() => setNotificationsOpen(true)} />{unreadCount > 0 && <View style={s.unreadBadge}><Text style={s.unreadText}>{unreadCount}</Text></View>}</View>
         {!narrow && <Pressable accessibilityRole="button" accessibilityLabel={t('shell.profile')} onPress={() => setProfileOpen(true)}><Avatar name={profile.nama} /></Pressable>}
@@ -99,6 +102,11 @@ export default function AdminShellV2() {
     </Modal>
 
     <Modal visible={profileOpen} transparent animationType={reducedMotion ? 'none' : 'fade'} onRequestClose={() => setProfileOpen(false)}><Pressable style={s.modalBackdrop} onPress={() => setProfileOpen(false)}><MotionSurface style={[s.panel, { maxWidth: 380 }]} distance={reducedMotion ? 0 : -8}><Pressable onPress={() => undefined}><View style={[ui.row, { flexWrap: 'nowrap' }]}><Avatar name={profile.nama} /><View style={{ flex: 1 }}><Text style={ui.heading}>{profile.nama}</Text><Text style={ui.muted}>{profile.email}</Text></View></View><View style={s.confidential}><MaterialIcons name="lock-outline" size={16} color={c.primary} /><Text style={s.confidentialText}>{t('shell.confidential')}</Text></View><Button label={t('nav.settings')} tone="quiet" onPress={() => { setProfileOpen(false); router.push('/settings' as Href); }} /></Pressable></MotionSurface></Pressable></Modal>
+    <Modal visible={tourOpen} transparent animationType={reducedMotion ? 'none' : 'fade'} onRequestClose={closeTour}><View style={[s.modalBackdrop,{alignItems:'center',justifyContent:'center',padding:20}]}><MotionSurface style={[s.panel,{maxWidth:620}]}><View style={{gap:18}}><View style={[ui.row,{justifyContent:'space-between'}]}><View><Text style={ui.heading}>{language==='id'?'Panduan singkat administrator':'Administrator quick guide'}</Text><Text style={ui.muted}>{language==='id'?'Tiga alur utama untuk memulai.':'Three core workflows to get started.'}</Text></View><IconButton label={t('common.close')} icon="close" onPress={closeTour}/></View>{[
+      {icon:'health-and-safety' as Icon,title:language==='id'?'Pantau mahasiswa':'Monitor students',detail:language==='id'?'Tinjau asesmen dan sinyal risiko tanpa membuka isi chat atau jurnal.':'Review assessments and risk signals without opening chat or journal content.'},
+      {icon:'calendar-month' as Icon,title:language==='id'?'Kelola layanan konseling':'Manage counseling',detail:language==='id'?'Atur permintaan, kalender, jadwal tersedia mingguan, dan pengecualian.':'Manage requests, calendar, weekly availability, and exceptions.'},
+      {icon:'insights' as Icon,title:language==='id'?'Bandingkan dan laporkan':'Compare and report',detail:language==='id'?'Pilih beberapa fakultas atau unit untuk membandingkan seri data.':'Select multiple faculties or units to compare data series.'},
+    ].map(item=><View key={item.title} style={[ui.row,{alignItems:'flex-start',flexWrap:'nowrap'}]}><View style={s.notificationIcon}><MaterialIcons name={item.icon} size={20} color={c.primary}/></View><View style={{flex:1}}><Text style={[ui.text,{fontWeight:'800'}]}>{item.title}</Text><Text style={ui.muted}>{item.detail}</Text></View></View>)}<Button label={language==='id'?'Mulai menggunakan dashboard':'Start using the dashboard'} onPress={closeTour}/></View></MotionSurface></View></Modal>
   </View>;
 }
 
@@ -119,6 +127,8 @@ const s = StyleSheet.create({
   drawerBackdrop: { flex: 1, flexDirection: 'row', backgroundColor: c.overlay },
   header: { minHeight: 72, paddingHorizontal: 20, paddingVertical: 10, flexDirection: 'row', gap: 9, alignItems: 'center', backgroundColor: c.surface, borderBottomWidth: 1, borderColor: c.border },
   breadcrumb: { color: c.text, fontSize: 12, fontWeight: '800' }, contextSub: { color: c.muted, fontSize: 9, marginTop: 3 },
+  preview: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.warningSoft, borderColor: c.warning, borderWidth: 1, borderRadius: 18, paddingHorizontal: 9, paddingVertical: 6 }, previewText: { color: c.warning, fontSize: 9, fontWeight: '900', letterSpacing: 0.35 },
+  mobilePreview: { backgroundColor: c.warningSoft, borderBottomWidth: 1, borderColor: c.warning, padding: 5, alignItems: 'center' },
   unreadBadge: { position: 'absolute', right: -2, top: -3, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: c.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }, unreadText: { color: '#fff', fontSize: 9, fontWeight: '900' },
   modalBackdrop: { flex: 1, backgroundColor: c.overlay, alignItems: 'flex-end', justifyContent: 'flex-start', padding: 16 },
   panel: { width: 440, maxWidth: '100%', maxHeight: '92%', backgroundColor: c.surfaceElevated, borderRadius: 18, borderWidth: 1, borderColor: c.borderStrong, padding: 18, gap: 15 },

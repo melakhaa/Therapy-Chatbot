@@ -6,6 +6,8 @@ export interface Profile extends UserRow { role: Role }
 export interface AssessmentRow {
   assessment_id: string; user_id: string; instrument_type: string;
   score: number; severity: Severity; taken_at: string | null; nama?: string | null; nim?: string | null;
+  instrument_version_id?: string | null;
+  category_results?: { category: 'depression' | 'anxiety' | 'stress'; raw_score: number; scaled_score: number; severity: string }[] | null;
 }
 export interface AssessmentPage { assessments: AssessmentRow[]; total: number; page: number; page_size: number }
 export interface BookingHistory {
@@ -25,12 +27,15 @@ export interface AccountInput { nama: string; email: string; password: string; n
 export type AccountUpdate = Pick<AccountInput, 'nama' | 'nim' | 'role'>;
 export interface AssessmentFilters {
   search?: string; severity?: string; instrument?: string; date_from?: string; date_to?: string;
-  faculty_id?: string; academic_unit_id?: string; page?: number;
+  faculty_id?: string | string[]; academic_unit_id?: string | string[]; page?: number;
 }
 export function apiGetProfile() { return apiFetch<Profile>('/auth/me'); }
 export function apiGetAdminAssessments(filters: AssessmentFilters = {}) {
   const params = new URLSearchParams();
-  Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, String(value)); });
+  Object.entries(filters).forEach(([key, value]) => {
+    if (Array.isArray(value)) value.forEach(item => params.append(key, item));
+    else if (value) params.set(key, String(value));
+  });
   return apiFetch<AssessmentPage>('/admin/assessments?' + params);
 }
 export function apiGetUserDetail(id: string) { return apiFetch<{ user: Profile }>('/admin/users/' + encodeURIComponent(id)); }

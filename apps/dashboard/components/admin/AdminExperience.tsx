@@ -8,8 +8,9 @@ type Dictionary = Record<string, string>;
 const id: Dictionary = {
   'nav.overview': 'Ringkasan Operasional', 'nav.assessments': 'Pemantauan Asesmen', 'nav.attention': 'Pemantauan Risiko Tinggi',
   'nav.reports': 'Analitik & Laporan', 'nav.schedule': 'Jadwal Konseling', 'nav.counselors': 'Manajemen Konselor',
-  'nav.students': 'Manajemen Mahasiswa', 'nav.hotlines': 'Manajemen Hotline', 'nav.settings': 'Pengaturan',
-  'group.overview': 'RINGKASAN', 'group.monitoring': 'PEMANTAUAN', 'group.counseling': 'KONSELING', 'group.management': 'MANAJEMEN', 'group.system': 'SISTEM',
+  'nav.requests': 'Permintaan Konseling', 'nav.instruments': 'Instrumen DASS-21',
+  'nav.students': 'Mahasiswa', 'nav.hotlines': 'Hotline', 'nav.settings': 'Pengaturan',
+  'group.overview': 'BERANDA', 'group.monitoring': 'PEMANTAUAN MAHASISWA', 'group.counseling': 'LAYANAN KONSELING', 'group.analysis': 'ANALISIS & PELAPORAN', 'group.system': 'PENGATURAN SISTEM',
   'common.refresh': 'Muat ulang', 'common.search': 'Cari', 'common.all': 'Semua', 'common.unavailable': 'Belum tersedia',
   'common.pending': 'Integrasi backend belum tersedia', 'common.retry': 'Coba lagi', 'common.close': 'Tutup', 'common.today': 'Hari ini',
   'theme.light': 'Terang', 'theme.dark': 'Gelap', 'theme.system': 'Sistem', 'language.id': 'Bahasa Indonesia', 'language.en': 'English',
@@ -19,8 +20,9 @@ const id: Dictionary = {
 const en: Dictionary = {
   'nav.overview': 'Operations Overview', 'nav.assessments': 'Assessment Monitoring', 'nav.attention': 'High-Risk Monitoring',
   'nav.reports': 'Analytics & Reports', 'nav.schedule': 'Counseling Schedule', 'nav.counselors': 'Counselor Management',
-  'nav.students': 'Student Management', 'nav.hotlines': 'Hotline Management', 'nav.settings': 'Settings',
-  'group.overview': 'OVERVIEW', 'group.monitoring': 'MONITORING', 'group.counseling': 'COUNSELING', 'group.management': 'MANAGEMENT', 'group.system': 'SYSTEM',
+  'nav.requests': 'Counseling Requests', 'nav.instruments': 'DASS-21 Instrument',
+  'nav.students': 'Students', 'nav.hotlines': 'Hotline', 'nav.settings': 'Settings',
+  'group.overview': 'HOME', 'group.monitoring': 'STUDENT MONITORING', 'group.counseling': 'COUNSELING SERVICES', 'group.analysis': 'ANALYSIS & REPORTING', 'group.system': 'SYSTEM SETTINGS',
   'common.refresh': 'Refresh', 'common.search': 'Search', 'common.all': 'All', 'common.unavailable': 'Not available',
   'common.pending': 'Backend integration pending', 'common.retry': 'Try again', 'common.close': 'Close', 'common.today': 'Today',
   'theme.light': 'Light', 'theme.dark': 'Dark', 'theme.system': 'System', 'language.id': 'Bahasa Indonesia', 'language.en': 'English',
