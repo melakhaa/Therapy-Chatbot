@@ -53,6 +53,12 @@ All commits follow [Conventional Commits](https://www.conventionalcommits.org/en
   BREAKING CHANGE: clients must migrate to /v2 before release.
   ```
 
+### Attribution
+
+- **No AI co-author trailers.** Do not add `Co-authored-by: Claude ...` (or any other tool) to a
+  commit. GitHub credits co-authors in the repository contributors graph, so tooling stays out of
+  commit messages — commits are credited to their human author only.
+
 ### Examples
 
 ```
