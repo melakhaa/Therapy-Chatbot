@@ -148,31 +148,6 @@ def lihat_booking_masuk(user=Depends(require_role("konselor", "admin"))):
     return {"bookings": [_embed_jadwal(r) for r in rows]}
 
 
-@router.get("/booking/admin")
-def lihat_semua_booking(user=Depends(require_role("konselor", "admin", "pemangku_jabatan"))):
-    # Scoping by role (admin: all, konselor: own slots) lives in list_bookings_for_staff()
-    rows = query("select * from list_bookings_for_staff()", user_id=user.id)
-    return {
-        "bookings": [
-            {
-                "booking_id": r["booking_id"],
-                "status": r["status"],
-                "catatan": r["catatan"],
-                "created_at": r["created_at"],
-                "mahasiswa": {"nama": r["mahasiswa_nama"], "nim": r["mahasiswa_nim"], "email": r["mahasiswa_email"]},
-                "konselor": {"nama": r["konselor_nama"]},
-                "jadwal": {
-                    "tanggal": r["tanggal"],
-                    "waktu_mulai": r["waktu_mulai"],
-                    "waktu_selesai": r["waktu_selesai"],
-                },
-            }
-            for r in rows
-        ]
-    }
-
-
-
 @router.patch("/booking/{booking_id}")
 def update_status_booking(
     booking_id: str,

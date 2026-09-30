@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { fetch as streamFetch } from 'expo/fetch';
-import { getToken, saveToken, saveUser, saveRefreshToken, getRefreshToken, clearAuth } from './storage';
+import { getToken, saveToken, saveUser, clearAuth } from './storage';
 
 let unauthorizedCallback: (() => void) | null = null;
 
@@ -8,39 +8,18 @@ export function setUnauthorizedCallback(callback: () => void) {
   unauthorizedCallback = callback;
 }
 
-export class ApiError extends Error {
-  constructor(public status: number, message: string) {
-    super(message);
-    this.name = 'ApiError';
-  }
-}
-
-function getDevApiBaseUrl(): string {
-  if (Platform.OS === 'web') {
-    return 'http://127.0.0.1:8000';
-  }
-
-  const envUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL;
-  if (envUrl) return envUrl;
-
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:8000';
-  }
-
-  return 'http://localhost:8000';
-}
-
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || (__DEV__
-  ? getDevApiBaseUrl()
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || (__DEV__
+  ? (Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000')
   : 'https://your-production-url.com');
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) { super(message); this.name = 'ApiError'; }
+}
 
 interface FetchOptions extends RequestInit {
   auth?: boolean;
   base?: string;
-  timeoutMs?: number;
 }
-
-const refreshPromises = new Map<string, Promise<LoginResponse>>();
 
 async function authHeader(): Promise<Record<string, string>> {
   const token = await getToken();
@@ -51,7 +30,7 @@ export async function apiFetch<T = unknown>(
   path: string,
   options: FetchOptions = {}
 ): Promise<T> {
-  const { auth = true, base = API_BASE_URL, timeoutMs = 30000, ...fetchOpts } = options;
+  const { auth = true, base = API_BASE_URL, ...fetchOpts } = options;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -59,68 +38,26 @@ export async function apiFetch<T = unknown>(
     ...(fetchOpts.headers as Record<string, string> || {}),
   };
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const res = await fetch(`${base}${path}`, { ...fetchOpts, headers });
 
-  try {
-    const res = await fetch(`${base}${path}`, { ...fetchOpts, headers, signal: controller.signal });
-
-    if (!res.ok) {
-      if (res.status === 401 && auth && path !== '/auth/refresh') {
-        let currentRefreshPromise = refreshPromises.get(path);
-        if (!currentRefreshPromise) {
-          const refreshToken = await getRefreshToken();
-          if (refreshToken) {
-            currentRefreshPromise = apiRefreshSession(refreshToken);
-            refreshPromises.set(path, currentRefreshPromise);
-          }
-        }
-
-        if (currentRefreshPromise) {
-          try {
-            const data = await currentRefreshPromise;
-            const retryHeaders = {
-              ...headers,
-              Authorization: `Bearer ${data.access_token}`,
-            };
-            const retryRes = await fetch(`${base}${path}`, {
-              ...fetchOpts,
-              headers: retryHeaders,
-              signal: controller.signal,
-            });
-            if (retryRes.ok) {
-              return retryRes.json() as Promise<T>;
-            }
-          } catch (refreshErr) {
-            console.error('Session refresh failed:', refreshErr);
-          } finally {
-            refreshPromises.delete(path);
-          }
-        }
-      }
-
-      if (res.status === 401 && auth) {
-        await clearAuth();
-        if (unauthorizedCallback) {
-          unauthorizedCallback();
-        }
-      }
-
-      let detail = `HTTP ${res.status}`;
-      try {
-        const err = await res.json();
-        detail = err.detail || JSON.stringify(err);
-      } catch {}
-      throw new ApiError(res.status, detail);
+  if (!res.ok) {
+    if (res.status === 401 && auth) {
+      await clearAuth();
+      unauthorizedCallback?.();
     }
 
-    return res.json() as Promise<T>;
-  } finally {
-    clearTimeout(timeoutId);
+    let detail = `HTTP ${res.status}`;
+    try {
+      const err = await res.json();
+      detail = err.detail || JSON.stringify(err);
+    } catch {}
+    throw new ApiError(res.status, detail);
   }
+
+  return res.json() as Promise<T>;
 }
 
-//  Auth 
+// ── Auth ──────────────────────────────────────────────────────────────────────
 
 export interface LoginPayload {
   email: string;
@@ -148,25 +85,12 @@ export async function apiLogin(payload: LoginPayload): Promise<LoginResponse> {
     auth: false,
   });
   await saveToken(data.access_token);
-  await saveRefreshToken(data.refresh_token);
   await saveUser(data.user);
   return data;
 }
 
 export async function apiLogout(): Promise<void> {
   await clearAuth();
-}
-
-export async function apiRefreshSession(refreshToken: string): Promise<LoginResponse> {
-  const data = await apiFetch<LoginResponse>('/auth/refresh', {
-    method: 'POST',
-    body: JSON.stringify({ refresh_token: refreshToken }),
-    auth: false,
-  });
-  await saveToken(data.access_token);
-  await saveRefreshToken(data.refresh_token);
-  await saveUser(data.user);
-  return data;
 }
 
 export async function apiRegister(payload: any) {
@@ -193,7 +117,7 @@ export async function apiConfirmPasswordReset(email: string, otp: string, new_pa
   });
 }
 
-//  Guardrail / Hotline 
+// ── Guardrail / Hotline ────────────────────────────────────────────────────────
 
 export async function apiGetHotline() {
   return apiFetch<{ hotlines: { nama: string; nomor: string; deskripsi?: string }[] }>(
@@ -209,12 +133,11 @@ export async function apiCheckGuardrail(message: string) {
   );
 }
 
-//  Chat 
+// ── Chat ───────────────────────────────────────────────────────────────────────
 
 export interface ChatPayload {
   message: string;
   session_id?: string;
-  history?: { role: 'user' | 'assistant'; content: string }[];
 }
 
 export interface ChatHistoryMessage {
@@ -301,18 +224,7 @@ export async function apiReportToTeam(session_id?: string) {
   });
 }
 
-export async function apiGetChatSessions(): Promise<{ sessions: any[] }> {
-  return apiFetch('/chat/sessions');
-}
-
-export async function apiGetChatHistory(session_id: string): Promise<{ messages: any[] }> {
-  return apiFetch(`/chat/history/${session_id}`);
-}
-
-
-
-
-//  Assessment 
+// ── Assessment ─────────────────────────────────────────────────────────────────
 
 export interface AnswerItem {
   question_id: number;
@@ -332,7 +244,20 @@ export async function apiSubmitAssessment(payload: AssessmentPayload) {
   });
 }
 
-//  Jadwal / Booking 
+// ── Jadwal / Booking ───────────────────────────────────────────────────────────
+
+export interface JadwalSlot {
+  jadwal_id: string;
+  konselor_id: string;
+  tanggal: string;
+  waktu_mulai: string;
+  waktu_selesai: string;
+  status: string;
+}
+
+export async function apiGetJadwal(): Promise<{ jadwal: JadwalSlot[] }> {
+  return apiFetch('/jadwal');
+}
 
 export async function apiBuatBooking(jadwal_id: string, catatan?: string) {
   return apiFetch('/booking', {
@@ -345,7 +270,7 @@ export async function apiGetBookingSaya() {
   return apiFetch<{ bookings: object[] }>('/booking/saya');
 }
 
-//  Dashboard / Operator 
+// ── Dashboard / Operator ───────────────────────────────────────────────────────
 
 export interface DashboardData {
   total_assessments: number;
@@ -378,7 +303,12 @@ export async function apiGetAccounts(): Promise<{ users: UserRow[]; total: numbe
   return apiFetch<{ users: UserRow[]; total: number }>('/accounts');
 }
 
-//  Journaling 
+/** Counselor directory for the booking screen (public fields only). */
+export async function apiGetKonselor(): Promise<{ users: UserRow[] }> {
+  return apiFetch<{ users: UserRow[] }>('/accounts/konselor');
+}
+
+// ── Journaling ─────────────────────────────────────────────────────────────────
 
 export interface JournalPayload {
   content: string;
@@ -396,7 +326,7 @@ export async function apiGetTodayJournal() {
   return apiFetch<{ journal: { content: string; mood: string } | null }>('/journal/today');
 }
 
-export async function apiGetJournals(limit: number = 20, offset: number = 0) {
+export async function apiGetJournals(limit = 20, offset = 0) {
   return apiFetch<{ journals: any[] }>(`/journal?limit=${limit}&offset=${offset}`);
 }
 
@@ -408,64 +338,5 @@ export async function apiUpdateJournal(journal_id: string, payload: Partial<Jour
 }
 
 export async function apiDeleteJournal(journal_id: string) {
-  return apiFetch(`/journal/${journal_id}`, {
-    method: 'DELETE',
-  });
-}
-
-//  Jadwal Admin (typed) 
-
-//  Jadwal & Booking 
-
-export interface AdminBooking {
-  booking_id: string;
-  status: string;
-  catatan?: string;
-  created_at: string;
-  mahasiswa: { nama: string; nim?: string; email?: string };
-  konselor: { nama: string };
-  jadwal?: { tanggal: string; waktu_mulai: string; waktu_selesai: string } | null;
-}
-
-export async function apiGetAdminBookings(): Promise<{ bookings: AdminBooking[] }> {
-  return apiFetch('/booking/admin');
-}
-
-export async function apiUpdateBookingStatus(booking_id: string, status: 'menunggu' | 'dikonfirmasi' | 'selesai' | 'dibatalkan') {
-  return apiFetch(`/booking/${booking_id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status }),
-  });
-}
-
-export interface JadwalSlot {
-  jadwal_id: string;
-  konselor_id: string;
-  tanggal: string;
-  waktu_mulai: string;
-  waktu_selesai: string;
-  status: string;
-}
-
-export async function apiGetJadwal(): Promise<{ jadwal: JadwalSlot[] }> {
-  return apiFetch('/jadwal');
-}
-
-export async function apiGetJadwalSaya(): Promise<{ jadwal: JadwalSlot[] }> {
-  return apiFetch('/jadwal/saya');
-}
-
-export async function apiBuatJadwal(payload: { tanggal: string; waktu_mulai: string; waktu_selesai: string }) {
-  return apiFetch('/jadwal', { method: 'POST', body: JSON.stringify(payload) });
-}
-
-export async function apiUpdateJadwalStatus(jadwal_id: string, status: 'tersedia' | 'dipesan' | 'selesai' | 'dibatalkan') {
-  return apiFetch(`/jadwal/${jadwal_id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status }),
-  });
-}
-
-export async function apiGetKonselor(): Promise<{ users: UserRow[] }> {
-  return apiFetch<{ users: UserRow[] }>('/accounts/konselor');
+  return apiFetch(`/journal/${journal_id}`, { method: 'DELETE' });
 }

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-**Sanctuary** — AI mental health support for university students and counselors. Students use an
+**Sajiwa** — AI mental health support for university students and counselors. Students use an
 Expo app (AI chat, stress detection, PHQ-9/GAD-7/SRQ, journaling); counselors/admins use an Expo
 web dashboard (risk monitoring, analytics, booking). An npm-workspace monorepo holds the Expo apps,
 the FastAPI backend (Python 3.12), and the shared TypeScript packages; Docker runs PostgreSQL 17 +

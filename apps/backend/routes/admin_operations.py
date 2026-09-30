@@ -1,4 +1,4 @@
-"""Admin-only operational views over existing Sanctuary tables.
+"""Admin-only operational views over existing Sajiwa tables.
 
 The responses deliberately exclude assessment answers, booking notes, private text,
 and raw guardrail trigger input.
@@ -15,10 +15,6 @@ from core.db import query
 
 router = APIRouter(prefix="/admin", tags=["Admin Operations"])
 admin_access = require_role("admin")
-# Aggregate insights carry no identifiers, so counselors may read them (same tier as /admin/assessments).
-# Everything operational stays admin-only per docs/security-conventions.md.
-staff_access = require_role("konselor", "admin", "pemangku_jabatan")
-
 
 
 class ScheduleCreate(BaseModel):
@@ -55,9 +51,9 @@ def attention_signals(
     # 'request' = the student pressed "contact me" in the app's crisis dialog (routes/chat.py report_to_team).
     # Classification only. `source`/`assessment_id` are authoritative now; the LIKE arm only
     # keeps rows written before `source` existed readable. Never returned to the client.
+    # %% because this SQL is passed to psycopg with params, where a lone % starts a placeholder
     kind = (
         "case when g.assessment_id is not null or g.source = 'assessment' "
-        # %% because this SQL is passed to psycopg with params, where a lone % starts a placeholder
         "or g.triggered_input like '[ASSESSMENT]%%' then 'assessment' "
         "when g.triggered_input like '[LAPORAN PENGGUNA]%%' then 'request' else 'safety' end"
     )
@@ -229,13 +225,3 @@ def analytics(
         "severity_distribution": severity, "assessment_trend": trend,
         "booking_total": sum(row["count"] for row in bookings), "booking_status": bookings,
     }
-
-
-@router.get("/insights")
-def student_insights(days: int = Query(30, ge=1, le=365), staff=Depends(staff_access)):
-    # Aggregates only (see db/init/05_student_insights.sql): no journal/chat text ever leaves the DB
-    row = query("select student_insights(%s) as data", (days,), user_id=staff.id)[0]["data"]
-    if row is None:
-        raise HTTPException(403, "Akses ditolak")
-    return row
-

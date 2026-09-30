@@ -7,7 +7,7 @@ container lifecycle is in [docker-conventions.md](docker-conventions.md).
 ## Schema source of truth
 
 - **`db/init/01_schema.sql`** — tables, indexes, RLS policies, `match_documents()`.
-- **`db/init/02_auth.sql`** — `sanctuary_app` role, `password_hash`, `password_resets`,
+- **`db/init/02_auth.sql`** — `sajiwa_app` role, `password_hash`, `password_resets`,
   `auth_lookup()`, `set_password()`.
 - Applied by `docker compose up` on an empty volume, in filename order. There is no migration
   framework: to change the schema, edit the file and `docker compose down -v && docker compose up -d`.
@@ -57,7 +57,7 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
 ## Row Level Security
 
 - RLS is enabled on every table. The backend connects as the **non-superuser** role
-  `sanctuary_app`; `sanctuary` is a superuser and bypasses RLS entirely, so never point
+  `sajiwa_app`; `sajiwa` is a superuser and bypasses RLS entirely, so never point
   `DATABASE_URL` at it.
 - Request identity is set per transaction by `core/db.py`:
   ```python
@@ -96,6 +96,6 @@ query(
 running database. Run it after any schema or policy change:
 
 ```bash
-docker exec -i -e PGPASSWORD=sanctuary_app sanctuary-db \
-  psql -v ON_ERROR_STOP=1 -U sanctuary_app -d sanctuary < db/test_rls.sql
+docker exec -i -e PGPASSWORD=sajiwa_app sajiwa-db \
+  psql -v ON_ERROR_STOP=1 -U sajiwa_app -d sajiwa < db/test_rls.sql
 ```

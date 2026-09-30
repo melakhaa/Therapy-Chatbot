@@ -95,7 +95,7 @@ session_id text not null references sessions(session_id) on delete cascade,
 ```
 
 **GRANTs are already covered** — `02_auth.sql:10` sets `alter default privileges ... to
-sanctuary_app`, so the new table is granted automatically.
+sajiwa_app`, so the new table is granted automatically.
 
 **Gotcha — FK vs existing rows.** Dev DBs already hold `messages` rows whose `session_id`
 has no parent. Wiping the volume handles it. For any copy you can't wipe, backfill first:

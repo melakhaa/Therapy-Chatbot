@@ -29,8 +29,8 @@ export default function AdminShellV2() {
   const [drawer, setDrawer] = useState(false), [collapsed, setCollapsed] = useState(false), [notificationsOpen, setNotificationsOpen] = useState(false), [profileOpen, setProfileOpen] = useState(false);
   const [category, setCategory] = useState('all');
   const [read, setRead] = useState<string[]>([]);
-  useEffect(() => { if (false && typeof window !== 'undefined') setRead(JSON.parse(window.localStorage.getItem('sanctuary_preview_notification_read') || '[]')); }, []);
-  const saveRead = (ids: string[]) => { setRead(ids); if (false && typeof window !== 'undefined') window.localStorage.setItem('sanctuary_preview_notification_read', JSON.stringify(ids)); };
+  useEffect(() => { if (false && typeof window !== 'undefined') setRead(JSON.parse(window.localStorage.getItem('sajiwa_preview_notification_read') || '[]')); }, []);
+  const saveRead = (ids: string[]) => { setRead(ids); if (false && typeof window !== 'undefined') window.localStorage.setItem('sajiwa_preview_notification_read', JSON.stringify(ids)); };
   const visibleNotifications = useMemo(() => previewNotifications.filter(item => category === 'all' || item.category === category), [category]);
   const unreadCount = false ? previewNotifications.filter(item => !read.includes(item.id)).length : 0;
   const current = sections.flatMap(section => section.items).find(item => pathname.startsWith(item.path));
@@ -39,7 +39,7 @@ export default function AdminShellV2() {
   const sidebar = <ScrollView style={{ width: sidebarWidth, flexGrow: 0, flexShrink: 0 }} contentContainerStyle={[s.sidebar, { width: sidebarWidth }]}>
     <View style={[ui.row, { paddingHorizontal: collapsed ? 4 : 3, paddingVertical: 8, flexWrap: 'nowrap' }]}>
       <View style={s.brandIcon}><MaterialIcons name="spa" size={24} color="#fff" /></View>
-      {!collapsed && <View style={{ flex: 1 }}><Text style={s.brand}>Sanctuary</Text><Text style={s.brandSub}>ADMIN OPERATIONS</Text></View>}
+      {!collapsed && <View style={{ flex: 1 }}><Text style={s.brand}>Sajiwa</Text><Text style={s.brandSub}>ADMIN OPERATIONS</Text></View>}
     </View>
     <View style={{ gap: 18, marginTop: 24 }}>{sections.map(section => <View key={section.key} style={{ gap: 5 }}>
       {!collapsed && <Text style={s.sectionLabel}>{t('group.' + section.key)}</Text>}
@@ -62,7 +62,7 @@ export default function AdminShellV2() {
     <View style={{ flex: 1, minWidth: 0 }}>
       <View style={[s.header, phone && { paddingHorizontal: 8, gap: 4 }]}>
         {compact ? <IconButton label="Open navigation" icon="menu" onPress={() => setDrawer(true)} /> : <IconButton label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} icon={collapsed ? 'last-page' : 'first-page'} onPress={() => setCollapsed(value => !value)} />}
-        <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={s.breadcrumb}>Sanctuary / {current ? t('nav.' + current.key) : t('nav.students')}</Text>{!narrow && <Text style={s.contextSub}>Mental Health Early Warning & Counseling Operations</Text>}</View>
+        <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={s.breadcrumb}>Sajiwa / {current ? t('nav.' + current.key) : t('nav.students')}</Text>{!narrow && <Text style={s.contextSub}>Mental Health Early Warning & Counseling Operations</Text>}</View>
         {false && !phone && <View style={s.preview}><MaterialIcons name="science" size={14} color={c.warning} /><Text style={s.previewText}>{t('preview.label')}</Text></View>}
         {!phone && <SegmentedControl value={language} onChange={value => setLanguage(value as 'id' | 'en')} options={[{ value: 'id', label: 'ID' }, { value: 'en', label: 'EN' }]} />}
         <IconButton label={language === 'id' ? 'Ubah tema' : 'Change theme'} icon={themeMode === 'dark' ? 'dark-mode' : themeMode === 'light' ? 'light-mode' : 'brightness-auto'} onPress={() => setThemeMode(themeMode === 'system' ? 'light' : themeMode === 'light' ? 'dark' : 'system')} />

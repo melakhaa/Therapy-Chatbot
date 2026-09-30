@@ -28,7 +28,7 @@ export function Button({ label, onPress, disabled, tone = 'primary', icon }: {
 export function Page({ title, subtitle, action, children }: { title: string; subtitle: string; action?: ReactNode; children: ReactNode }) {
   return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 24, gap: 22, width: '100%', maxWidth: 1500, alignSelf: 'center' }} keyboardShouldPersistTaps="handled">
     <View style={[ui.row, { justifyContent: 'space-between' }]}><View style={{ flex: 1, minWidth: 180, gap: 5 }}><Text accessibilityRole="header" style={ui.title}>{title}</Text><Text style={ui.muted}>{subtitle}</Text></View>{action}</View>{children}
-    <Text style={[ui.muted, { textAlign: 'center', marginTop: 12 }]}>Sanctuary · Mendukung kesehatan mental mahasiswa</Text>
+    <Text style={[ui.muted, { textAlign: 'center', marginTop: 12 }]}>Sajiwa · Mendukung kesehatan mental mahasiswa</Text>
   </ScrollView>;
 }
 export function Card({ title, subtitle, action, children }: { title?: string; subtitle?: string; action?: ReactNode; children: ReactNode }) {

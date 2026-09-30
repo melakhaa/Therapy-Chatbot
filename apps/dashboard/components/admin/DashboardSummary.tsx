@@ -13,7 +13,7 @@ export default function DashboardSummary({ analytics = false }: { analytics?: bo
   const data = dashboard.data;
   const names = new Map(accounts.data?.users.map(u => [u.user_id, u.nama]));
   const title = analytics ? 'Analytics' : 'Selamat datang, ' + profile.nama.split(' ')[0];
-  return <Page title={title} subtitle={analytics ? 'Ringkasan data asesmen yang tercatat di Sanctuary.' : 'Pantau asesmen dan dukung kesejahteraan komunitas kampus.'} action={<Button label="Perbarui" icon="refresh" tone="quiet" onPress={() => { dashboard.reload(); accounts.reload(); }} />}>
+  return <Page title={title} subtitle={analytics ? 'Ringkasan data asesmen yang tercatat di Sajiwa.' : 'Pantau asesmen dan dukung kesejahteraan komunitas kampus.'} action={<Button label="Perbarui" icon="refresh" tone="quiet" onPress={() => { dashboard.reload(); accounts.reload(); }} />}>
     {dashboard.loading ? <LoadingState /> : dashboard.error ? <ErrorState message={dashboard.error} retry={dashboard.reload} /> : data && <>
       <View style={ui.grid}>
         {canManageUsers(profile) && <StatCard label="Mahasiswa terdaftar" value={accounts.loading ? '…' : accounts.error ? '—' : accounts.data?.users.filter(u => u.role === 'mahasiswa').length ?? 0} icon="school" note="Akun dengan peran mahasiswa" />}

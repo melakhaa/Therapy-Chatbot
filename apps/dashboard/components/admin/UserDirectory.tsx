@@ -22,7 +22,7 @@ export default function UserDirectory({ management = false }: { management?: boo
     try { await apiDeleteAccount(deleting.user_id); setDeleting(null); setSuccess('Akun berhasil dihapus.'); resource.reload(); }
     catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   };
-  return <Page title={management ? 'User Management' : 'Students'} subtitle={management ? 'Kelola akun dan peran tetap yang tersedia di Sanctuary.' : 'Direktori mahasiswa dan pengguna · informasi rahasia.'}
+  return <Page title={management ? 'User Management' : 'Students'} subtitle={management ? 'Kelola akun dan peran tetap yang tersedia di Sajiwa.' : 'Direktori mahasiswa dan pengguna · informasi rahasia.'}
     action={management && allowed ? <Button label="Tambah akun" icon="person-add" onPress={() => { setSuccess(''); setForm('new'); }} /> : undefined}>
     {!allowed ? <Notice danger>Direktori akun hanya tersedia untuk admin dan pemangku jabatan. Konselor dapat meninjau hasil asesmen melalui Risk Monitoring sesuai izin yang ada.</Notice> : <>
       {success && <Notice>{success}</Notice>}

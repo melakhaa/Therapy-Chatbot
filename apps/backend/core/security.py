@@ -1,5 +1,6 @@
 from cryptography.fernet import Fernet
 import os
+
 _raw_key = os.getenv("ENCRYPTION_KEY")
 if not _raw_key:
     raise RuntimeError(
