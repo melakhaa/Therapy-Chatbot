@@ -2,6 +2,9 @@
 
 # dependencies
 node_modules/
+.agent/
+.agents/
+.claude/
 
 # Expo
 .expo/
@@ -47,5 +50,19 @@ __pycache__/
 .venv/
 venv/
 env/
+# Local docker compose overrides (e.g. SAJIWA_DB_PORT)
+/.env
+*.zip
+
 # local validation exports
 /apps/dashboard/dist-*/
+
+# agent skills/plugins (pi-managed)
+.agents/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

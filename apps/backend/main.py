@@ -33,9 +33,9 @@ def get_emergency_hotline():
 
 
 app = FastAPI(
-    title="Sanctuary — Mental Health Chatbot API",
+    title="Sajiwa — Mental Health Chatbot API",
     description=(
-        "Backend API untuk aplikasi Sanctuary. Mencakup CB-01..CB-14: "
+        "Backend API untuk aplikasi Sajiwa. Mencakup CB-01..CB-14: "
         "asesmen, chatbot, guardrail, auth, dashboard, dan manajemen akun."
     ),
     version="1.0.0",
@@ -71,7 +71,7 @@ app.include_router(iteration4_assessment_router)
 
 @app.get("/", tags=["Health"])
 def root():
-    return {"status": "ok", "app": "Sanctuary Backend", "version": "1.0.0"}
+    return {"status": "ok", "app": "Sajiwa Backend", "version": "1.0.0"}
 
 
 @app.get("/health", tags=["Health"])
@@ -90,7 +90,7 @@ def health():
             "CB-05": "POST /router/intent",
             "CB-06": "POST /rag/context",
             "CB-07": "POST /chat/stream",
-            "CB-08": "POST /chat/history",
+            "CB-08": "GET  /chat/history",
             "CB-09": "POST /auth/login",
             "CB-10": "GET  /dashboard/data",
             "CB-11": "GET  /accounts",

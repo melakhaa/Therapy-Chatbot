@@ -53,6 +53,12 @@ All commits follow [Conventional Commits](https://www.conventionalcommits.org/en
   BREAKING CHANGE: clients must migrate to /v2 before release.
   ```
 
+### Attribution
+
+- **No AI co-author trailers.** Do not add `Co-authored-by: Claude ...` (or any other tool) to a
+  commit. GitHub credits co-authors in the repository contributors graph, so tooling stays out of
+  commit messages — commits are credited to their human author only.
+
 ### Examples
 
 ```
@@ -87,8 +93,9 @@ No husky/commitlint dependency is used — git's native `core.hooksPath` is enou
   `Merge pull request #N from melakhaa/<branch>`).
 - Use lower-kebab-case branch names: `add-docs`, `fix-readme`, `refactor-folder-structure`.
 - Keep one focused feature per branch/PR; PR title should itself read like a conventional commit.
-- No enforced commit format beyond the hook; no test suite runner is wired up
-  (`apps/backend/scripts/test_rag_performance.py` is a manual script).
+- No enforced commit format beyond the hook. Tests are manual runners, not CI: `apps/backend/tests/`
+  (`unittest`, needs `httpx`), `apps/backend/scripts/api_smoke.py`, `db/test_rls.sql` — run the
+  relevant ones before opening a PR ([development-conventions.md](development-conventions.md)).
 
 ## Ignored / never commit
 

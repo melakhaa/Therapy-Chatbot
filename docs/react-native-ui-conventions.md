@@ -1,17 +1,21 @@
 # React Native UI / design system conventions
 
-The visual layer: **Sanctuary Design System** (Material-3-derived), shared animations, icons, and charts.
+The visual layer: **Sajiwa Design System** (Material-3-derived, neumorphic), shared animations, icons, and charts.
 
 ## Theme (source of truth)
 
-- `@prototype/ui-shared/src/theme.ts` exports `SanctuaryColors` (+ typography) — a Material 3 palette
+- `@prototype/ui-shared/src/theme.ts` exports `SajiwaColors` (+ typography) — a Material 3 palette
   keyed by role: `primary`, `surface`, `surfaceContainer*`, `onPrimary`, `error`, `outline`, plus
   convenience aliases (`card`, `border`, `textPrimary`, `textSecondary`, `divider`).
 - Wrap the app in `ThemeProvider` (done in `app/_layout.tsx`); read colors via the theme hook.
-- **Never hardcode hex values** in components — use `SanctuaryColors.*`.
-- Dashboard keeps its own `constants/theme.ts` + `hooks/use-theme-color.ts` for web/light-dark.
-- Base primary is `#496175`; background is `#f8f9fa`. (Note: mobile `app.json` splash uses a green
-  `#3D6B4F` that is not part of `SanctuaryColors` — treat as a config value, not a theme token.)
+- **Never hardcode hex values** in components — use `SajiwaColors.*`.
+- Dashboard has its own design tokens in `constants/adminTheme.ts` (light/dark `AdminTokens`,
+  teal/pastel), exposed as CSS variables by `components/admin/AdminExperience.tsx` via
+  `useAdminExperience()`; `constants/theme.ts` + `hooks/use-theme-color.ts` are the Expo starter
+  leftovers. Do not reintroduce hardcoded dashboard hex values.
+- Base background is `#E4E8EE` with feature accents `primary` (navy, chat), `sage` (journal),
+  `amber` (counseling), and coral (crisis only); mobile `app.json` uses the same `#E4E8EE` for
+  splash/adaptive icon backgrounds.
 
 ## Typography
 

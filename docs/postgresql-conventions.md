@@ -7,10 +7,14 @@ container lifecycle is in [docker-conventions.md](docker-conventions.md).
 ## Schema source of truth
 
 - **`db/init/01_schema.sql`** — tables, indexes, RLS policies, `match_documents()`.
-- **`db/init/02_auth.sql`** — `sanctuary_app` role, `password_hash`, `password_resets`,
+- **`db/init/02_auth.sql`** — `sajiwa_app` role, `password_hash`, `password_resets`,
   `auth_lookup()`, `set_password()`.
-- Applied by `docker compose up` on an empty volume, in filename order. There is no migration
-  framework: to change the schema, edit the file and `docker compose down -v && docker compose up -d`.
+- **`db/init/03_mobile_app.sql`** — `list_konselor()`: a `SECURITY DEFINER` counselor directory
+  (id, nama, role) for students, who cannot read other `users` rows under RLS.
+- **`db/migrations/*.sql`** — additive changes after the baseline, applied in order by the one-shot
+  `migrate` service on every `docker compose up` and recorded in `schema_migrations`.
+- Applied by `docker compose up`: `db/init` once on an empty volume, then migrations. To change the
+  schema, add a migration; `docker compose down -v && docker compose up -d` rebuilds from scratch.
 
 ## Extensions
 
@@ -26,7 +30,8 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
 | `users` | Account + `role` + `password_hash` (oauth was removed with Supabase) |
 | `assessments` | PHQ-9 / GAD-7 / SRQ results, `score`, `severity` |
 | `guardrail_logs` | High-risk trigger log (chat + assessments) |
-| `messages` | Encrypted chat turns (`route_used`); `session_id` is client-generated text |
+| `messages` | Encrypted chat turns (`route_used`); belongs to a `sessions` row |
+| `sessions` | Chat session owner, title, lifetime; `messages.session_id` is client-generated but pinned to `(session_id, user_id)` by FK |
 | `documents` | RAG chunks: `content`, `embedding vector(768)`, `metadata` |
 | `hotline` | Crisis contact list |
 | `journals` | Private student journal entries |
@@ -45,6 +50,9 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
   Roles `mahasiswa | konselor | admin | pemangku_jabatan`; severity `minimal | mild | moderate | severe`.
 - `users` is the root identity table; child tables reference `users(user_id)`. There is no
   `auth.users`.
+- Rows owned by a session pin both ids: `messages(session_id, user_id)` references
+  `sessions(session_id, user_id)`. A client-supplied `session_id` is therefore safe to group on —
+  it cannot attach a row to another student's session.
 - Booking side effects (`jadwal` → `dipesan` / back to `tersedia`) are `SECURITY DEFINER` triggers,
   because the student who books cannot update the counselor's slot row directly.
 - Vector search: `documents.content`, `documents.embedding vector(768)`, `documents.metadata jsonb`;
@@ -53,7 +61,7 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
 ## Row Level Security
 
 - RLS is enabled on every table. The backend connects as the **non-superuser** role
-  `sanctuary_app`; `sanctuary` is a superuser and bypasses RLS entirely, so never point
+  `sajiwa_app`; `sajiwa` is a superuser and bypasses RLS entirely, so never point
   `DATABASE_URL` at it.
 - Request identity is set per transaction by `core/db.py`:
   ```python
@@ -92,6 +100,6 @@ query(
 running database. Run it after any schema or policy change:
 
 ```bash
-docker exec -i -e PGPASSWORD=sanctuary_app sanctuary-db \
-  psql -v ON_ERROR_STOP=1 -U sanctuary_app -d sanctuary < db/test_rls.sql
+docker exec -i -e PGPASSWORD=sajiwa_app sajiwa-db \
+  psql -v ON_ERROR_STOP=1 -U sajiwa_app -d sajiwa < db/test_rls.sql
 ```

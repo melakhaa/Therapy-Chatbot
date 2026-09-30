@@ -3,19 +3,20 @@ from dataclasses import dataclass
 from semantic_router import SemanticRouter
 from semantic_router.encoders import OllamaEncoder
 from services.chatbot.guardrail import guardrail_route, HARDCODED_RESPONSE, is_crisis
-from services.chatbot.conversational import conversational_route, get_conversational_response
-from services.chatbot.rag import rag_route, get_rag_response
+from services.chatbot.conversational import conversational_route, build_messages as conversational_messages
+from services.chatbot.history import load_history
+from services.chatbot.llm import llm
+from services.chatbot.rag import (
+    rag_route,
+    build_messages as rag_messages,
+    NO_CONTEXT_REPLY,
+    EMBED_MODEL,
+)
 
-try:
-    encoder = OllamaEncoder(name="nomic-embed-text-v2-moe")
-except Exception as e:
-    print(f"Warning: Ollama not found. Using mock encoder. Error: {e}")
-    class MockEncoder:
-        def __call__(self, text):
-            class Result:
-                def __init__(self): self.embedding = [0]*768
-            return Result()
-    encoder = MockEncoder()
+# No fallback encoder: OllamaEncoder() does not raise here, it raises inside SemanticRouter's
+# first embed — so a dead Ollama fails loudly at import instead of silently mis-routing. A
+# zero-vector mock only looks like graceful degradation; every message would match the same route.
+encoder = OllamaEncoder(name=EMBED_MODEL)
 
 _router = SemanticRouter(
     routes=[guardrail_route, conversational_route, rag_route],
@@ -40,17 +41,44 @@ def semantic_router(message: str) -> RouteResult:
     return _router(message)
 
 
-def chat(user_message: str) -> str:
-    result = semantic_router(user_message)
+def chat_stream(
+    user_message: str,
+    session_id: str | None = None,
+    user_id: str | None = None,
+    route: str | None = None,
+):
+    """Yield the reply in chunks. `chat()` is this joined, so the two paths cannot drift.
 
-    if result.name == "guardrail":
-        return HARDCODED_RESPONSE
-    elif result.name == "conversational":
-        return get_conversational_response(user_message)
-    elif result.name == "rag":
-        return get_rag_response(user_message)
+    `route` is accepted so callers that already routed do not pay for it twice.
+    """
+    route = route or (semantic_router(user_message).name or "conversational")
+
+    if route == "guardrail":
+        yield HARDCODED_RESPONSE
+        return
+
+    history = load_history(session_id, user_id)
+
+    if route == "rag":
+        messages = rag_messages(user_message, history)
+        if messages is None:
+            yield NO_CONTEXT_REPLY
+            return
     else:
-        return get_conversational_response(user_message)
+        messages = conversational_messages(user_message, history)
+
+    for chunk in llm.stream(messages):
+        if chunk.content:
+            yield chunk.content
+
+
+def chat(
+    user_message: str,
+    session_id: str | None = None,
+    user_id: str | None = None,
+    route: str | None = None,
+) -> str:
+    return "".join(chat_stream(user_message, session_id=session_id, user_id=user_id, route=route))
 
 if __name__ == "__main__":
     tests = [

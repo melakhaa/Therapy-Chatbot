@@ -24,7 +24,7 @@ export default function UserDirectory({ management = false }: { management?: boo
     try { await apiDeleteAccount(deleting.user_id); setDeleting(null); setSuccess(id ? 'Akun berhasil dihapus.' : 'Account deleted.'); resource.reload(); }
     catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   };
-  return <Page title={management ? (id ? 'Manajemen Pengguna' : 'User Management') : (id ? 'Mahasiswa' : 'Students')} subtitle={management ? (id ? 'Kelola akun dan peran tetap yang tersedia di Sanctuary.' : 'Manage accounts and the fixed roles available in Sanctuary.') : (id ? 'Direktori mahasiswa dan pengguna · informasi rahasia.' : 'Student and user directory · confidential information.')}
+  return <Page title={management ? (id ? 'Manajemen Pengguna' : 'User Management') : (id ? 'Mahasiswa' : 'Students')} subtitle={management ? (id ? 'Kelola akun dan peran tetap yang tersedia di Sajiwa.' : 'Manage accounts and the fixed roles available in Sajiwa.') : (id ? 'Direktori mahasiswa dan pengguna · informasi rahasia.' : 'Student and user directory · confidential information.')}
     action={management && allowed ? <Button label={id ? 'Tambah akun' : 'Add account'} icon="person-add" onPress={() => { setSuccess(''); setForm('new'); }} /> : undefined}>
     {!allowed ? <Notice danger>{id ? 'Direktori akun hanya tersedia untuk admin dan pemangku jabatan. Konselor dapat meninjau hasil asesmen sesuai izin yang ada.' : 'The account directory is available only to administrators and stakeholders. Counselors can review assessment results within their permissions.'}</Notice> : <>
       {success && <Notice>{success}</Notice>}

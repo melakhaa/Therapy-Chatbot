@@ -1,13 +1,24 @@
 // utils/stressDetection.ts
 // Pure function — no side effects. Takes message list, returns 0–10 stress score.
 
+export type MessageSender = 'user' | 'ai';
+
 /** Minimal shape this module needs, so the shared package does not import from an app. */
 export interface StressMessage {
-  sender: 'user' | 'ai';
+  sender: MessageSender;
   text: string;
 }
 
-const KEYWORDS = {
+export interface Message {
+  id: string;
+  text: string;
+  sender: MessageSender;
+  timestamp: Date;
+  expression?: any;
+}
+
+
+export const KEYWORDS = {
   high: [
     'putus asa', 'tidak ada harapan', 'mau mati', 'ingin mati', 'bunuh diri',
     'tidak kuat lagi', 'menyerah', 'hancur', 'sangat tertekan', 'panik', 'krisis',

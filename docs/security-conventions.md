@@ -21,24 +21,31 @@
 
 ## Roles (RBAC)
 
-`mahasiswa | konselor | admin | pemangku_jabatan` in `users.role`. Dashboard/admin endpoints
-require `konselor`, `admin`, or `pemangku_jabatan`. See
+`mahasiswa | konselor | admin | pemangku_jabatan` in `users.role`. Dashboard reads are tiered:
+`/admin/assessments` and the per-user histories allow `konselor`, `admin`, `pemangku_jabatan`;
+`/admin/users/{id}` (identity profile) and every operational route (schedules, hotlines, attention,
+analytics) require `admin` (or `admin`/`pemangku_jabatan` for the profile). See
 [postgresql-conventions.md](postgresql-conventions.md) for the RLS side.
 
 ## Row Level Security
 
-- The backend connects as the non-superuser role `sanctuary_app`, and `core/db.py` sets the request
+- The backend connects as the non-superuser role `sajiwa_app`, and `core/db.py` sets the request
   identity per transaction (`set_config('app.current_user_id', ..., true)`), so every query is
   filtered by the caller's policies.
 - App-layer guards (`require_role`) and RLS are both required. RLS is the backstop if a query forgets
   `where user_id = %s`; `require_role` is what returns a useful `403` to the client.
-- **Never point `DATABASE_URL` at `sanctuary`** — that role is a superuser and silently bypasses
+- **Never point `DATABASE_URL` at `sajiwa`** — that role is a superuser and silently bypasses
   every policy, making RLS cosmetic.
 
 ## Encryption (Fernet / `cryptography`)
 
 - `apps/backend/core/security.py` wraps **Fernet**: `encrypt_text` / `decrypt_text`.
-- All chat content stored in `messages` is encrypted before insert and decrypted on read.
+- All chat content stored in `messages` is encrypted before insert and decrypted on read
+  (`GET /chat/history`, scoped by RLS to the caller's own `user_id`).
+- `guardrail_logs.triggered_input` is encrypted too, for crisis text from chat.
+- Assessment-triggered guardrail rows store **no clinical detail at all**: `source='assessment'`
+  plus `assessment_id`, and `triggered_input` stays NULL. The score/severity is already in
+  `assessments`, and admin endpoints must not expose it here.
 - Requires `ENCRYPTION_KEY`; the module raises at import if missing.
 
 ```bash
@@ -53,13 +60,15 @@ python -c "import os,base64; print(base64.urlsafe_b64encode(os.urandom(32)).deco
 - The `guardrail` semantic route always returns a fixed crisis response and logs to
   `guardrail_logs`; never regenerate or reword it via an LLM. See
   [semantic-router-conventions.md](semantic-router-conventions.md).
-- Moderate/severe assessments also write to `guardrail_logs`.
+- Crisis turns are excluded from LLM prompt history (`load_history`) as well as from the current
+  turn's routing — a crisis message must never reach the model by either path.
+- Moderate/severe assessments also write to `guardrail_logs` (`source='assessment'`).
 
 ## Secrets / env
 
 Backend `.env` (`apps/backend/.env`, gitignored — copy from `.env.example`):
 ```
-DATABASE_URL=postgresql://sanctuary_app:sanctuary_app@localhost:5432/sanctuary
+DATABASE_URL=postgresql://sajiwa_app:sajiwa_app@localhost:5432/sajiwa
 JWT_SECRET=                # signs auth tokens
 ENCRYPTION_KEY=            # Fernet key
 ALLOWED_ORIGINS=           # comma-separated CORS origins (defaults to *)

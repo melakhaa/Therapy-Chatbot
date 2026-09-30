@@ -17,10 +17,10 @@ export function OperationalMetric({ label, value, note, icon, tone = 'teal' }: {
   const bg = tone === 'red' ? c.dangerSoft : tone === 'amber' ? c.warningSoft : tone === 'blue' ? c.blueSoft : tone === 'purple' ? c.lavenderSoft : c.primarySoft;
   return <View style={[ui.card, { flexGrow: 1, flexBasis: 190, padding: 18, gap: 11, borderTopWidth: 3, borderTopColor: color }]}><View style={[ui.row, { flexWrap: 'nowrap' }]}><View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}><MaterialIcons name={icon} color={color} size={19} /></View><Text style={[ui.muted, { flex: 1, fontWeight: '600' }]}>{label}</Text></View><Text style={{ color: c.text, fontSize: 29, fontWeight: '800', letterSpacing: -1 }}>{value}</Text><Text style={[ui.muted, { fontSize: 10 }]}>{note}</Text></View>;
 }
-export function SignalCard({ type, title, detail, meta, action }: { type: 'assessment' | 'safety' | 'booking'; title: string; detail: string; meta: string; action?: ReactNode }) {
-  const icon: Icon = type === 'safety' ? 'health-and-safety' : type === 'booking' ? 'event-note' : 'assignment';
-  const color = type === 'safety' ? c.danger : type === 'booking' ? c.blue : c.warning;
-  const bg = type === 'safety' ? c.dangerSoft : type === 'booking' ? c.blueSoft : c.warningSoft;
+export function SignalCard({ type, title, detail, meta, action }: { type: 'assessment' | 'safety' | 'booking' | 'request'; title: string; detail: string; meta: string; action?: ReactNode }) {
+  const icon: Icon = type === 'safety' ? 'health-and-safety' : type === 'request' ? 'support-agent' : type === 'booking' ? 'event-note' : 'assignment';
+  const color = type === 'safety' || type === 'request' ? c.danger : type === 'booking' ? c.blue : c.warning;
+  const bg = type === 'safety' || type === 'request' ? c.dangerSoft : type === 'booking' ? c.blueSoft : c.warningSoft;
   return <View style={{ borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, borderRadius: 13, padding: 15, flexDirection: 'row', gap: 13, alignItems: 'center' }}><View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}><MaterialIcons name={icon} size={20} color={color} /></View><View style={{ flex: 1, gap: 3 }}><Text style={[ui.text, { fontWeight: '700' }]}>{title}</Text><Text style={ui.muted}>{detail}</Text><Text style={[ui.muted, { fontSize: 10 }]}>{meta}</Text></View>{action}</View>;
 }
 export function DistributionBars({ values }: { values: { label: string; value: number; color?: string }[] }) {

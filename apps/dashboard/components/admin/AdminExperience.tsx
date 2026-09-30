@@ -46,20 +46,20 @@ export function AdminExperienceProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<AdminLanguage>('id');
   const [themeMode, setThemeModeState] = useState<AdminThemeMode>('system');
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(Appearance.getColorScheme() === 'dark' ? 'dark' : 'light');
-  useEffect(() => { setLanguageState(readPreference('sanctuary_admin_language', 'id')); setThemeModeState(readPreference('sanctuary_admin_theme', 'system')); }, []);
+  useEffect(() => { setLanguageState(readPreference('sajiwa_admin_language', 'id')); setThemeModeState(readPreference('sajiwa_admin_theme', 'system')); }, []);
   useEffect(() => { const listener = Appearance.addChangeListener(({ colorScheme }) => setSystemTheme(colorScheme === 'dark' ? 'dark' : 'light')); return () => listener.remove(); }, []);
   const resolvedTheme = themeMode === 'system' ? systemTheme : themeMode;
   const colors = resolvedTheme === 'dark' ? darkAdminTokens : lightAdminTokens;
-  const setLanguage = (value: AdminLanguage) => { setLanguageState(value); if (typeof window !== 'undefined') window.localStorage.setItem('sanctuary_admin_language', value); };
-  const setThemeMode = (value: AdminThemeMode) => { setThemeModeState(value); if (typeof window !== 'undefined') window.localStorage.setItem('sanctuary_admin_theme', value); };
+  const setLanguage = (value: AdminLanguage) => { setLanguageState(value); if (typeof window !== 'undefined') window.localStorage.setItem('sajiwa_admin_language', value); };
+  const setThemeMode = (value: AdminThemeMode) => { setThemeModeState(value); if (typeof window !== 'undefined') window.localStorage.setItem('sajiwa_admin_theme', value); };
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
     Object.entries(colors).forEach(([key, value]) => root.style.setProperty('--admin-' + key.replace(/[A-Z]/g, m => '-' + m.toLowerCase()), value));
     root.style.colorScheme = resolvedTheme;
     root.style.backgroundColor = colors.background;
-    let accessibilityStyle = document.getElementById('sanctuary-admin-accessibility');
-    if (!accessibilityStyle) { accessibilityStyle = document.createElement('style'); accessibilityStyle.id = 'sanctuary-admin-accessibility'; document.head.appendChild(accessibilityStyle); }
+    let accessibilityStyle = document.getElementById('sajiwa-admin-accessibility');
+    if (!accessibilityStyle) { accessibilityStyle = document.createElement('style'); accessibilityStyle.id = 'sajiwa-admin-accessibility'; document.head.appendChild(accessibilityStyle); }
     accessibilityStyle.textContent = '*:focus-visible{outline:3px solid var(--admin-focus-ring)!important;outline-offset:2px}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}';
   }, [colors, resolvedTheme]);
   const value = useMemo<ContextValue>(() => ({ language, setLanguage, themeMode, setThemeMode, resolvedTheme, colors, t: (key, fallback) => (language === 'id' ? id : en)[key] || fallback || key }), [language, themeMode, resolvedTheme, colors]);

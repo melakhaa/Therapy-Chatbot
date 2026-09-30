@@ -1,5 +1,12 @@
 import { Platform } from 'react-native';
-import { getToken, saveToken, saveUser } from './storage';
+import { fetch as streamFetch } from 'expo/fetch';
+import { getToken, saveToken, saveUser, clearAuth } from './storage';
+
+let unauthorizedCallback: (() => void) | null = null;
+
+export function setUnauthorizedCallback(callback: () => void) {
+  unauthorizedCallback = callback;
+}
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || (__DEV__
   ? (Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000')
@@ -14,6 +21,11 @@ interface FetchOptions extends RequestInit {
   base?: string;
 }
 
+async function authHeader(): Promise<Record<string, string>> {
+  const token = await getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export async function apiFetch<T = unknown>(
   path: string,
   options: FetchOptions = {}
@@ -22,17 +34,18 @@ export async function apiFetch<T = unknown>(
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    ...(auth ? await authHeader() : {}),
     ...(fetchOpts.headers as Record<string, string> || {}),
   };
-
-  if (auth) {
-    const token = await getToken();
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-  }
 
   const res = await fetch(`${base}${path}`, { ...fetchOpts, headers });
 
   if (!res.ok) {
+    if (res.status === 401 && auth) {
+      await clearAuth();
+      unauthorizedCallback?.();
+    }
+
     let detail = `HTTP ${res.status}`;
     try {
       const err = await res.json();
@@ -74,6 +87,10 @@ export async function apiLogin(payload: LoginPayload): Promise<LoginResponse> {
   await saveToken(data.access_token);
   await saveUser(data.user);
   return data;
+}
+
+export async function apiLogout(): Promise<void> {
+  await clearAuth();
 }
 
 export async function apiRegister(payload: any) {
@@ -123,16 +140,87 @@ export interface ChatPayload {
   session_id?: string;
 }
 
-export interface ChatResponse {
-  response: string;
-  route: string;
-  is_high_risk: boolean;
+export interface ChatHistoryMessage {
+  role: 'user' | 'assistant';
+  text: string;
+  route: string | null;
+  created_at: string;
 }
 
-export async function apiChat(payload: ChatPayload): Promise<ChatResponse> {
-  return apiFetch<ChatResponse>('/chat', {
+/** The caller's own transcript, decrypted server-side. Scoped to the JWT identity. */
+export async function apiChatHistory(
+  sessionId: string,
+  limit = 50
+): Promise<{ session_id: string; messages: ChatHistoryMessage[] }> {
+  return apiFetch(
+    `/chat/history?session_id=${encodeURIComponent(sessionId)}&limit=${limit}`
+  );
+}
+
+export interface ChatStreamEvent {
+  /** One token, present on most frames. */
+  token?: string;
+  /** Only on the first frame. */
+  route?: string;
+  is_high_risk?: boolean;
+  /** Only if generation failed mid-stream. */
+  error?: string;
+}
+
+/**
+ * Stream a reply. `onEvent` fires per frame; the promise resolves at `[DONE]`.
+ *
+ * Uses `expo/fetch` because React Native's global fetch buffers the whole response — on web
+ * that module is just `globalThis.fetch`, so both platforms take this path.
+ */
+export async function apiChatStream(
+  payload: ChatPayload,
+  onEvent: (event: ChatStreamEvent) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const res = await streamFetch(`${API_BASE_URL}/chat/stream`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
     body: JSON.stringify(payload),
+    signal,
+  });
+
+  if (!res.ok) throw new ApiError(res.status, `HTTP ${res.status}`);
+  if (!res.body) throw new ApiError(res.status, 'Respons tidak bisa di-stream');
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    // SSE frames end at a blank line; hold the trailing partial frame for the next read.
+    const frames = buffer.split('\n\n');
+    buffer = frames.pop() ?? '';
+
+    for (const frame of frames) {
+      const line = frame.split('\n').find((l) => l.startsWith('data:'));
+      if (!line) continue;
+      const raw = line.slice(5).trim();
+      if (raw === '[DONE]') return;
+      try {
+        onEvent(JSON.parse(raw) as ChatStreamEvent);
+      } catch {
+        // Keep-alive or partial frame: not an error.
+      }
+    }
+  }
+}
+
+/** Crisis sheet "Kabari tim Sajiwa": logs an unread safety signal for counselors. */
+export async function apiReportToTeam(session_id?: string) {
+  return apiFetch<{ status: string }>('/chat/report', {
+    method: 'POST',
+    body: JSON.stringify({ session_id }),
   });
 }
 
@@ -158,8 +246,17 @@ export async function apiSubmitAssessment(payload: AssessmentPayload) {
 
 // ── Jadwal / Booking ───────────────────────────────────────────────────────────
 
-export async function apiGetJadwal() {
-  return apiFetch<{ jadwal: object[] }>('/jadwal');
+export interface JadwalSlot {
+  jadwal_id: string;
+  konselor_id: string;
+  tanggal: string;
+  waktu_mulai: string;
+  waktu_selesai: string;
+  status: string;
+}
+
+export async function apiGetJadwal(): Promise<{ jadwal: JadwalSlot[] }> {
+  return apiFetch('/jadwal');
 }
 
 export async function apiBuatBooking(jadwal_id: string, catatan?: string) {
@@ -211,6 +308,11 @@ export async function apiGetAccounts(): Promise<{ users: UserRow[]; total: numbe
   return apiFetch<{ users: UserRow[]; total: number }>('/accounts');
 }
 
+/** Counselor directory for the booking screen (public fields only). */
+export async function apiGetKonselor(): Promise<{ users: UserRow[] }> {
+  return apiFetch<{ users: UserRow[] }>('/accounts/konselor');
+}
+
 // ── Journaling ─────────────────────────────────────────────────────────────────
 
 export interface JournalPayload {
@@ -229,6 +331,17 @@ export async function apiGetTodayJournal() {
   return apiFetch<{ journal: { content: string; mood: string } | null }>('/journal/today');
 }
 
-export async function apiGetJournals() {
-  return apiFetch<{ journals: any[] }>('/journal');
+export async function apiGetJournals(limit = 20, offset = 0) {
+  return apiFetch<{ journals: any[] }>(`/journal?limit=${limit}&offset=${offset}`);
+}
+
+export async function apiUpdateJournal(journal_id: string, payload: Partial<JournalPayload>) {
+  return apiFetch(`/journal/${journal_id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiDeleteJournal(journal_id: string) {
+  return apiFetch(`/journal/${journal_id}`, { method: 'DELETE' });
 }

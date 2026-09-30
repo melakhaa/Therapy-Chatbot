@@ -2,7 +2,7 @@
 -- Safe for existing rows: all user relationships introduced here are nullable or live
 -- in new tables. No existing table, column, status value, or record is removed.
 begin;
-select pg_advisory_xact_lock(hashtext('sanctuary_schema_migrations'));
+select pg_advisory_xact_lock(hashtext('sajiwa_schema_migrations'));
 
 create table if not exists schema_migrations (
   version varchar(100) primary key,
@@ -407,7 +407,7 @@ on conflict (academic_unit_id) do update set name=excluded.name, source_url=excl
 grant select, insert, update, delete on faculties, academic_units, student_academic_profiles,
   admin_notifications, counselor_profiles, counselor_availability_rules,
   counselor_blocked_periods, counseling_requests, counseling_appointments,
-  counseling_appointment_events, counseling_admin_notes, report_export_audits to sanctuary_app;
+  counseling_appointment_events, counseling_admin_notes, report_export_audits to sajiwa_app;
 
 insert into schema_migrations(version) values ('001_iteration3c') on conflict do nothing;
 commit;

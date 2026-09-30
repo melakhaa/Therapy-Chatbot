@@ -49,7 +49,7 @@ export default function AdminShellV2() {
   const sidebar = <Animated.ScrollView style={{ width: animatedSidebarWidth, flexGrow: 0, flexShrink: 0 }} contentContainerStyle={[s.sidebar, { width: sidebarWidth }]}>
     <View style={[ui.row, { paddingHorizontal: collapsed ? 4 : 3, paddingVertical: 8, flexWrap: 'nowrap' }]}>
       <View style={s.brandIcon}><MaterialIcons name="spa" size={24} color="#fff" /></View>
-      {!collapsed && <View style={{ flex: 1 }}><Text style={s.brand}>Sanctuary</Text><Text style={s.brandSub}>ADMIN OPERATIONS</Text></View>}
+      {!collapsed && <View style={{ flex: 1 }}><Text style={s.brand}>Sajiwa</Text><Text style={s.brandSub}>ADMIN OPERATIONS</Text></View>}
     </View>
     <View style={{ gap: 18, marginTop: 24 }}>{sections.map(section => <View key={section.key} style={{ gap: 5 }}>
       {!collapsed && <Text style={s.sectionLabel}>{t('group.' + section.key)}</Text>}
@@ -72,7 +72,7 @@ export default function AdminShellV2() {
     <View style={{ flex: 1, minWidth: 0 }}>
       <View style={[s.header, phone && { paddingHorizontal: 8, gap: 4 }]}>
         {compact ? <IconButton label={language === 'id' ? 'Buka navigasi' : 'Open navigation'} icon="menu" onPress={() => setDrawer(true)} /> : <IconButton label={collapsed ? (language === 'id' ? 'Perluas sidebar' : 'Expand sidebar') : (language === 'id' ? 'Ciutkan sidebar' : 'Collapse sidebar')} icon={collapsed ? 'last-page' : 'first-page'} onPress={() => setCollapsed(value => !value)} />}
-        <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={s.breadcrumb}>Sanctuary / {current ? t('nav.' + current.key) : t('nav.students')}</Text>{!narrow && <Text style={s.contextSub}>Mental Health Early Warning & Counseling Operations</Text>}</View>
+        <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={s.breadcrumb}>Sajiwa / {current ? t('nav.' + current.key) : t('nav.students')}</Text>{!narrow && <Text style={s.contextSub}>Mental Health Early Warning & Counseling Operations</Text>}</View>
         {!phone && <SegmentedControl value={language} onChange={value => setLanguage(value as 'id' | 'en')} options={[{ value: 'id', label: 'ID' }, { value: 'en', label: 'EN' }]} />}
         <IconButton label={language === 'id' ? 'Bantuan dan panduan' : 'Help and guided tour'} icon="help-outline" onPress={() => setTourOpen(true)} />
         <IconButton label={language === 'id' ? 'Ubah tema' : 'Change theme'} icon={themeMode === 'dark' ? 'dark-mode' : themeMode === 'light' ? 'light-mode' : 'brightness-auto'} onPress={() => setThemeMode(themeMode === 'system' ? 'light' : themeMode === 'light' ? 'dark' : 'system')} />

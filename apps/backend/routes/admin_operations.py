@@ -1,4 +1,4 @@
-"""Admin-only operational views over existing Sanctuary tables.
+"""Admin-only operational views over existing Sajiwa tables.
 
 The responses deliberately exclude assessment answers, booking notes, private text,
 and raw guardrail trigger input.
@@ -42,7 +42,7 @@ class HotlineUpdate(BaseModel):
 
 @router.get("/attention")
 def attention_signals(
-    signal: Optional[Literal["assessment", "safety"]] = None,
+    signal: Optional[Literal["assessment", "safety", "request"]] = None,
     unread_only: bool = False,
     faculty_id: List[UUID] = Query(default=[]),
     academic_unit_id: List[UUID] = Query(default=[]),
@@ -50,9 +50,15 @@ def attention_signals(
     page_size: int = Query(20, ge=1, le=100),
     admin=Depends(admin_access),
 ):
-    # Older assessment logs only recorded a safe prefix in triggered_input. It is
-    # used solely for classification here and is never returned to the client.
-    kind = "case when g.assessment_id is not null or g.triggered_input like '[ASSESSMENT]%' then 'assessment' else 'safety' end"
+    # 'request' means the student pressed "contact me" in the app's crisis dialog.
+    # source/assessment_id are authoritative; LIKE keeps older records readable.
+    # %% escapes percent signs because psycopg also uses % for placeholders.
+    kind = (
+        "case when g.assessment_id is not null or g.source = 'assessment' "
+        "or g.triggered_input like '[ASSESSMENT]%%' then 'assessment' "
+        "when g.triggered_input like '[LAPORAN PENGGUNA]%%' then 'request' "
+        "else 'safety' end"
+    )
     faculties = [str(value) for value in dict.fromkeys(faculty_id)] or None
     units = [str(value) for value in dict.fromkeys(academic_unit_id)] or None
     if len(faculties or []) > 20 or len(units or []) > 50:

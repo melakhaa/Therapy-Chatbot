@@ -31,7 +31,7 @@ export function Page({ title, subtitle, action, children }: { title: string; sub
   const { language } = useAdminExperience();
   return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 24, gap: 22, width: '100%', maxWidth: 1500, alignSelf: 'center' }} keyboardShouldPersistTaps="handled">
     <View style={[ui.row, { justifyContent: 'space-between' }]}><View style={{ flex: 1, minWidth: 180, gap: 5 }}><Text accessibilityRole="header" style={ui.title}>{title}</Text><Text style={ui.muted}>{subtitle}</Text></View>{action}</View>{children}
-    <Text style={[ui.muted, { textAlign: 'center', marginTop: 12 }]}>{language === 'id' ? 'Sanctuary · Mendukung kesehatan mental mahasiswa' : 'Sanctuary · Supporting student mental health'}</Text>
+    <Text style={[ui.muted, { textAlign: 'center', marginTop: 12 }]}>{language === 'id' ? 'Sajiwa · Mendukung kesehatan mental mahasiswa' : 'Sajiwa · Supporting student mental health'}</Text>
   </ScrollView>;
 }
 export function Card({ title, subtitle, action, children }: { title?: string; subtitle?: string; action?: ReactNode; children: ReactNode }) {
@@ -114,6 +114,6 @@ export function StatCard({ label, value, icon, tone = 'teal', note }: { label: s
 }
 export function Avatar({ name }: { name: string }) { return <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: c.primary, fontWeight: '600' }}>{name.slice(0, 2).toUpperCase()}</Text></View>; }
 export function formatDate(value?: string | null) {
-  const language = typeof window !== 'undefined' ? window.localStorage.getItem('sanctuary_admin_language') : 'id';
+  const language = typeof window !== 'undefined' ? window.localStorage.getItem('sajiwa_admin_language') : 'id';
   return value ? new Date(value.length === 10 ? value + 'T12:00:00' : value).toLocaleDateString(language === 'en' ? 'en-US' : 'id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 }

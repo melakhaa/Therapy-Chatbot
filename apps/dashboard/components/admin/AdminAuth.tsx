@@ -19,6 +19,6 @@ export function AdminAuth({ children }: { children: ReactNode }) {
   const logout = useLogout();
   const resource = useAdminResource(apiGetProfile);
   if (resource.loading) return <LoadingState />;
-  if (resource.error || !resource.data || resource.data.role !== 'admin') return <View style={{ padding: 30, gap: 20 }}><ErrorState message={resource.error || 'Portal administrasi Sanctuary hanya tersedia untuk administrator.'} retry={resource.reload} /><Button label="Kembali ke login" onPress={() => { void logout(); }} /></View>;
+  if (resource.error || !resource.data || resource.data.role !== 'admin') return <View style={{ padding: 30, gap: 20 }}><ErrorState message={resource.error || 'Portal administrasi Sajiwa hanya tersedia untuk administrator.'} retry={resource.reload} /><Button label="Kembali ke login" onPress={() => { void logout(); }} /></View>;
   return <Context.Provider value={resource.data}>{children}</Context.Provider>;
 }

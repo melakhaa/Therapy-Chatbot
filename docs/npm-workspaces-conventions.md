@@ -14,18 +14,25 @@ The single HTTP layer. `src/api.ts` wraps `fetch` with base URL, JSON headers, o
 apiFetch<T>(path, { method, body, auth = true, base })  // auth defaults true
 ```
 
-- Add one typed helper per backend endpoint (`apiChat`, `apiSubmitAssessment`, `apiSaveJournal`, ...).
+- Add one typed helper per backend endpoint (`apiChatStream`, `apiSubmitAssessment`, `apiSaveJournal`, ...).
 - Export request/response interfaces next to the helper.
+- Streaming endpoints use `apiChatStream`, which reads the SSE body with `expo/fetch` (React Native's
+  global `fetch` buffers the whole response; on web that module is just `globalThis.fetch`).
 - `auth: false` for login/register/hotline/guardrail.
 - `apiLogin` persists token + user via `src/storage.ts`.
+- `src/admin.ts` + `src/admin-operations.ts` hold the dashboard helpers (`apiGetAdminAssessments`,
+  `apiGetUserDetail`, `apiGetAttention`, `apiGetOrganizationSchedules`, `apiGetHotlines`,
+  `apiGetAnalytics`, ...) and their row/page interfaces. `src/index.ts` re-exports all four modules.
+- Failed requests throw `ApiError` (an `Error` subclass carrying `status`); dashboard code maps the
+  status to a safe Bahasa Indonesia message in `apps/dashboard/hooks/useAdminResource.ts`.
 
 `src/storage.ts` is the cross-platform token store: `localStorage` on web, `AsyncStorage` on
-native. Keys `sanctuary_token`, `sanctuary_user`. Use `getStoredUser` / `clearAuth`; the `*Sync`
+native. Keys `sajiwa_token`, `sajiwa_user`. Use `getStoredUser` / `clearAuth`; the `*Sync`
 variants exist only for the web dashboard.
 
 ### `@prototype/ui-shared` (`packages/ui-shared`)
 
-- `theme.ts` — `SanctuaryColors` (Material-3 palette) + typography.
+- `theme.ts` — `SajiwaColors` (Material-3 palette) + typography.
 - `ThemeContext.tsx` — `ThemeProvider` / theme hook.
 - `useAuth.ts` — `useAuth()` state machine (load persisted user, `login`, `logout`).
 - `useAnimatedEntrance.ts` — shared entrance animation.
@@ -34,6 +41,8 @@ variants exist only for the web dashboard.
 
 - `stressDetection.ts` — keyword-based stress scoring from chat text.
 - `aiResponses.ts` — fallback/local response parsers.
+- `characterReaction.ts` — companion expression picked from the user's message (crisis-safe mapping).
+- `phone.ts` — dialable-number / extension helpers for hotline `tel:` links.
 
 ## Conventions
 

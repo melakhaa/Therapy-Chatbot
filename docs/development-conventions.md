@@ -19,7 +19,7 @@ cp .env.example .env           # then fill DATABASE_URL, JWT_SECRET, ENCRYPTION_
 ## Infrastructure
 
 ```bash
-docker compose up -d     # PostgreSQL 17 + pgvector (db/init/*.sql run on first boot) + pgAdmin
+docker compose up -d     # PostgreSQL 17 + pgvector (init + migrations run on boot) + pgAdmin
 docker compose ps
 docker compose down      # keep data
 docker compose down -v   # wipe data; re-applies db/init on next up
@@ -47,15 +47,22 @@ Also start `ollama serve` for chat/embeddings ([ollama-conventions.md](ollama-co
 
 ## Tests
 
-Both need the stack running and clean up after themselves (no test framework, no CI).
+Three tiers, all manual (no CI). Tiers 2 and 3 need the stack running; tier 1 is fully isolated.
 
 ```bash
-# RLS isolation + auth functions, against the live DB
-docker exec -i -e PGPASSWORD=sanctuary_app sanctuary-db \
-  psql -v ON_ERROR_STOP=1 -U sanctuary_app -d sanctuary < db/test_rls.sql
+# 1. Isolated API contract tests — no DB, no AI, no network. Needs httpx installed
+#    (FastAPI TestClient) and only the venv. Stubs core.db and signs real JWTs.
+#    Covers the admin/ops contracts plus prompt-history assembly
+#    (tests/test_chat_history.py — the crisis filter and history budget).
+cd apps/backend && venv/bin/python -m unittest discover -s tests -v
 
-# end-to-end API check: auth, assessments, journals, jadwal/booking, dashboard,
-# chat (real Ollama), RLS isolation. Exits non-zero on failure.
+# 2. RLS isolation + auth functions, against the live DB
+docker exec -i -e PGPASSWORD=sajiwa_app sajiwa-db \
+  psql -v ON_ERROR_STOP=1 -U sajiwa_app -d sajiwa < db/test_rls.sql
+
+# 3. end-to-end API check: auth, assessments, journals, jadwal/booking, dashboard,
+#    chat (real Ollama), chat-session persistence + history isolation, RLS isolation.
+#    Exits non-zero on failure.
 cd apps/backend && venv/bin/python scripts/api_smoke.py
 ```
 
@@ -71,9 +78,11 @@ cd apps/backend && venv/bin/python scripts/api_smoke.py
 ## Gotchas
 
 - Run the backend from `apps/backend` — imports are top-level (`from auth import ...`), not a package.
-- Schema lives in `db/init/*.sql`; edit it and `docker compose down -v && docker compose up -d` to
-  re-apply. There is no migration framework, and wiping destroys local data.
-- The backend connects as `sanctuary_app` (non-superuser) so RLS applies. Pointing `DATABASE_URL` at
-  `sanctuary` silently disables every policy — see [security-conventions.md](security-conventions.md).
+- Schema baseline is `db/init/*.sql` (empty volume); additive changes go in `db/migrations/*.sql`
+  and are applied by the one-shot `migrate` service on `docker compose up`. Wiping
+  (`docker compose down -v`) destroys local data.
+- The backend connects as `sajiwa_app` (non-superuser) so RLS applies. Pointing `DATABASE_URL` at
+  `sajiwa` silently disables every policy — see [security-conventions.md](security-conventions.md).
 - `db/test_rls.sql` is the RLS/auth self-check; run it after schema or policy changes.
-- No Ollama → zero-vector mock encoder, degraded chatbot answers.
+- No Ollama → the backend does not start (the router embeds route utterances at import). Fail loud,
+  never silently degrade: see [ollama-conventions.md](ollama-conventions.md).

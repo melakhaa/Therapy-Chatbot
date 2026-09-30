@@ -1,10 +1,15 @@
-import os, ollama
+import os, sys, ollama
 from docx import Document
 from docx.oxml.ns import qn
 from dotenv import load_dotenv
 from psycopg.types.json import Jsonb
 
+# Run directly (`python scripts/embed.py`) from apps/backend: put the backend root on
+# sys.path so `core` / `services` import (same shim as test_rag_performance.py).
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from core.db import query
+from services.chatbot.rag import EMBED_MODEL, DOCUMENT_PREFIX
 
 load_dotenv()
 
@@ -44,8 +49,8 @@ def embed_and_upload(filepath):
 
     for i, chunk in enumerate(chunks):
         res = ollama.embed(
-            model="nomic-embed-text-v2-moe",
-            input=f"passage: {chunk}"
+            model=EMBED_MODEL,
+            input=f"{DOCUMENT_PREFIX}{chunk}"
         )
         embedding = res["embeddings"][0]
 
