@@ -1,4 +1,4 @@
-# Sanctuary database migrations
+# Sajiwa database migrations
 
 These ordered SQL files upgrade an existing database without recreating its volume.
 
@@ -6,8 +6,8 @@ These ordered SQL files upgrade an existing database without recreating its volu
 
 ```powershell
 $env:PGPASSWORD = "<database-owner-password>"
-pg_dump --format=custom --no-owner --file="sanctuary-before-iteration3.dump" --dbname="postgresql://<owner>@<host>:5432/sanctuary"
-pg_restore --list "sanctuary-before-iteration3.dump"
+pg_dump --format=custom --no-owner --file="sajiwa-before-iteration3.dump" --dbname="postgresql://<owner>@<host>:5432/sajiwa"
+pg_restore --list "sajiwa-before-iteration3.dump"
 ```
 
 Apply as the database owner, after reviewing the backup:
