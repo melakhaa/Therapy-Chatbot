@@ -32,6 +32,7 @@ ENCRYPTION_KEY=<python -c "import os,base64; print(base64.urlsafe_b64encode(os.u
 |------|----------|
 | `init/01_schema.sql` | tables, indexes, RLS policies, `match_documents()` |
 | `init/02_auth.sql` | `sajiwa_app` role + grants, `password_hash`, `password_resets`, `auth_lookup()`, `set_password()` |
+| `init/03_mobile_app.sql` | `list_konselor()` counselor directory (`SECURITY DEFINER`) for the student booking screen |
 | `test_rls.sql` | RLS isolation + auth self-check; rolls back, leaves no data |
 
 ## Self-check
