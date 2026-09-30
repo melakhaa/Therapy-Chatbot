@@ -24,7 +24,8 @@
 `mahasiswa | konselor | admin | pemangku_jabatan` in `users.role`. Dashboard reads are tiered:
 `/admin/assessments` and the per-user histories allow `konselor`, `admin`, `pemangku_jabatan`;
 `/admin/users/{id}` (identity profile) and every operational route (schedules, hotlines, attention,
-analytics) require `admin` (or `admin`/`pemangku_jabatan` for the profile). See
+analytics) require `admin` (or `admin`/`pemangku_jabatan` for the profile). `/admin/insights`
+returns counts only — no names, ids or free text — so it sits in the `konselor` tier. See
 [postgresql-conventions.md](postgresql-conventions.md) for the RLS side.
 
 ## Row Level Security
