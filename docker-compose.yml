@@ -20,6 +20,21 @@ services:
       timeout: 5s
       retries: 10
 
+  # Runs db/migrations/*.sql in order after the db is healthy (idempotent, tracked in
+  # schema_migrations). Fresh volumes get them after db/init; existing volumes catch up here.
+  migrate:
+    image: pgvector/pgvector:pg17
+    container_name: sajiwa-migrate
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: sajiwa
+    volumes:
+      - ./db/migrations:/migrations:ro
+    entrypoint: ["sh", "-c", "for f in /migrations/*.sql; do echo \"applying $$f\"; psql -v ON_ERROR_STOP=1 -h db -U sajiwa -d sajiwa -f \"$$f\"; done"]
+
   pgadmin:
     image: dpage/pgadmin4
     container_name: sajiwa-pgadmin
