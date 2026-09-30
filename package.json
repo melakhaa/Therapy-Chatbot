@@ -12,5 +12,9 @@
     "@radix-ui/react-slot": "^1.2.4",
     "expo-asset": "~57.0.18",
     "semver": "^7.7.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.6.3"
   }
 }
