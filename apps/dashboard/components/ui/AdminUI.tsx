@@ -114,6 +114,6 @@ export function StatCard({ label, value, icon, tone = 'teal', note }: { label: s
 }
 export function Avatar({ name }: { name: string }) { return <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: c.primary, fontWeight: '600' }}>{name.slice(0, 2).toUpperCase()}</Text></View>; }
 export function formatDate(value?: string | null) {
-  const language = typeof window !== 'undefined' ? window.localStorage.getItem('sanctuary_admin_language') : 'id';
+  const language = typeof window !== 'undefined' ? window.localStorage.getItem('sajiwa_admin_language') : 'id';
   return value ? new Date(value.length === 10 ? value + 'T12:00:00' : value).toLocaleDateString(language === 'en' ? 'en-US' : 'id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 }
