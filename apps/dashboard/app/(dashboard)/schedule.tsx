@@ -1,643 +1,153 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, Pressable,
-  TextInput, Modal, ActivityIndicator, Animated,
-} from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { apiGetAdminBookings, apiUpdateBookingStatus, AdminBooking } from '@prototype/api-client';
+import { useLocalSearchParams } from 'expo-router';
+import { apiGetAccounts } from '@/services/adminData';
+import { apiCreateOrganizationSchedule, apiGetOrganizationSchedules } from '@/services/operationsData';
+import { previewAvailability, previewCalendarEntries, previewCounselingRequests, previewCounselorProfiles, type CalendarEntryView, type CounselingRequestView } from '@/services/adminProductData';
+import { errorMessage, useAdminResource } from '@/hooks/useAdminResource';
+import { OperationalMetric, SectionHeader } from '@/components/admin/OperationsUI';
+import { BackendPending, SegmentedControl } from '@/components/admin/ProductPrimitives';
+import { useAdminExperience } from '@/components/admin/AdminExperience';
+import { Badge, Button, Card, DataTable, Dialog, ErrorState, Field, FilterControl, LoadingState, Notice, Page, formatDate, ui } from '@/components/ui';
+import { adminTheme as c } from '@/constants/adminTheme';
 
-import { T, F, Neu } from '../../constants/sajiwa';
-
-const C = {
-  bg: T.bg, surface: T.bg, surfaceLow: T.bg, border: T.hairline,
-  primary: T.primary, primaryLight: 'rgba(38,53,110,0.08)', onPrimary: T.onPrimary,
-  text: T.ink, textMuted: T.sub, textLight: T.muted,
-  success: T.sage, successBg: T.sageFill,
-  warning: T.amber, warningBg: 'rgba(212,150,74,0.18)',
-  danger: T.coral, dangerBg: 'rgba(217,103,78,0.14)',
+type WorkspaceView = 'week' | 'month' | 'list';
+type WorkspaceTab = 'calendar' | 'requests' | 'availability';
+const tone: Record<CalendarEntryView['kind'], { color: string; background: string; icon: React.ComponentProps<typeof MaterialIcons>['name'] }> = {
+  appointment: { color: c.blue, background: c.blueSoft, icon: 'event' }, available: { color: c.success, background: c.successSoft, icon: 'event-available' },
+  blocked: { color: c.muted, background: c.surfaceMuted, icon: 'block' }, conflict: { color: c.danger, background: c.dangerSoft, icon: 'warning-amber' },
 };
 
-type StatusFilter = 'all' | 'menunggu' | 'dikonfirmasi' | 'selesai' | 'dibatalkan';
+export default function CounselingSchedule() {
+  const params = useLocalSearchParams<{ counselor?: string }>();
+  const { width } = useWindowDimensions();
+  const { language } = useAdminExperience();
+  const id = language === 'id';
+  const [tab, setTab] = useState<WorkspaceTab>('calendar'), [view, setView] = useState<WorkspaceView>('week');
+  const [counselor, setCounselor] = useState(typeof params.counselor === 'string' ? params.counselor : ''), [status, setStatus] = useState('');
+  const [periodOffset, setPeriodOffset] = useState(0), [selected, setSelected] = useState<CalendarEntryView | null>(null), [request, setRequest] = useState<CounselingRequestView | null>(null);
+  const [entries, setEntries] = useState(previewCalendarEntries), [requests, setRequests] = useState(previewCounselingRequests), [availability, setAvailability] = useState(previewAvailability);
+  const [creating, setCreating] = useState(false), [date, setDate] = useState(''), [start, setStart] = useState(''), [end, setEnd] = useState('');
+  const [busy, setBusy] = useState(''), [error, setError] = useState(''), [message, setMessage] = useState('');
+  const loader = useCallback(() => apiGetOrganizationSchedules({ counselor_id: counselor || undefined }), [counselor]);
+  const resource = useAdminResource(loader); const accounts = useAdminResource(apiGetAccounts);
+  const counselors = (accounts.data?.users || []).filter(user => user.role === 'konselor');
+  const apiEntries = useMemo<CalendarEntryView[]>(() => (resource.data?.schedules || []).map(item => ({ id: item.jadwal_id, date: item.tanggal, start: item.waktu_mulai.slice(0, 5), end: item.waktu_selesai.slice(0, 5), counselorId: item.konselor_id, counselor: item.counselor_name, kind: item.status === 'tersedia' ? 'available' : item.status === 'dibatalkan' ? 'blocked' : 'appointment', status: item.booking_status || item.status })), [resource.data]);
+  const sourceEntries = false ? entries : apiEntries;
+  const filtered = sourceEntries.filter(item => (!counselor || item.counselorId === counselor) && (!status || item.status === status || item.kind === status));
+  const days = [...new Set(filtered.map(item => item.date))].sort();
+  const counselorOptions = false ? previewCounselorProfiles.map(item => ({ value: item.id, label: item.name })) : counselors.map(item => ({ value: item.user_id, label: item.nama }));
 
-const statusMeta = (s: string) => ({
-  menunggu:     { label: 'Menunggu',   color: C.warning, bg: C.warningBg, icon: 'schedule'     },
-  dikonfirmasi: { label: 'Dikonfirmasi', color: C.success, bg: C.successBg, icon: 'check-circle' },
-  dibatalkan:   { label: 'Dibatalkan', color: C.danger,  bg: C.dangerBg,  icon: 'cancel'       },
-  selesai:      { label: 'Selesai',    color: C.primary, bg: C.primaryLight, icon: 'done-all'   },
-}[s] || { label: s, color: C.textMuted, bg: C.surfaceLow, icon: 'info' });
+  const createSlot = async () => {
+    const valid = counselor && /^\d{4}-\d{2}-\d{2}$/.test(date) && /^([01]\d|2[0-3]):[0-5]\d$/.test(start) && /^([01]\d|2[0-3]):[0-5]\d$/.test(end) && end > start;
+    if (!valid) { setError(id ? 'Pilih konselor serta tanggal dan waktu yang valid.' : 'Select a counselor and valid date/time range.'); return; }
+    setBusy('create'); setError('');
+    try {
+      await apiCreateOrganizationSchedule({ counselor_id: counselor, tanggal: date, waktu_mulai: start, waktu_selesai: end });
+      setCreating(false); setDate(''); setStart(''); setEnd(''); setMessage(id ? 'Slot jadwal berhasil dibuat.' : 'Schedule slot created.'); resource.reload();
+    } catch (caught) { setError(errorMessage(caught)); } finally { setBusy(''); }
+  };
+  const previewAction = (action: string) => {
+    if (!false || !selected) return;
+    setEntries(current => current.map(item => item.id === selected.id ? { ...item, status: action, kind: action === 'cancelled' ? 'blocked' : item.kind } : item));
+    setSelected(current => current ? { ...current, status: action } : null);
+    setMessage(id ? 'Perubahan simulasi disimpan hanya pada sesi preview lokal.' : 'Simulated change saved only for this local preview session.');
+  };
+  const handleRequest = () => {
+    if (!request || !false) return;
+    setRequests(current => current.map(item => item.id === request.id ? { ...item, status: 'assigned' } : item)); setRequest(null);
+    setMessage(id ? 'Permintaan ditugaskan dalam preview sintetis.' : 'Request assigned in synthetic preview.');
+  };
+  const compactCalendar = width < 820;
 
-function StatusBadge({ status }: { status: string }) {
-  const m = statusMeta(status);
-  return (
-    <View style={[badge.wrap, { backgroundColor: m.bg }]}>
-      <MaterialIcons name={m.icon as any} size={13} color={m.color} />
-      <Text style={[badge.txt, { color: m.color }]}>{m.label}</Text>
+  return <Page title={id ? 'Ruang Kerja Konseling' : 'Counseling Workspace'} subtitle={id ? 'Koordinasikan permintaan, kapasitas konselor, dan jadwal dalam satu ruang operasional.' : 'Coordinate requests, counselor capacity, and schedules in one operational workspace.'} action={<Button label={id ? 'Buat slot manual' : 'Create manual slot'} icon="add" onPress={() => setCreating(true)} />}>
+    <View style={ui.grid}>
+      <OperationalMetric label={id ? 'Permintaan menunggu' : 'Waiting requests'} value={false ? requests.filter(item => item.status === 'waiting').length : '—'} note={false ? 'Synthetic preview queue' : 'Backend pending'} icon="pending-actions" tone="amber" />
+      <OperationalMetric label={id ? 'Janji temu' : 'Appointments'} value={filtered.filter(item => item.kind === 'appointment').length} note={id ? 'Pada cakupan saat ini' : 'Current workspace scope'} icon="event" tone="blue" />
+      <OperationalMetric label={id ? 'Kapasitas terbuka' : 'Open capacity'} value={filtered.filter(item => item.kind === 'available').length} note={id ? 'Slot tersedia' : 'Available schedule slots'} icon="event-available" />
+      <OperationalMetric label={id ? 'Konflik' : 'Conflicts'} value={false ? filtered.filter(item => item.kind === 'conflict').length : '—'} note={false ? 'UX validation only' : 'Backend pending'} icon="warning-amber" tone="red" />
     </View>
-  );
+    {message && <Notice>{message}</Notice>}
+    <Card><View style={[ui.row, { justifyContent: 'space-between' }]}>
+      <SegmentedControl value={tab} onChange={value => setTab(value as WorkspaceTab)} options={[{ value: 'calendar', label: id ? 'Kalender' : 'Calendar', icon: 'calendar-month' }, { value: 'requests', label: id ? 'Antrean permintaan' : 'Request queue', icon: 'pending-actions' }, { value: 'availability', label: id ? 'Ketersediaan' : 'Availability', icon: 'schedule' }]} />
+      <View style={ui.row}><FilterControl label={id ? 'Konselor' : 'Counselor'} value={counselor} onChange={setCounselor} options={[{ value: '', label: id ? 'Semua konselor' : 'All counselors' }, ...counselorOptions]} /><Button label={id ? 'Muat ulang' : 'Refresh'} icon="refresh" tone="quiet" onPress={resource.reload} /></View>
+    </View></Card>
+
+    {tab === 'calendar' && <>
+      <View style={[ui.row, { justifyContent: 'space-between' }]}>
+        <SegmentedControl value={view} onChange={value => setView(value as WorkspaceView)} options={[{ value: 'week', label: id ? 'Minggu' : 'Week' }, { value: 'month', label: id ? 'Bulan' : 'Month' }, { value: 'list', label: id ? 'Daftar' : 'List' }]} />
+        <View style={ui.row}><Button label="‹" tone="quiet" onPress={() => setPeriodOffset(value => value - 1)} /><Button label={id ? 'Hari ini' : 'Today'} tone="quiet" onPress={() => setPeriodOffset(0)} /><Button label="›" tone="quiet" onPress={() => setPeriodOffset(value => value + 1)} /><Text style={ui.muted}>{periodOffset === 0 ? (id ? 'Periode saat ini' : 'Current period') : (periodOffset > 0 ? '+' : '') + periodOffset}</Text></View>
+      </View>
+      <View style={ui.row}><FilterControl label={id ? 'Status' : 'Status'} value={status} onChange={setStatus} options={[{ value: '', label: id ? 'Semua' : 'All' }, { value: 'appointment', label: id ? 'Janji temu' : 'Appointments' }, { value: 'available', label: id ? 'Tersedia' : 'Available' }, { value: 'blocked', label: id ? 'Diblokir' : 'Blocked' }, ...(false ? [{ value: 'conflict', label: id ? 'Konflik' : 'Conflict' }] : [])]} /></View>
+      {resource.loading && !false ? <LoadingState /> : resource.error && !false ? <ErrorState message={resource.error} retry={resource.reload} /> :
+      view === 'list' || compactCalendar ? <Card title={compactCalendar && view !== 'list' ? (id ? 'Kalender adaptif' : 'Adaptive calendar') : undefined} subtitle={compactCalendar && view !== 'list' ? (id ? 'Tampilan daftar digunakan pada layar sempit agar jadwal tetap mudah dibaca.' : 'List view is used on narrow screens to keep schedules readable.') : undefined}><ScheduleList entries={filtered} onSelect={setSelected} id={id} /></Card> :
+      view === 'month' ? <MonthCalendar entries={filtered} onSelect={setSelected} id={id} /> :
+      <WeekCalendar entries={filtered} days={days} onSelect={setSelected} id={id} />}
+      {false && filtered.some(item => item.kind === 'conflict') && <Notice danger>{id ? 'Indikator konflik adalah validasi UX preview. Perlindungan konkurensi yang otoritatif tetap memerlukan backend dan constraint database.' : 'Conflict indicators are preview UX validation. Authoritative concurrency protection still requires backend and database constraints.'}</Notice>}
+    </>}
+
+    {tab === 'requests' && <Card><SectionHeader title={id ? 'Antrean permintaan konseling' : 'Counseling request queue'} description={id ? 'Alur masa depan: tinjau → pilih konselor → pilih waktu → konfirmasi.' : 'Future flow: review → assign counselor → select time → confirm.'} />
+      {false ? <DataTable rows={requests} rowKey={item => item.id} columns={[
+        { title: id ? 'Mahasiswa' : 'Student', width: 220, render: item => <View><Text style={[ui.text, { fontWeight: '800' }]}>{item.student}</Text><Text style={ui.muted}>{item.nim}</Text></View> },
+        { title: id ? 'Diajukan' : 'Requested', width: 140, render: item => <Text style={ui.muted}>{formatDate(item.requestedAt)}</Text> },
+        { title: id ? 'Preferensi' : 'Preference', width: 160, render: item => <Text style={ui.text}>{item.preference}</Text> },
+        { title: 'Status', width: 120, render: item => <Badge value={item.status} /> },
+        { title: id ? 'Tindakan' : 'Action', width: 150, render: item => <Button label={item.status === 'waiting' ? (id ? 'Tinjau & tugaskan' : 'Review & assign') : (id ? 'Lihat penugasan' : 'View assignment')} tone="quiet" onPress={() => setRequest(item)} /> },
+      ]} /> : <BackendPending detail={id ? 'API saat ini hanya menyediakan slot dan booking yang sudah terkait. Booking tersebut tidak diubah maknanya menjadi permintaan tanpa penugasan.' : 'The current API only exposes slots and linked bookings. Those bookings are not reinterpreted as unassigned requests.'} />}
+    </Card>}
+
+    {tab === 'availability' && <View style={ui.grid}><View style={[ui.column, { flexBasis: 520 }]}><Card><SectionHeader title={id ? 'Ketersediaan berulang' : 'Recurring availability'} description={id ? 'Aturan mingguan dan status aktif.' : 'Weekly rules and active state.'} />
+      {false ? <View style={{ gap: 9 }}>{availability.map(rule => { const person = previewCounselorProfiles.find(item => item.id === rule.counselorId); return <View key={rule.id} style={{ borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 14, backgroundColor: c.surfaceMuted, gap: 7 }}><View style={[ui.row, { justifyContent: 'space-between' }]}><Text style={[ui.text, { fontWeight: '800' }]}>{rule.day} · {rule.start}–{rule.end}</Text><Badge value={rule.active ? 'active' : 'inactive'} /></View><Text style={ui.muted}>{person?.name}</Text><Button label={rule.active ? (id ? 'Nonaktifkan' : 'Deactivate') : (id ? 'Aktifkan' : 'Activate')} tone="quiet" onPress={() => setAvailability(current => current.map(item => item.id === rule.id ? { ...item, active: !item.active } : item))} /></View>; })}<Button label={id ? 'Tambah aturan berulang' : 'Add recurring rule'} icon="add" onPress={() => setMessage(id ? 'Editor aturan didemonstrasikan pada preview; perubahan tidak persisten.' : 'Rule editor is demonstrated in preview; changes are not persistent.')} /></View> : <BackendPending detail={id ? 'Backend saat ini mendukung slot manual, belum memiliki aturan ketersediaan berulang atau waktu terblokir.' : 'The current backend supports manual slots, but not recurring availability or blocked-time rules.'} />}
+    </Card></View><View style={[ui.column, { flexBasis: 340 }]}><Card title={id ? 'Panduan konflik' : 'Conflict guidance'}><ConflictGuide id={id} /><Notice>{id ? 'Pemeriksaan frontend membantu pengguna, tetapi bukan perlindungan konkurensi.' : 'Frontend checks assist users but do not provide concurrency protection.'}</Notice></Card></View></View>}
+
+    <Dialog title={id ? 'Detail janji temu' : 'Appointment details'} visible={!!selected} onClose={() => setSelected(null)}>
+      {selected && <><View style={{ backgroundColor: tone[selected.kind].background, borderRadius: 12, padding: 14, gap: 6 }}><View style={ui.row}><MaterialIcons name={tone[selected.kind].icon} color={tone[selected.kind].color} size={20} /><Badge value={selected.status} /></View><Text style={ui.heading}>{formatDate(selected.date)} · {selected.start}–{selected.end}</Text><Text style={ui.text}>{selected.counselor}</Text><Text style={ui.muted}>{selected.student || (id ? 'Tidak ada mahasiswa terkait' : 'No linked student')}</Text></View>
+      {false ? <><View style={ui.row}><Button label={id ? 'Jadwalkan ulang' : 'Reschedule'} tone="quiet" onPress={() => previewAction('rescheduled')} /><Button label={id ? 'Selesaikan' : 'Complete'} tone="quiet" onPress={() => previewAction('completed')} /><Button label="No-show" tone="quiet" onPress={() => previewAction('no_show')} /><Button label={id ? 'Batalkan' : 'Cancel'} tone="danger" onPress={() => previewAction('cancelled')} /></View><Field label={id ? 'Catatan administratif internal (preview)' : 'Internal administrative note (preview)'} placeholder={id ? 'Tidak masuk laporan atau notifikasi' : 'Excluded from reports and notifications'} multiline /></> : <BackendPending detail={id ? 'Penugasan, penggantian konselor, penjadwalan ulang, no-show, dan catatan internal memerlukan API baru. Tindakan yang didukung API lama tetap tersedia melalui status jadwal.' : 'Assignment, reassignment, rescheduling, no-show, and internal notes require new APIs. Existing schedule status operations remain available through current flows.'} />}</>}
+    </Dialog>
+
+    <Dialog title={id ? 'Tinjau dan tugaskan' : 'Review and assign'} visible={!!request} onClose={() => setRequest(null)}>
+      {request && <><Notice>{request.student} · {request.nim}<br />{id ? 'Preferensi' : 'Preference'}: {request.preference}</Notice><FilterControl label={id ? 'Pilih konselor' : 'Select counselor'} value={counselor} onChange={setCounselor} options={counselorOptions} /><Field label={id ? 'Tanggal' : 'Date'} value={date} onChangeText={setDate} placeholder="2026-10-02" /><View style={ui.row}><Field label={id ? 'Mulai' : 'Start'} value={start} onChangeText={setStart} placeholder="09:00" /><Field label={id ? 'Selesai' : 'End'} value={end} onChangeText={setEnd} placeholder="10:00" /></View><Button label={id ? 'Konfirmasi penugasan preview' : 'Confirm preview assignment'} disabled={!counselor} onPress={handleRequest} /></>}
+    </Dialog>
+
+    <Dialog title={id ? 'Buat slot manual' : 'Create manual slot'} visible={creating} onClose={() => setCreating(false)} busy={!!busy}>
+      <FilterControl label={id ? 'Konselor' : 'Counselor'} value={counselor} onChange={setCounselor} options={counselorOptions} /><Field label={id ? 'Tanggal (YYYY-MM-DD)' : 'Date (YYYY-MM-DD)'} value={date} onChangeText={setDate} /><View style={ui.row}><Field label={id ? 'Mulai' : 'Start'} value={start} onChangeText={setStart} placeholder="09:00" /><Field label={id ? 'Selesai' : 'End'} value={end} onChangeText={setEnd} placeholder="10:00" /></View>{error && <ErrorState message={error} />}<Button label={busy ? (id ? 'Menyimpan…' : 'Saving…') : (id ? 'Buat slot' : 'Create slot')} disabled={!!busy} onPress={() => { void createSlot(); }} />
+    </Dialog>
+  </Page>;
 }
 
-const badge = StyleSheet.create({
-  wrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 999,
-    alignSelf: 'flex-start',
-  },
-  txt: {
-    fontSize: 12,
-    fontFamily: F.bold,
-    letterSpacing: -0.2,
-  },
-});
-
-const fmtDate = (iso?: string | null) => {
-  if (!iso) return '-';
-  return new Date(iso).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
-};
-
-const getInitials = (name?: string | null) => {
-  if (!name) return '??';
-  const clean = name.replace(/^(Bapak|Ibu|Sdr|Sdri|dr|Prof|Dr)\.?\s+/i, '');
-  const parts = clean.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-};
-
-// Micro-interaction press animation wrapper
-const InteractiveBtn = ({ children, style, onPress, disabled }: any) => {
-  const scale = useRef(new Animated.Value(1)).current;
-  
-  const press = () => {
-    if (disabled) return;
-    Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 25, bounciness: 0 }).start();
-  };
-  
-  const release = () => {
-    if (disabled) return;
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 25, bounciness: 4 }).start();
-  };
-
-  return (
-    <Animated.View style={[{ transform: [{ scale }] }, style]}>
-      <Pressable
-        onPressIn={press}
-        onPressOut={release}
-        onPress={onPress}
-        disabled={disabled}
-        style={(state: any) => [
-          { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
-          state.hovered && { opacity: 0.9 }
-        ]}
-      >
-        {children}
-      </Pressable>
-    </Animated.View>
-  );
-};
-
-// Staggered slide and fade-in animation
-const GlacialAnim = ({ children, delay = 0, style }: { children: React.ReactNode; delay?: number; style?: any }) => {
-  const fade = useRef(new Animated.Value(0)).current;
-  const slide = useRef(new Animated.Value(12)).current;
-
-  useEffect(() => {
-    Animated.sequence([
-      Animated.delay(delay),
-      Animated.parallel([
-        Animated.timing(fade, { toValue: 1, duration: 400, useNativeDriver: true }),
-        Animated.timing(slide, { toValue: 0, duration: 400, useNativeDriver: true }),
-      ]),
-    ]).start();
-  }, [delay]);
-
-  return (
-    <Animated.View style={[{ opacity: fade, transform: [{ translateY: slide }] }, style]}>
-      {children}
-    </Animated.View>
-  );
-};
-
-export default function ScheduleManagementScreen() {
-  const [bookings, setBookings] = useState<AdminBooking[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [filterStatus, setFilterStatus] = useState<StatusFilter>('all');
-  const [search, setSearch] = useState('');
-  const [searchFocused, setSearchFocused] = useState(false);
-  const [saving, setSaving] = useState<string | null>(null);
-  const [rejectModal, setRejectModal] = useState<{ open: boolean; id: string; note: string }>({ open: false, id: '', note: '' });
-
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await apiGetAdminBookings();
-      setBookings(res.bookings);
-    } catch (e: any) {
-      setError(e.message || 'Gagal memuat data');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const approve = async (id: string) => {
-    setSaving(id);
-    try {
-      await apiUpdateBookingStatus(id, 'dikonfirmasi');
-      setBookings(prev => prev.map(b => b.booking_id === id ? { ...b, status: 'dikonfirmasi' } : b));
-    } catch (e: any) { alert(e.message); }
-    finally { setSaving(null); }
-  };
-
-  // After the session took place; the student's app then shows it as finished
-  const complete = async (id: string) => {
-    setSaving(id);
-    try {
-      await apiUpdateBookingStatus(id, 'selesai');
-      setBookings(prev => prev.map(b => b.booking_id === id ? { ...b, status: 'selesai' } : b));
-    } catch (e: any) { alert(e.message); }
-    finally { setSaving(null); }
-  };
-
-  const rejectConfirm = async () => {
-    setSaving(rejectModal.id);
-    try {
-      await apiUpdateBookingStatus(rejectModal.id, 'dibatalkan');
-      setBookings(prev => prev.map(b => b.booking_id === rejectModal.id ? { ...b, status: 'dibatalkan' } : b));
-      setRejectModal({ open: false, id: '', note: '' });
-    } catch (e: any) { alert(e.message); }
-    finally { setSaving(null); }
-  };
-
-  const filtered = bookings.filter(b => {
-    const matchStatus = filterStatus === 'all' || b.status === filterStatus;
-    const q = search.toLowerCase();
-    const matchSearch = !q ||
-      b.mahasiswa.nama.toLowerCase().includes(q) ||
-      b.konselor.nama.toLowerCase().includes(q) ||
-      (b.mahasiswa.nim || '').includes(q);
-    return matchStatus && matchSearch;
-  });
-
-  const stats = {
-    menunggu:     bookings.filter(b => b.status === 'menunggu').length,
-    dikonfirmasi: bookings.filter(b => b.status === 'dikonfirmasi').length,
-    dibatalkan:   bookings.filter(b => b.status === 'dibatalkan').length,
-  };
-
-  return (
-    <ScrollView style={s.root} contentContainerStyle={s.content}>
-      {/* Header */}
-      <View style={s.pageHeader}>
-        <View>
-          <Text style={s.pageTitle}>Daftar Konsultasi</Text>
-          <Text style={s.pageSub}>Booking yang dibuat mahasiswa dari menu Konseling di aplikasi.</Text>
-        </View>
-        <Animated.View style={s.refreshBtnWrap}>
-          <InteractiveBtn onPress={load} style={s.refreshBtnInner}>
-            <View style={s.refreshRow}>
-              <MaterialIcons name="refresh" size={16} color={C.primary} />
-              <Text style={s.refreshTxt}>Segarkan</Text>
-            </View>
-          </InteractiveBtn>
-        </Animated.View>
-      </View>
-
-      {/* Stats Cards */}
-      <View style={s.statsRow}>
-        {[
-          { label: 'Menunggu Persetujuan', value: stats.menunggu,     color: C.warning, icon: 'pending-actions', desc: 'Perlu konfirmasi segera' },
-          { label: 'Telah Dikonfirmasi',  value: stats.dikonfirmasi, color: C.success, icon: 'check-circle',    desc: 'Sesi aktif terdaftar' },
-          { label: 'Dibatalkan',          value: stats.dibatalkan,   color: C.danger,  icon: 'cancel',          desc: 'Permintaan ditolak' },
-          { label: 'Total Konsultasi',     value: bookings.length,    color: C.primary, icon: 'event-note',      desc: 'Seluruh riwayat sesi' },
-        ].map((st, i) => (
-          <GlacialAnim key={st.label} delay={i * 60} style={s.statCardWrap}>
-            <View style={s.statCard}>
-              <View style={[s.statIcon, { backgroundColor: st.color + '15' }]}>
-                <MaterialIcons name={st.icon as any} size={22} color={st.color} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.statValue}>{isLoading ? '—' : st.value}</Text>
-                <Text style={s.statLabel}>{st.label}</Text>
-                <Text style={s.statDesc}>{st.desc}</Text>
-              </View>
-            </View>
-          </GlacialAnim>
-        ))}
-      </View>
-
-      {/* Main Panel */}
-      <View style={s.panel}>
-        {/* Toolbar */}
-        <View style={s.toolbar}>
-          <View style={[s.searchWrap, searchFocused && s.searchWrapActive]}>
-            <MaterialIcons name="search" size={18} color={searchFocused ? C.primary : C.textLight} />
-            <TextInput
-              style={s.searchInput}
-              placeholder="Cari nama mahasiswa, NIM, atau nama konselor..."
-              placeholderTextColor={C.textLight}
-              value={search}
-              onChangeText={setSearch}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-            />
-          </View>
-          
-          <View style={s.filterRow}>
-            {(['all', 'menunggu', 'dikonfirmasi', 'selesai', 'dibatalkan'] as StatusFilter[]).map(f => {
-              const active = filterStatus === f;
-              return (
-                <View key={f} style={[s.filterChip, active && s.filterChipActive]}>
-                  <InteractiveBtn onPress={() => setFilterStatus(f)}>
-                    <Text style={[s.filterTxt, active && s.filterTxtActive]}>
-                      {f === 'all' ? 'Semua Status' : statusMeta(f).label}
-                    </Text>
-                  </InteractiveBtn>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Table Head (only labels) */}
-        <View style={s.tableHead}>
-          <Text style={[s.th, { flex: 2 }]}>Detail Mahasiswa</Text>
-          <Text style={[s.th, { flex: 2 }]}>Konselor Pendamping</Text>
-          <Text style={[s.th, { flex: 2.2 }]}>Jadwal Sesi</Text>
-          <Text style={[s.th, { flex: 1.5 }]}>Status</Text>
-          <Text style={[s.th, { flex: 2.3, textAlign: 'center' }]}>Tindakan</Text>
-        </View>
-
-        {/* Content Rows */}
-        <View style={s.listContent}>
-          {isLoading ? (
-            <View style={s.center}>
-              <ActivityIndicator size="large" color={C.primary} />
-              <Text style={s.centerTxt}>Sinkronisasi data...</Text>
-            </View>
-          ) : error ? (
-            <View style={s.center}>
-              <MaterialIcons name="error-outline" size={44} color={C.danger} />
-              <Text style={[s.centerTxt, { color: C.danger, fontFamily: F.bold }]}>{error}</Text>
-              <Pressable onPress={load} style={s.retryBtn}><Text style={s.retryTxt}>Coba Lagi</Text></Pressable>
-            </View>
-          ) : filtered.length === 0 ? (
-            <View style={s.center}>
-              <MaterialIcons name="event-busy" size={44} color={C.textLight} />
-              <Text style={s.centerTxt}>Tidak ada jadwal konsultasi yang sesuai filter.</Text>
-            </View>
-          ) : (
-            filtered.map((b, i) => (
-              <GlacialAnim key={b.booking_id} delay={Math.min(i * 40, 250)}>
-                <View style={[
-                  s.cardRow,
-                  { borderLeftColor: statusMeta(b.status).color }
-                ]}>
-                  {/* Mahasiswa Column */}
-                  <View style={[s.col, { flex: 2 }]}>
-                    <View style={s.profileCell}>
-                      <View style={[s.avatarCircle, { backgroundColor: C.primary + '15' }]}>
-                        <Text style={[s.avatarTxt, { color: C.primary }]}>
-                          {getInitials(b.mahasiswa.nama)}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.tdBold} numberOfLines={1}>{b.mahasiswa.nama}</Text>
-                        <Text style={s.tdSub} numberOfLines={1}>{b.mahasiswa.nim || b.mahasiswa.email || '-'}</Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  {/* Counselor Column */}
-                  <View style={[s.col, { flex: 2 }]}>
-                    <View style={s.profileCell}>
-                      <View style={[s.avatarCircle, { backgroundColor: C.warningBg }]}>
-                        <Text style={[s.avatarTxt, { color: C.warning }]}>
-                          {getInitials(b.konselor.nama)}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.tdBold} numberOfLines={1}>{b.konselor.nama}</Text>
-                        <Text style={s.tdSub} numberOfLines={1}>Konselor kampus</Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  {/* Schedule Column */}
-                  <View style={[s.col, { flex: 2.2 }]}>
-                    <View style={s.dateTimeCell}>
-                      <View style={s.dateIconWrap}>
-                        <MaterialIcons name="event" size={16} color={C.primary} />
-                      </View>
-                      <View>
-                        <Text style={s.tdBold}>{fmtDate(b.jadwal?.tanggal)}</Text>
-                        <Text style={s.tdSub}>{b.jadwal ? `${b.jadwal.waktu_mulai.slice(0, 5)} – ${b.jadwal.waktu_selesai.slice(0, 5)}` : '-'}</Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  {/* Status Badge */}
-                  <View style={[s.col, { flex: 1.5 }]}>
-                    <StatusBadge status={b.status} />
-                  </View>
-
-                  {/* Actions Column */}
-                  <View style={[s.actionCell, { flex: 2.3 }]}>
-                    {b.status === 'menunggu' ? (
-                      <View style={s.actionBtnContainer}>
-                        <View style={s.btnApprove}>
-                          <InteractiveBtn
-                            onPress={() => approve(b.booking_id)}
-                            disabled={saving === b.booking_id}
-                          >
-                            {saving === b.booking_id ? (
-                              <ActivityIndicator size="small" color="#fff" />
-                            ) : (
-                              <View style={s.btnInner}>
-                                <MaterialIcons name="check" size={14} color="#fff" />
-                                <Text style={s.btnApproveTxt}>Setujui</Text>
-                              </View>
-                            )}
-                          </InteractiveBtn>
-                        </View>
-                        
-                        <View style={s.btnReject}>
-                          <InteractiveBtn
-                            onPress={() => setRejectModal({ open: true, id: b.booking_id, note: '' })}
-                            disabled={saving === b.booking_id}
-                          >
-                            <View style={s.btnInner}>
-                              <MaterialIcons name="close" size={14} color={C.danger} />
-                              <Text style={s.btnRejectTxt}>Tolak</Text>
-                            </View>
-                          </InteractiveBtn>
-                        </View>
-                      </View>
-                    ) : b.status === 'dikonfirmasi' ? (
-                      <View style={s.btnComplete}>
-                        <InteractiveBtn onPress={() => complete(b.booking_id)} disabled={saving === b.booking_id}>
-                          {saving === b.booking_id ? (
-                            <ActivityIndicator size="small" color={C.success} />
-                          ) : (
-                            <View style={s.btnInner}>
-                              <MaterialIcons name="done-all" size={14} color={C.success} />
-                              <Text style={s.btnCompleteTxt}>Tandai selesai</Text>
-                            </View>
-                          )}
-                        </InteractiveBtn>
-                      </View>
-                    ) : (
-                      <Text style={s.actionDoneText}>{b.status === 'selesai' ? 'Sesi selesai' : 'Dibatalkan'}</Text>
-                    )}
-                  </View>
-                </View>
-              </GlacialAnim>
-            ))
-          )}
-        </View>
-      </View>
-
-      {/* Reject Modal */}
-      <Modal visible={rejectModal.open} transparent animationType="fade">
-        <View style={modal.overlay}>
-          <View style={modal.card}>
-            <View style={modal.headerIconWrap}>
-              <MaterialIcons name="error-outline" size={28} color={C.danger} />
-            </View>
-            <Text style={modal.title}>Tolak Permintaan Konsultasi</Text>
-            <Text style={modal.sub}>Berikan alasan penolakan untuk dikirimkan kepada mahasiswa (opsional).</Text>
-            
-            <TextInput
-              style={modal.input}
-              multiline
-              numberOfLines={3}
-              placeholder="Contoh: Kuota jadwal konselor penuh, mohon pilih waktu lain."
-              placeholderTextColor={C.textLight}
-              value={rejectModal.note}
-              onChangeText={note => setRejectModal(prev => ({ ...prev, note }))}
-            />
-            
-            <View style={modal.actions}>
-              <View style={modal.btnCancel}>
-                <InteractiveBtn onPress={() => setRejectModal({ open: false, id: '', note: '' })}>
-                  <Text style={modal.btnCancelTxt}>Batal</Text>
-                </InteractiveBtn>
-              </View>
-              <View style={modal.btnReject}>
-                <InteractiveBtn onPress={rejectConfirm} disabled={!!saving}>
-                  {saving ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={modal.btnRejectTxt}>Konfirmasi Tolak</Text>
-                  )}
-                </InteractiveBtn>
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </ScrollView>
-  );
+function ScheduleList({ entries, onSelect, id }: { entries: CalendarEntryView[]; onSelect: (entry: CalendarEntryView) => void; id: boolean }) {
+  return <DataTable rows={entries} rowKey={item => item.id} empty={id ? 'Tidak ada jadwal pada cakupan ini.' : 'No schedules in this scope.'} columns={[
+    { title: id ? 'Tanggal & waktu' : 'Date & time', width: 180, render: item => <View><Text style={[ui.text, { fontWeight: '800' }]}>{formatDate(item.date)}</Text><Text style={ui.muted}>{item.start}–{item.end}</Text></View> },
+    { title: id ? 'Konselor' : 'Counselor', width: 210, render: item => <Text style={ui.text}>{item.counselor}</Text> },
+    { title: id ? 'Mahasiswa / kapasitas' : 'Student / capacity', width: 210, render: item => <Text style={ui.muted}>{item.student || (item.kind === 'available' ? (id ? 'Kapasitas terbuka' : 'Open capacity') : '—')}</Text> },
+    { title: 'Status', width: 130, render: item => <Badge value={item.status} /> },
+    { title: id ? 'Tindakan' : 'Action', width: 100, render: item => <Button label={id ? 'Detail' : 'Details'} tone="quiet" onPress={() => onSelect(item)} /> },
+  ]} />;
 }
 
-const s = StyleSheet.create({
-  btnComplete: { height: 34, justifyContent: 'center', borderRadius: 10, paddingHorizontal: 12, backgroundColor: C.successBg },
-  btnCompleteTxt: { fontSize: 12, fontFamily: F.bold, color: C.success },
-  pageSub: { fontSize: 14, fontFamily: F.medium, color: C.textMuted, marginTop: 4 },
-  root: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 32, paddingBottom: 60 },
-  pageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 },
-  pageEye: { fontSize: 12, fontFamily: F.bold, color: C.textLight, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 },
-  pageTitle: { fontSize: 28, fontFamily: F.extrabold, color: C.text, letterSpacing: -0.5 },
-  
-  refreshBtnWrap: {
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
-    overflow: 'hidden',
-  },
-  refreshBtnInner: {
-    paddingHorizontal: 16,
-    height: '100%',
-  },
-  refreshRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  refreshTxt: { fontSize: 13, fontFamily: F.bold, color: C.primary },
-  
-  statsRow: { flexDirection: 'row', gap: 16, marginBottom: 28, flexWrap: 'wrap' },
-  statCardWrap: { flexBasis: 220, flexGrow: 1 },
-  statCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
-    borderRadius: 16,
-    padding: 20,
-  },
-  statIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  statValue: { fontSize: 26, fontFamily: F.extrabold, color: C.text, lineHeight: 30, letterSpacing: -0.5 },
-  statLabel: { fontSize: 13, fontFamily: F.bold, color: C.text, marginTop: 2 },
-  statDesc: { fontSize: 11, color: C.textMuted, marginTop: 1 },
-  
-  panel: {
-    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
-    borderRadius: 18,
-    overflow: 'hidden',
-  },
-  toolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    flexWrap: 'wrap',
-    backgroundColor: T.bg,
-  },
-  searchWrap: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: T.bg,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    minWidth: 260,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  searchWrapActive: {
-    borderColor: C.primary,
-    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
-  },
-  searchInput: { flex: 1, fontSize: 14, color: C.text, outlineStyle: 'none' as any },
-  
-  filterRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  filterChip: {
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: T.bg,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    overflow: 'hidden',
-  },
-  filterChipActive: {
-    backgroundColor: C.primary,
-    borderColor: C.primary,
-  },
-  filterTxt: { fontSize: 13, fontFamily: F.semibold, color: C.textMuted, paddingHorizontal: 14 },
-  filterTxtActive: { color: '#ffffff', fontFamily: F.bold },
-  
-  tableHead: {
-    flexDirection: 'row',
-    backgroundColor: T.bg,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
-  th: { fontSize: 11, fontFamily: F.extrabold, color: C.textMuted, letterSpacing: 0.8, textTransform: 'uppercase' },
-  
-  listContent: { padding: 16, backgroundColor: C.surface },
-  
-  cardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.surface, boxShadow: Neu.raisedSm,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderLeftWidth: 5,
-  },
-  col: { justifyContent: 'center' },
-  
-  profileCell: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatarCircle: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  avatarTxt: { fontSize: 13, fontFamily: F.extrabold },
-  
-  td: { fontSize: 14, color: C.text },
-  tdBold: { fontSize: 14, fontFamily: F.bold, color: C.text },
-  tdSub: { fontSize: 12, color: C.textMuted, marginTop: 2 },
-  
-  dateTimeCell: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  dateIconWrap: { width: 30, height: 30, borderRadius: 8, backgroundColor: C.primaryLight, alignItems: 'center', justifyContent: 'center' },
-  
-  actionCell: { alignItems: 'center', justifyContent: 'center' },
-  actionBtnContainer: { flexDirection: 'row', gap: 8, width: '100%', justifyContent: 'center' },
-  btnApprove: {
-    flex: 1,
-    maxWidth: 100,
-    height: 34,
-    backgroundColor: C.success,
-    borderRadius: 10,
-    overflow: 'hidden',
-    justifyContent: 'center',
-  },
-  btnApproveTxt: { color: '#fff', fontSize: 13, fontFamily: F.bold, marginLeft: 4 },
-  btnReject: {
-    flex: 1,
-    maxWidth: 80,
-    height: 34,
-    backgroundColor: C.dangerBg,
-    borderRadius: 10,
-    overflow: 'hidden',
-    justifyContent: 'center',
-  },
-  btnRejectTxt: { color: C.danger, fontSize: 13, fontFamily: F.bold, marginLeft: 4 },
-  btnInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  
-  actionDoneText: { fontSize: 13, fontFamily: F.semibold, color: C.textLight },
-  
-  center: { alignItems: 'center', paddingVertical: 54, gap: 12 },
-  centerTxt: { fontSize: 14, color: C.textLight, fontFamily: F.semibold },
-  retryBtn: { paddingHorizontal: 20, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: C.border, marginTop: 8 },
-  retryTxt: { fontSize: 14, fontFamily: F.bold, color: C.primary },
-});
+function WeekCalendar({ entries, days, onSelect, id }: { entries: CalendarEntryView[]; days: string[]; onSelect: (entry: CalendarEntryView) => void; id: boolean }) {
+  const shown = days.slice(0, 7);
+  return <View style={{ borderWidth: 1, borderColor: c.border, borderRadius: 16, overflow: 'hidden', backgroundColor: c.surface }}>
+    <ScrollView horizontal contentContainerStyle={{ minWidth: 980 }}><View style={{ flex: 1 }}><View style={{ flexDirection: 'row', backgroundColor: c.surfaceMuted }}><View style={{ width: 72, padding: 12 }}><Text style={ui.muted}>WIB</Text></View>{shown.map(day => <View key={day} style={{ flex: 1, minWidth: 125, padding: 12, borderLeftWidth: 1, borderColor: c.border }}><Text style={[ui.text, { fontWeight: '800' }]}>{formatDate(day)}</Text></View>)}</View>
+      <View style={{ flexDirection: 'row', minHeight: 430 }}><View style={{ width: 72, paddingVertical: 10 }}>{['08:00','10:00','12:00','14:00','16:00'].map(time => <Text key={time} style={[ui.muted, { height: 80, paddingHorizontal: 10 }]}>{time}</Text>)}</View>{shown.map(day => <View key={day} style={{ flex: 1, minWidth: 125, borderLeftWidth: 1, borderColor: c.border, padding: 7, gap: 7 }}>{entries.filter(item => item.date === day).map(entry => <CalendarBlock key={entry.id} entry={entry} onPress={() => onSelect(entry)} />)}</View>)}</View>
+    </View></ScrollView>
+  </View>;
+}
 
-const modal = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(27,38,49,0.5)', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(4px)' as any },
-  card: {
-    backgroundColor: T.bg,
-    borderRadius: 24,
-    padding: 32,
-    width: 460,
-    maxWidth: '90%',
-    alignItems: 'center',
-  },
-  headerIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: C.dangerBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  title: { fontSize: 20, fontFamily: F.extrabold, color: C.text, marginBottom: 8, textAlign: 'center' },
-  sub: { fontSize: 14, color: C.textMuted, marginBottom: 20, textAlign: 'center', lineHeight: 20 },
-  input: {
-    width: '100%',
-    borderWidth: 1.5,
-    borderColor: C.border,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 14,
-    color: C.text,
-    textAlignVertical: 'top',
-    minHeight: 100,
-    marginBottom: 24,
-    outlineStyle: 'none' as any,
-    backgroundColor: T.bg,
-  },
-  actions: { flexDirection: 'row', gap: 12, width: '100%' },
-  btnCancel: { flex: 1, height: 42, borderRadius: 10, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
-  btnCancelTxt: { fontSize: 14, fontFamily: F.bold, color: C.textMuted },
-  btnReject: { flex: 1, height: 42, borderRadius: 10, backgroundColor: C.danger, overflow: 'hidden' },
-  btnRejectTxt: { fontSize: 14, fontFamily: F.bold, color: '#fff' },
-});
+function MonthCalendar({ entries, onSelect, id }: { entries: CalendarEntryView[]; onSelect: (entry: CalendarEntryView) => void; id: boolean }) {
+  const cells = Array.from({ length: 35 }, (_, index) => index + 1);
+  return <View style={{ flexDirection: 'row', flexWrap: 'wrap', borderTopWidth: 1, borderLeftWidth: 1, borderColor: c.border, backgroundColor: c.surface }}>
+    {cells.map(day => { const date = '2026-09-' + String(day).padStart(2, '0'); const rows = entries.filter(item => item.date === date); return <View key={day} style={{ width: '14.2857%', minWidth: 110, minHeight: 112, padding: 8, borderRightWidth: 1, borderBottomWidth: 1, borderColor: c.border, gap: 5 }}><Text style={[ui.muted, { fontWeight: '800' }]}>{day <= 30 ? day : day - 30}</Text>{rows.slice(0, 2).map(entry => <CalendarBlock key={entry.id} entry={entry} onPress={() => onSelect(entry)} compact />)}{rows.length > 2 && <Text style={ui.muted}>+{rows.length - 2} {id ? 'lainnya' : 'more'}</Text>}</View>; })}
+  </View>;
+}
+
+function CalendarBlock({ entry, onPress, compact }: { entry: CalendarEntryView; onPress: () => void; compact?: boolean }) {
+  const style = tone[entry.kind];
+  return <Pressable accessibilityRole="button" accessibilityLabel={entry.counselor + ' ' + entry.start} onPress={onPress} style={({ pressed }) => ({ borderLeftWidth: 3, borderLeftColor: style.color, backgroundColor: style.background, borderRadius: 8, padding: compact ? 6 : 9, gap: 3, opacity: pressed ? 0.72 : 1 })}><Text numberOfLines={1} style={{ color: style.color, fontSize: compact ? 9 : 11, fontWeight: '900' }}>{entry.start} · {entry.kind}</Text><Text numberOfLines={1} style={{ color: c.text, fontSize: compact ? 9 : 11 }}>{entry.student || entry.counselor}</Text></Pressable>;
+}
+
+function ConflictGuide({ id }: { id: boolean }) {
+  const items = id ? ['Konselor sudah memiliki janji temu', 'Mahasiswa memiliki jadwal lain', 'Waktu diblokir atau tidak tersedia', 'Rentang slot saling tumpang tindih', 'Tanggal atau waktu sudah lewat', 'Slot terisi tidak dapat dihapus'] : ['Counselor is already booked', 'Student has another appointment', 'Time is blocked or unavailable', 'Schedule ranges overlap', 'Date or time is in the past', 'Booked slots cannot be deleted'];
+  return <View style={{ gap: 9 }}>{items.map(item => <View key={item} style={[ui.row, { flexWrap: 'nowrap' }]}><MaterialIcons name="error-outline" color={c.warning} size={17} /><Text style={[ui.muted, { flex: 1 }]}>{item}</Text></View>)}</View>;
+}
