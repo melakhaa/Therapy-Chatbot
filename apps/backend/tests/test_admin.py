@@ -104,10 +104,13 @@ class AdminContractTests(unittest.TestCase):
         self.assertEqual(self.get("/admin/users/not-a-uuid/assessments").status_code, 422)
 
     def test_filter_validation(self):
-        for query in ["severity=critical", "instrument=unknown", "page=0", "page_size=101",
+        # instrument is a free-form code now (versioned instruments), so unknown values just
+        # return no rows; the remaining filters are still validated.
+        for query in ["severity=critical", "page=0", "page_size=101",
                       "date_from=invalid", "date_from=2026-09-30&date_to=2026-09-01"]:
             with self.subTest(query=query):
                 self.assertEqual(self.get("/admin/assessments?" + query).status_code, 422)
+        self.assertEqual(self.get("/admin/assessments?instrument=DASS-21").status_code, 200)
 
     def test_search_parameterized_and_literal(self):
         response = client.get("/admin/assessments", params={"search": "'; DROP TABLE users; --%_"},
