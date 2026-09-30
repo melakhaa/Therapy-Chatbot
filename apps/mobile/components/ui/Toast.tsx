@@ -4,7 +4,7 @@
 // A thin bar shows the time left; tap to dismiss. Use for "saved / failed"; keep dialogs for decisions.
 import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
 import { Animated, Easing, Image, Platform, Pressable, Text, View, StyleSheet, useWindowDimensions } from 'react-native';
-import { BlurView, BlurTargetView } from 'expo-blur';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@prototype/ui-shared';
 import type { Expression } from '@prototype/utils';
@@ -30,7 +30,6 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const slide = useRef(new Animated.Value(0)).current; // 0 hidden, 1 shown
   const timeLeft = useRef(new Animated.Value(1)).current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const blurTarget = useRef<View>(null); // Android blurs this view's content
 
   const hide = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -59,10 +58,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <ToastContext.Provider value={{ show }}>
-      {/* ponytail: casts only bridge RN type copies (expo-blur is hoisted next to the dashboard's RN); runtime uses the app's RN */}
-      <BlurTargetView ref={blurTarget as any} style={s.fill}>
-        {children}
-      </BlurTargetView>
+      {children}
 
       {toast && (
         <Animated.View
@@ -86,8 +82,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             <BlurView
               intensity={Platform.OS === 'android' ? 40 : 60}
               tint="light"
-              blurMethod="dimezisBlurViewSdk31Plus"
-              blurTarget={blurTarget as any}
+              experimentalBlurMethod="dimezisBlurView"
               style={StyleSheet.absoluteFill}
             />
             <View style={[StyleSheet.absoluteFill, s.tint]} />
@@ -109,7 +104,6 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 };
 
 const s = StyleSheet.create({
-  fill: { flex: 1 },
   // Anchored to the top edge, full width: reads as part of the screen, not a sticker on top of it
   sheet: {
     position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000,
