@@ -4,7 +4,8 @@ import type { BookingStatus, Role, Severity } from './admin';
 export interface AttentionSignal {
   log_id: string; user_id: string | null; assessment_id: string | null;
   is_read: boolean; notified_at: string | null; nama: string | null; nim: string | null;
-  signal_type: 'assessment' | 'safety';
+  signal_type: 'assessment' | 'safety'; assessment_categories?: string | null;
+  assessment_category_results?: { category: 'depression' | 'anxiety' | 'stress'; severity: string; scaled_score: number }[] | null;
 }
 export interface AttentionPage {
   signals: AttentionSignal[];
@@ -29,11 +30,13 @@ export interface AnalyticsData {
 }
 export interface AccountDraft { nama: string; email: string; password: string; nim?: string; role: Role }
 
-export function apiGetAttention(params: { signal?: string; unread_only?: boolean; page?: number } = {}) {
+export function apiGetAttention(params: { signal?: string; unread_only?: boolean; page?: number; faculty_ids?: string[]; academic_unit_ids?: string[] } = {}) {
   const query = new URLSearchParams();
   if (params.signal) query.set('signal', params.signal);
   if (params.unread_only) query.set('unread_only', 'true');
   if (params.page) query.set('page', String(params.page));
+  params.faculty_ids?.forEach(value => query.append('faculty_id', value));
+  params.academic_unit_ids?.forEach(value => query.append('academic_unit_id', value));
   return apiFetch<AttentionPage>('/admin/attention?' + query);
 }
 export function apiMarkAttentionRead(id: string) {

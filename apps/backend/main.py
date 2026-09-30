@@ -13,6 +13,7 @@ from routes.journal import router as journal_router
 from routes.admin import router as admin_router
 from routes.admin_operations import router as admin_operations_router
 from routes.iteration3 import admin_router as iteration3_admin_router, student_router as counseling_request_router
+from routes.iteration4 import admin_router as iteration4_admin_router, assessment_router as iteration4_assessment_router
 
 from routes.chat import (
     guardrail_router,
@@ -64,6 +65,8 @@ app.include_router(admin_router)
 app.include_router(admin_operations_router)
 app.include_router(iteration3_admin_router)
 app.include_router(counseling_request_router)
+app.include_router(iteration4_admin_router)
+app.include_router(iteration4_assessment_router)
 
 
 @app.get("/", tags=["Health"])

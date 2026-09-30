@@ -1,22 +1,25 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import { AdminAuth } from '@/components/admin/AdminAuth';
-import { apiCreateReportAudit, apiGetReportData, apiGetScopedAnalytics } from '@prototype/api-client';
+import { apiCreateReportAudit, apiGetComparisonAnalytics, apiGetReportData, apiGetScopedAnalytics } from '@prototype/api-client';
 import { useAdminResource } from '@/hooks/useAdminResource';
 import { Button, ErrorState, LoadingState } from '@/components/ui';
 
 export default function ReportRoute() { return <AdminAuth><FormalReport /></AdminAuth>; }
 
 function FormalReport() {
-  const params = useLocalSearchParams<{ from?: string; to?: string; mode?: string; faculty?: string; department?: string }>();
+  const params = useLocalSearchParams<{ from?: string; to?: string; mode?: string; faculty?: string; department?: string; faculties?: string; units?: string; scope?: string }>();
   const from = typeof params.from === 'string' ? params.from : '2026-09-01', to = typeof params.to === 'string' ? params.to : '2026-09-30';
   const confidential = params.mode === 'confidential';
-  const facultyId = typeof params.faculty === 'string' ? params.faculty : '', unitId = typeof params.department === 'string' ? params.department : '';
+  const facultyIds = useMemo(()=>typeof params.faculties === 'string' ? params.faculties.split(',').filter(Boolean) : typeof params.faculty === 'string' && params.faculty ? [params.faculty] : [],[params.faculties,params.faculty]);
+  const unitIds = useMemo(()=>typeof params.units === 'string' ? params.units.split(',').filter(Boolean) : typeof params.department === 'string' && params.department ? [params.department] : [],[params.units,params.department]);
   const [exportError, setExportError] = useState('');
-  const loader = useCallback(() => apiGetScopedAnalytics(from, to, facultyId || undefined, unitId || undefined), [from, to, facultyId, unitId]); const resource = useAdminResource(loader);
-  const confidentialLoader = useCallback(() => apiGetReportData(from, to, 'confidential', facultyId || undefined, unitId || undefined), [from, to, facultyId, unitId]);
+  const loader = useCallback(() => apiGetScopedAnalytics(from, to, facultyIds, unitIds), [from, to, facultyIds, unitIds]); const resource = useAdminResource(loader);
+  const comparisonLoader = useCallback(() => apiGetComparisonAnalytics(from,to,facultyIds,unitIds),[from,to,facultyIds,unitIds]);
+  const comparisonResource = useAdminResource(comparisonLoader);
+  const confidentialLoader = useCallback(() => apiGetReportData(from, to, 'confidential', facultyIds, unitIds), [from, to, facultyIds, unitIds]);
   const confidentialResource = useAdminResource(confidentialLoader, confidential);
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -26,8 +29,8 @@ function FormalReport() {
   }, []);
   if (resource.loading) return <LoadingState />; if (resource.error || !resource.data) return <View style={{ padding: 30 }}><ErrorState message={resource.error || 'Laporan tidak tersedia.'} retry={resource.reload} /></View>;
   const data = resource.data; const severity = Object.fromEntries(data.severity_distribution.map(item => [item.severity, item.count]));
-  const scope = unitId ? 'Unit Akademik Terpilih' : facultyId ? 'Fakultas Terpilih' : 'Universitas Diponegoro';
-  const exportReport = async () => { try { setExportError(''); await apiCreateReportAudit({ report_mode: confidential ? 'confidential' : 'aggregate', faculty_id: facultyId || undefined, academic_unit_id: unitId || undefined, date_from: from, date_to: to }); if (Platform.OS === 'web') window.print(); } catch { setExportError('Audit ekspor gagal disimpan. Laporan belum dicetak.'); } };
+  const scope = typeof params.scope === 'string' && params.scope ? params.scope : unitIds.length ? `${unitIds.length} Unit Akademik Terpilih` : facultyIds.length ? `${facultyIds.length} Fakultas Terpilih` : 'Universitas Diponegoro';
+  const exportReport = async () => { try { setExportError(''); await apiCreateReportAudit({ report_mode: confidential ? 'confidential' : 'aggregate', faculty_ids: facultyIds, academic_unit_ids: unitIds, date_from: from, date_to: to }); if (Platform.OS === 'web') window.print(); } catch { setExportError('Audit ekspor gagal disimpan. Laporan belum dicetak.'); } };
   return <ScrollView style={r.screen} contentContainerStyle={{ padding: 24 }}>
     <View {...({ className: 'report-toolbar' } as object)} style={r.toolbar}><Button label="Cetak / Simpan PDF" icon="picture-as-pdf" onPress={() => { void exportReport(); }} /><Text style={r.toolbarText}>Pratinjau laporan · tema cetak terang tetap</Text></View>
     {exportError && <ErrorState message={exportError} />}<View {...({ className: 'report-page' } as object)} style={r.page}>
@@ -42,12 +45,13 @@ function FormalReport() {
       <Section number="02" title="Ringkasan eksekutif"><Text style={r.body}>Dalam periode terpilih, Sanctuary mencatat {data.assessment_total} pengiriman asesmen dan {data.booking_total} booking konseling. Angka menggambarkan aktivitas platform dan klasifikasi yang tersimpan. Data ini tidak menetapkan diagnosis, prevalensi klinis, atau hasil perawatan.</Text></Section>
       <Section number="03" title="Statistik utama"><View style={r.metrics}><Metric value={data.registered_students} label="Mahasiswa terdaftar" /><Metric value={data.assessment_total} label="Pengiriman asesmen" /><Metric value={data.booking_total} label="Booking konseling" /><Metric value={severity.severe || 0} label="Tingkat berat tercatat" /></View></Section>
       <Section number="04" title="Distribusi tingkat stres tercatat"><BarRows rows={data.severity_distribution.map(item => ({ label: labelStatus(item.severity), value: item.count }))} /><Text style={r.caption}>Gambar 1. Distribusi klasifikasi stres yang tersimpan selama periode laporan.</Text></Section>
-      <Section number="05" title="Tren asesmen"><View style={r.trend}>{data.assessment_trend.map(item => <View key={item.date} style={r.trendItem}><View style={[r.trendBar, { height: 18 + item.count * 8 }]} /><Text style={r.axis}>{item.date.slice(5)}</Text><Text style={r.axis}>{item.count}</Text></View>)}</View><Text style={r.caption}>Gambar 2. Jumlah pengiriman asesmen berdasarkan tanggal.</Text></Section>
+      <Section number="05" title="Tren asesmen">{comparisonResource.data?<ComparisonReportSeries data={comparisonResource.data}/>:<View style={r.trend}>{data.assessment_trend.map(item => <View key={item.date} style={r.trendItem}><View style={[r.trendBar, { height: 18 + item.count * 8 }]} /><Text style={r.axis}>{item.date.slice(5)}</Text><Text style={r.axis}>{item.count}</Text></View>)}</View>}<Text style={r.caption}>Gambar 2. Setiap seri mempertahankan cakupan akademiknya; cakupan tanpa data tetap dicantumkan.</Text></Section>
+      {!!comparisonResource.data?.category_severity_distribution.length&&<Section number="05A" title="Ringkasan DASS-21 per dimensi"><ReportTable headers={['Cakupan','Dimensi','Kategori','Jumlah']} rows={comparisonResource.data.category_severity_distribution.map(item=>[item.scope_label,labelStatus(item.category),labelStatus(item.severity),String(item.count)])}/><Text style={r.caption}>Kategori Depression, Anxiety, dan Stress dilaporkan terpisah sebagai tingkat gejala dimensional, bukan diagnosis.</Text></Section>}
       <View {...({ className: 'page-break' } as object)}><ReportHeader confidential={confidential} /></View>
       <Section number="06" title="Analisis cakupan akademik"><BarRows rows={data.academic_breakdown.map(item => ({ label: item.academic_unit_name || item.faculty_name, value: item.assessment_count }))} /><Text style={r.caption}>Distribusi pengiriman asesmen berdasarkan cakupan akademik terpilih.</Text></Section>
       <Section number="07" title="Utilisasi konseling"><ReportTable headers={['Status booking', 'Jumlah']} rows={data.booking_status.map(item => [labelStatus(item.status), String(item.count)])} /></Section>
       {confidential && <Section number="08" title="Perhatian khusus"><View style={r.warning}><MaterialIcons name="lock" color="#9e3548" size={20} /><Text style={r.warningText}>Bagian ini bersifat rahasia dan hanya untuk tindak lanjut administratif yang berwenang.</Text></View>{confidentialResource.loading ? <LoadingState /> : confidentialResource.error ? <ErrorState message={confidentialResource.error} retry={confidentialResource.reload} /> : <ReportTable headers={['Mahasiswa', 'NIM', 'Fakultas / Unit', 'Sinyal']} rows={(confidentialResource.data?.attention_students || []).map(item => [item.nama, item.nim || '—', item.academic_unit_name || item.faculty_name || 'Belum ditentukan', item.signal_type])} />}</Section>}
-      <Section number={confidential ? '09' : '08'} title="Catatan metodologi"><Text style={r.body}>Jumlah asesmen adalah jumlah pengiriman, bukan mahasiswa unik. Sanctuary menampilkan tingkat stres yang telah dicatat oleh sistem saat ini dan tidak menghitung ulang skor. Sinyal asesmen dan sinyal Safety Guardrail tetap merupakan kategori yang terpisah.</Text></Section>
+      <Section number={confidential ? '09' : '08'} title="Catatan metodologi"><Text style={r.body}>Jumlah asesmen adalah jumlah pengiriman, bukan mahasiswa unik. Hasil DASS-21 baru mempertahankan Depression, Anxiety, dan Stress secara terpisah sesuai versi instrumen. Catatan legacy/Stress-only tidak disambungkan sebagai seri yang setara. Kategori DASS bukan diagnosis. Sinyal asesmen dan Safety Guardrail tetap terpisah.</Text><Text style={r.body}>Provenance DASS-21: Lovibond & Lovibond (1995); adaptasi Indonesia yang disuplai proyek merujuk Muttaqin & Ripa (2021). Hakim & Aristawati (2023) digunakan sebagai literatur psikometrik pendukung, bukan sumber penulisan kuesioner.</Text></Section>
       <Section number={confidential ? '10' : '09'} title="Pernyataan kerahasiaan"><Text style={r.body}>Laporan ini digunakan untuk pemantauan operasional yang berwenang. Dilarang menyebarkan informasi kepada pihak yang tidak memiliki kewenangan. Laporan tidak memuat percakapan chatbot, jurnal, jawaban asesmen, teks pemicu guardrail, kata sandi, token, atau rahasia internal.</Text></Section>
       <View style={r.footer}><Text style={r.small}>SANCTUARY · UNIVERSITAS DIPONEGORO</Text><Text style={r.small}>Dihasilkan {new Date().toLocaleString('id-ID')}</Text></View>
     </View>
@@ -60,9 +64,10 @@ function Section({ number, title, children }: { number: string; title: string; c
 function Metric({ value, label }: { value: number; label: string }) { return <View style={r.metric}><Text style={r.metricValue}>{value}</Text><Text style={r.metricLabel}>{label}</Text></View>; }
 function InfoGrid({ values }: { values: string[][] }) { return <View style={r.infoGrid}>{values.map(item => <View key={item[0]} style={r.infoItem}><Text style={r.infoLabel}>{item[0].toUpperCase()}</Text><Text style={r.infoValue}>{item[1]}</Text></View>)}</View>; }
 function BarRows({ rows }: { rows: { label: string; value: number }[] }) { const max = Math.max(1, ...rows.map(item => item.value)); return <View style={{ gap: 12 }}>{rows.map(item => <View key={item.label}><View style={r.barLabel}><Text style={r.body}>{item.label}</Text><Text style={r.barValue}>{item.value}</Text></View><View style={r.barTrack}><View style={[r.barFill, { width: item.value / max * 600 }]} /></View></View>)}</View>; }
+function ComparisonReportSeries({data}:{data:import('@prototype/api-client').ComparisonAnalytics}) { const totals=data.selected_scopes.map(scope=>({label:scope.scope_label,value:data.assessment_trend.filter(point=>point.scope_label===scope.scope_label).reduce((sum,point)=>sum+Number(point.assessment_count),0)})); return <><BarRows rows={totals}/><ReportTable headers={['Cakupan','Tanggal','Pengiriman']} rows={data.assessment_trend.map(point=>[point.scope_label,String(point.date),String(point.assessment_count)])}/></>; }
 function ReportTable({ headers, rows }: { headers: string[]; rows: string[][] }) { return <View style={r.table}><View style={r.tableRow}>{headers.map(item => <Text key={item} style={[r.cell, r.tableHead]}>{item}</Text>)}</View>{rows.map((row, index) => <View key={index} style={r.tableRow}>{row.map((item, cell) => <Text key={cell} style={r.cell}>{item}</Text>)}</View>)}</View>; }
 function formatID(value: string) { return new Date(value + 'T12:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }); }
-function labelStatus(value: string) { return ({ minimal: 'Minimal', mild: 'Ringan', moderate: 'Sedang', severe: 'Berat', menunggu: 'Menunggu', dikonfirmasi: 'Dikonfirmasi', selesai: 'Selesai', dibatalkan: 'Dibatalkan' } as Record<string, string>)[value] || value; }
+function labelStatus(value: string) { return ({ depression: 'Depression', anxiety: 'Anxiety', stress: 'Stress', normal: 'Normal', minimal: 'Minimal', mild: 'Ringan', moderate: 'Sedang', severe: 'Berat', extremely_severe: 'Sangat Berat', menunggu: 'Menunggu', dikonfirmasi: 'Dikonfirmasi', selesai: 'Selesai', dibatalkan: 'Dibatalkan' } as Record<string, string>)[value] || value; }
 
 const ink='#18313b', muted='#61757c', brand='#246a63', border='#d9e3e1', pale='#eef5f3';
 const r=StyleSheet.create({

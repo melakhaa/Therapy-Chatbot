@@ -4,7 +4,7 @@ import { router, type Href } from 'expo-router';
 import { apiDeleteAccount, apiGetAccounts, apiGetCounselors, apiGetOrganizationSchedules, type UserRow } from '@prototype/api-client';
 import { errorMessage, useAdminResource } from '@/hooks/useAdminResource';
 import { OperationalMetric, SectionHeader } from './OperationsUI';
-import { AcademicScopeControl, type AcademicScope } from './ProductPrimitives';
+import { AcademicMultiScopeControl, type AcademicMultiScope } from './ProductPrimitives';
 import { useAdminExperience } from './AdminExperience';
 import AccountForm from './AccountForm';
 import { Avatar, Badge, Button, Card, DataTable, Dialog, ErrorState, FilterControl, LoadingState, Notice, Page, Pagination, SearchInput, formatDate, ui } from '@/components/ui';
@@ -12,13 +12,15 @@ import { Avatar, Badge, Button, Card, DataTable, Dialog, ErrorState, FilterContr
 export default function ManagedAccountDirectory({ role }: { role: 'mahasiswa' | 'konselor' }) {
   const students = role === 'mahasiswa'; const { language } = useAdminExperience(); const id = language === 'id';
   const accounts = useAdminResource(apiGetAccounts); const schedules = useAdminResource(apiGetOrganizationSchedules, !students); const counselorProfiles = useAdminResource(apiGetCounselors, !students);
-  const [search, setSearch] = useState(''), [page, setPage] = useState(1), [scope, setScope] = useState<AcademicScope>({ facultyId: '', departmentId: '' }), [active, setActive] = useState('');
+  const [search, setSearch] = useState(''), [page, setPage] = useState(1), [scope, setScope] = useState<AcademicMultiScope>({ facultyIds: [], academicUnitIds: [] }), [active, setActive] = useState('');
   const [form, setForm] = useState<UserRow | 'new' | null>(null), [deleting, setDeleting] = useState<UserRow | null>(null), [profile, setProfile] = useState<UserRow | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [success, setSuccess] = useState('');
   const rows = useMemo(() => (accounts.data?.users || []).filter(user => {
     if (user.role !== role || ![user.nama, user.email, user.nim || ''].some(value => value.toLowerCase().includes(search.toLowerCase()))) return false;
     if (!students) { const profile = counselorProfiles.data?.counselors.find(item => item.user_id === user.user_id); return !active || (active === 'active' ? profile?.active !== false : profile?.active === false); }
-    return (!scope.facultyId || user.faculty_id === scope.facultyId) && (!scope.departmentId || user.academic_unit_id === scope.departmentId);
+    const facultyId = user.faculty_id;
+    const unitId = user.academic_unit_id;
+    return (!scope.facultyIds.length || !!facultyId && scope.facultyIds.includes(facultyId)) && (!scope.academicUnitIds.length || !!unitId && scope.academicUnitIds.includes(unitId));
   }), [accounts.data, active, counselorProfiles.data, role, search, students, scope]);
   const current = Math.min(page, Math.max(1, Math.ceil(rows.length / 10)));
   const upcoming = schedules.data?.schedules.filter(slot => !['selesai', 'dibatalkan'].includes(slot.status)).length || 0;
@@ -32,7 +34,7 @@ export default function ManagedAccountDirectory({ role }: { role: 'mahasiswa' | 
     {success && <Notice>{success}</Notice>}
     <View style={ui.grid}>
       <View style={[ui.column, { flexBasis: 620 }]}><Card><SectionHeader title={students ? (id ? 'Direktori mahasiswa' : 'Student directory') : (id ? 'Direktori konselor' : 'Counselor directory')} description={students ? (id ? 'Cari identitas dan buka catatan terstruktur.' : 'Search identities and open structured records.') : (id ? 'Tinjau profil, jadwal, dan kapasitas.' : 'Review profiles, schedules, and capacity.')} /><View style={ui.row}><SearchInput value={search} onChangeText={value => { setSearch(value); setPage(1); }} /><Button label={id ? 'Muat ulang' : 'Refresh'} icon="refresh" tone="quiet" onPress={() => { accounts.reload(); schedules.reload(); }} /></View>{!students && <FilterControl label={id ? 'Status profil' : 'Profile status'} value={active} onChange={setActive} options={[{ value: '', label: id ? 'Semua' : 'All' }, { value: 'active', label: id ? 'Aktif' : 'Active' }, { value: 'pending', label: id ? 'Belum tersedia' : 'Unavailable' }]} />}</Card></View>
-      {students && <View style={[ui.column, { flexBasis: 390 }]}><Card><AcademicScopeControl value={scope} onChange={value => { setScope(value); setPage(1); }} compact /></Card></View>}
+      {students && <View style={[ui.column, { flexBasis: 390 }]}><Card><AcademicMultiScopeControl value={scope} onChange={value => { setScope(value); setPage(1); }} compact /></Card></View>}
     </View>
     <Card>
       {accounts.loading ? <LoadingState /> : accounts.error ? <ErrorState message={accounts.error} retry={accounts.reload} /> : <><DataTable rows={rows.slice((current - 1) * 10, current * 10)} rowKey={user => user.user_id} empty={students ? (id ? 'Tidak ada mahasiswa yang cocok.' : 'No students match these filters.') : (id ? 'Tidak ada konselor yang cocok.' : 'No counselors match these filters.')} columns={[
@@ -56,6 +58,10 @@ export default function ManagedAccountDirectory({ role }: { role: 'mahasiswa' | 
 
 function CounselorDetail({ user, preview, id }: { user: UserRow; preview?: { title?: string | null; specialization?: string | null; active?: boolean }; id: boolean }) {
   return <View style={{ gap: 16 }}><View style={[ui.row, { flexWrap: 'nowrap' }]}><Avatar name={user.nama} /><View style={{ flex: 1 }}><Text style={ui.heading}>{user.nama}</Text><Text style={ui.muted}>{user.email}</Text></View><Badge value={preview?.active === false ? 'inactive' : 'active'} /></View>
-    <View style={ui.grid}><View style={ui.column}><Text style={ui.muted}>{id ? 'GELAR' : 'TITLE'}</Text><Text style={ui.text}>{preview?.title || '—'}</Text></View><View style={ui.column}><Text style={ui.muted}>{id ? 'SPESIALISASI' : 'SPECIALIZATION'}</Text><Text style={ui.text}>{preview?.specialization || '—'}</Text></View></View><Button label={id ? 'Kelola ketersediaan' : 'Manage availability'} onPress={() => router.push(('/schedule?counselor=' + user.user_id) as Href)} />
+    <View style={{gap:8}}><Text style={[ui.muted,{fontWeight:'900'}]}>PROFILE</Text><View style={ui.grid}><View style={ui.column}><Text style={ui.muted}>{id ? 'GELAR' : 'TITLE'}</Text><Text style={ui.text}>{preview?.title || '—'}</Text></View><View style={ui.column}><Text style={ui.muted}>{id ? 'SPESIALISASI' : 'SPECIALIZATION'}</Text><Text style={ui.text}>{preview?.specialization || '—'}</Text></View></View></View>
+    <View style={{gap:6}}><Text style={[ui.muted,{fontWeight:'900'}]}>{id?'JADWAL TERSEDIA MINGGUAN':'WEEKLY AVAILABILITY'}</Text><Text style={ui.text}>{id?'Atur satu atau beberapa jendela waktu untuk setiap hari.':'Configure one or more time windows for each weekday.'}</Text></View>
+    <View style={{gap:6}}><Text style={[ui.muted,{fontWeight:'900'}]}>{id?'PENGECUALIAN':'EXCEPTIONS'}</Text><Text style={ui.text}>{id?'Blokir tanggal tertentu tanpa mengubah jadwal mingguan.':'Block specific dates without changing the weekly schedule.'}</Text></View>
+    <View style={{gap:6}}><Text style={[ui.muted,{fontWeight:'900'}]}>{id?'KONSELING MENDATANG':'UPCOMING COUNSELING'}</Text><Text style={ui.text}>{id?'Lihat agenda konselor pada kalender konseling.':'Review this counselor’s upcoming calendar.'}</Text></View>
+    <Button label={id ? 'Kelola jadwal & ketersediaan' : 'Manage schedule & availability'} onPress={() => router.push(('/schedule?counselor=' + user.user_id) as Href)} />
   </View>;
 }

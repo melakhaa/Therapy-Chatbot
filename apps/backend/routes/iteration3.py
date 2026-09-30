@@ -1,10 +1,11 @@
 """Additive Iteration 3C APIs; private source content is never selected."""
 from datetime import date, datetime, time, timezone
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from psycopg.errors import ExclusionViolation, ForeignKeyViolation, UniqueViolation
+from psycopg.types.json import Jsonb
 from auth import get_current_user, require_role
 from core.db import db, query
 
@@ -37,6 +38,7 @@ class NoteBody(BaseModel):
     note_text:str=Field(min_length=1,max_length=4000); counseling_request_id:Optional[UUID]=None; appointment_id:Optional[UUID]=None
 class AuditBody(BaseModel):
     report_mode:Literal["aggregate","confidential"]; faculty_id:Optional[UUID]=None; academic_unit_id:Optional[UUID]=None
+    faculty_ids:List[UUID]=Field(default_factory=list,max_length=20); academic_unit_ids:List[UUID]=Field(default_factory=list,max_length=50)
     date_from:date; date_to:date
 
 def clean(v): return (v.strip() or None) if v else None
@@ -267,9 +269,10 @@ def note_create(b:NoteBody,admin=Depends(admin_access)):
 @admin_router.post("/reports/audits",status_code=201)
 def audit_create(b:AuditBody,admin=Depends(admin_access)):
     if b.date_from>b.date_to: raise HTTPException(422,"Tanggal awal harus sebelum tanggal akhir")
-    row=query("insert into report_export_audits(admin_user_id,report_mode,faculty_id,academic_unit_id,date_from,date_to) values(%s,%s,%s,%s,%s,%s) "
-              "returning report_export_audit_id,admin_user_id,report_mode,faculty_id,academic_unit_id,date_from,date_to,exported_at",
-              (admin.id,b.report_mode,str(b.faculty_id) if b.faculty_id else None,str(b.academic_unit_id) if b.academic_unit_id else None,b.date_from,b.date_to),user_id=admin.id)[0]
+    scope={"faculty_ids":[str(value) for value in b.faculty_ids],"academic_unit_ids":[str(value) for value in b.academic_unit_ids]}
+    row=query("insert into report_export_audits(admin_user_id,report_mode,faculty_id,academic_unit_id,date_from,date_to,scope) values(%s,%s,%s,%s,%s,%s,%s) "
+              "returning report_export_audit_id,admin_user_id,report_mode,faculty_id,academic_unit_id,date_from,date_to,scope,exported_at",
+              (admin.id,b.report_mode,str(b.faculty_id) if b.faculty_id else None,str(b.academic_unit_id) if b.academic_unit_id else None,b.date_from,b.date_to,Jsonb(scope)),user_id=admin.id)[0]
     return {"audit":row}
 
 
@@ -324,28 +327,28 @@ def students(search:str="",faculty_id:Optional[UUID]=None,academic_unit_id:Optio
     return {"students":rows,"total":total,"page":page,"page_size":page_size}
 
 @admin_router.get("/analytics/scoped")
-def scoped_analytics(date_from:date,date_to:date,faculty_id:Optional[UUID]=None,academic_unit_id:Optional[UUID]=None,admin=Depends(admin_access)):
+def scoped_analytics(date_from:date,date_to:date,faculty_id:List[UUID]=Query(default=[]),academic_unit_id:List[UUID]=Query(default=[]),admin=Depends(admin_access)):
     if date_from>date_to: raise HTTPException(422,"Tanggal awal harus sebelum tanggal akhir")
-    fid=str(faculty_id) if faculty_id else None; uid=str(academic_unit_id) if academic_unit_id else None
+    fid=[str(value) for value in dict.fromkeys(faculty_id)] or None; uid=[str(value) for value in dict.fromkeys(academic_unit_id)] or None
     p=(date_from,date_to,fid,fid,uid,uid)
     src=("from assessments a left join student_academic_profiles sap on sap.user_id=a.user_id "
          "where a.taken_at>=%s::date and a.taken_at<%s::date+interval '1 day' "
-         "and (%s::uuid is null or sap.faculty_id=%s::uuid) and (%s::uuid is null or sap.academic_unit_id=%s::uuid)")
+         "and (%s::uuid[] is null or sap.faculty_id=any(%s::uuid[])) and (%s::uuid[] is null or sap.academic_unit_id=any(%s::uuid[]))")
     severity=query("select a.severity,count(*) count "+src+" group by a.severity",p,user_id=admin.id)
     trend=query("select a.taken_at::date date,count(*) count "+src+" group by 1 order by 1",p,user_id=admin.id)
     student_count=query("select count(*) count from users u left join student_academic_profiles sap on sap.user_id=u.user_id "
-                        "where u.role='mahasiswa' and (%s::uuid is null or sap.faculty_id=%s::uuid) "
-                        "and (%s::uuid is null or sap.academic_unit_id=%s::uuid)",(fid,fid,uid,uid),user_id=admin.id)[0]["count"]
+                         "where u.role='mahasiswa' and (%s::uuid[] is null or sap.faculty_id=any(%s::uuid[])) "
+                         "and (%s::uuid[] is null or sap.academic_unit_id=any(%s::uuid[]))",(fid,fid,uid,uid),user_id=admin.id)[0]["count"]
     bookings=query("select b.status,count(*) count from booking_konsultasi b join jadwal_konsultasi j on j.jadwal_id=b.jadwal_id "
                    "left join student_academic_profiles sap on sap.user_id=b.user_id where j.tanggal>=%s::date and j.tanggal<=%s::date "
-                   "and (%s::uuid is null or sap.faculty_id=%s::uuid) and (%s::uuid is null or sap.academic_unit_id=%s::uuid) group by b.status",
+                   "and (%s::uuid[] is null or sap.faculty_id=any(%s::uuid[])) and (%s::uuid[] is null or sap.academic_unit_id=any(%s::uuid[])) group by b.status",
                    p,user_id=admin.id)
     academic=query("select f.name faculty_name,au.name academic_unit_name,count(*) assessment_count,"
                    "count(*) filter(where a.severity in ('moderate','severe')) attention_count "
                    "from assessments a left join student_academic_profiles sap on sap.user_id=a.user_id "
                    "join faculties f on f.faculty_id=sap.faculty_id left join academic_units au on au.academic_unit_id=sap.academic_unit_id "
                    "where a.taken_at>=%s::date and a.taken_at<%s::date+interval '1 day' "
-                   "and (%s::uuid is null or sap.faculty_id=%s::uuid) and (%s::uuid is null or sap.academic_unit_id=%s::uuid) "
+                    "and (%s::uuid[] is null or sap.faculty_id=any(%s::uuid[])) and (%s::uuid[] is null or sap.academic_unit_id=any(%s::uuid[])) "
                    "group by f.name,au.name order by assessment_count desc",p,user_id=admin.id)
     return {"date_from":date_from,"date_to":date_to,"registered_students":student_count,
             "assessment_total":sum(x["count"] for x in severity),"severity_distribution":severity,
@@ -354,24 +357,24 @@ def scoped_analytics(date_from:date,date_to:date,faculty_id:Optional[UUID]=None,
 
 @admin_router.get("/reports/data")
 def report_data(date_from:date,date_to:date,mode:Literal["aggregate","confidential"]="aggregate",
-                faculty_id:Optional[UUID]=None,academic_unit_id:Optional[UUID]=None,admin=Depends(admin_access)):
+                 faculty_id:List[UUID]=Query(default=[]),academic_unit_id:List[UUID]=Query(default=[]),admin=Depends(admin_access)):
     aggregate=scoped_analytics(date_from,date_to,faculty_id,academic_unit_id,admin)
     aggregate["mode"]=mode; aggregate["attention_students"]=[]
     if mode=="confidential":
-        fid=str(faculty_id) if faculty_id else None; uid=str(academic_unit_id) if academic_unit_id else None
+        fid=[str(value) for value in dict.fromkeys(faculty_id)] or None; uid=[str(value) for value in dict.fromkeys(academic_unit_id)] or None
         aggregate["attention_students"]=query(
             "select u.nama,u.nim,f.name faculty_name,au.name academic_unit_name,('Asesmen: '||a.severity) signal_type,a.taken_at signal_date "
             "from assessments a join users u on u.user_id=a.user_id left join student_academic_profiles sap on sap.user_id=u.user_id "
             "left join faculties f on f.faculty_id=sap.faculty_id left join academic_units au on au.academic_unit_id=sap.academic_unit_id "
             "where a.severity in ('moderate','severe') and a.taken_at>=%s::date and a.taken_at<%s::date+interval '1 day' "
-            "and (%s::uuid is null or sap.faculty_id=%s::uuid) and (%s::uuid is null or sap.academic_unit_id=%s::uuid) order by a.taken_at desc",
+            "and (%s::uuid[] is null or sap.faculty_id=any(%s::uuid[])) and (%s::uuid[] is null or sap.academic_unit_id=any(%s::uuid[])) order by a.taken_at desc",
             (date_from,date_to,fid,fid,uid,uid),user_id=admin.id)
         aggregate["attention_students"] += query(
             "select u.nama,u.nim,f.name faculty_name,au.name academic_unit_name,'Safety Guardrail' signal_type,g.notified_at signal_date "
             "from guardrail_logs g join users u on u.user_id=g.user_id left join student_academic_profiles sap on sap.user_id=u.user_id "
             "left join faculties f on f.faculty_id=sap.faculty_id left join academic_units au on au.academic_unit_id=sap.academic_unit_id "
             "where g.source='chat' and g.assessment_id is null and g.notified_at>=%s::date and g.notified_at<%s::date+interval '1 day' "
-            "and (%s::uuid is null or sap.faculty_id=%s::uuid) and (%s::uuid is null or sap.academic_unit_id=%s::uuid) order by g.notified_at desc",
+            "and (%s::uuid[] is null or sap.faculty_id=any(%s::uuid[])) and (%s::uuid[] is null or sap.academic_unit_id=any(%s::uuid[])) order by g.notified_at desc",
             (date_from,date_to,fid,fid,uid,uid),user_id=admin.id)
     return aggregate
 

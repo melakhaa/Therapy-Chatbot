@@ -37,3 +37,6 @@ export const adminTheme: AdminTokens = {
   success: 'var(--admin-success)', successSoft: 'var(--admin-success-soft)', blue: 'var(--admin-blue)', blueSoft: 'var(--admin-blue-soft)',
   overlay: 'var(--admin-overlay)', focusRing: 'var(--admin-focus-ring)',
 };
+
+/** Ordered categorical palette for comparison series; separate from semantic status colors. */
+export const comparisonSeries = ['#246a63', '#7464b5', '#3974aa', '#b16835', '#9b4d7b', '#4f7c3b', '#6b5a9c', '#2f7f8f'] as const;

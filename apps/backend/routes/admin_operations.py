@@ -4,7 +4,7 @@ The responses deliberately exclude assessment answers, booking notes, private te
 and raw guardrail trigger input.
 """
 from datetime import date, time, timedelta
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -44,6 +44,8 @@ class HotlineUpdate(BaseModel):
 def attention_signals(
     signal: Optional[Literal["assessment", "safety"]] = None,
     unread_only: bool = False,
+    faculty_id: List[UUID] = Query(default=[]),
+    academic_unit_id: List[UUID] = Query(default=[]),
     page: int = Query(1, ge=1, le=2147483647),
     page_size: int = Query(20, ge=1, le=100),
     admin=Depends(admin_access),
@@ -51,11 +53,18 @@ def attention_signals(
     # Older assessment logs only recorded a safe prefix in triggered_input. It is
     # used solely for classification here and is never returned to the client.
     kind = "case when g.assessment_id is not null or g.triggered_input like '[ASSESSMENT]%' then 'assessment' else 'safety' end"
+    faculties = [str(value) for value in dict.fromkeys(faculty_id)] or None
+    units = [str(value) for value in dict.fromkeys(academic_unit_id)] or None
+    if len(faculties or []) > 20 or len(units or []) > 50:
+        raise HTTPException(422, "Terlalu banyak cakupan akademik dipilih")
     source = (
         "from guardrail_logs g left join users u on u.user_id = g.user_id "
-        f"where (%s::text is null or ({kind}) = %s) and (%s = false or g.is_read = false)"
+        "left join student_academic_profiles sap on sap.user_id=g.user_id "
+        f"where (%s::text is null or ({kind}) = %s) and (%s = false or g.is_read = false) "
+        "and (%s::uuid[] is null or sap.faculty_id=any(%s::uuid[])) "
+        "and (%s::uuid[] is null or sap.academic_unit_id=any(%s::uuid[]))"
     )
-    params = (signal, signal, unread_only)
+    params = (signal, signal, unread_only, faculties, faculties, units, units)
     summary_rows = query(
         f"select ({kind}) as signal_type, count(*) as total, "
         f"count(*) filter (where g.is_read = false) as unread {source} group by 1",
@@ -63,7 +72,9 @@ def attention_signals(
     )
     rows = query(
         "select g.log_id, g.user_id, g.assessment_id, g.is_read, g.notified_at, "
-        f"u.nama, u.nim, ({kind}) as signal_type {source} "
+        "u.nama, u.nim,(select string_agg(distinct r.category,', ' order by r.category) from assessment_category_results r where r.assessment_id=g.assessment_id) assessment_categories, "
+        "(select jsonb_agg(jsonb_build_object('category',r.category,'severity',r.severity,'scaled_score',r.scaled_score) order by r.category) from assessment_category_results r where r.assessment_id=g.assessment_id) assessment_category_results, "
+        f"({kind}) as signal_type {source} "
         "order by g.notified_at desc nulls last, g.log_id desc limit %s offset %s",
         params + (page_size, (page - 1) * page_size), user_id=admin.id,
     )

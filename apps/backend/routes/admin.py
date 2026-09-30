@@ -1,6 +1,6 @@
 """Read-only administration over existing tables, with request-scoped RLS."""
 from datetime import date
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -16,11 +16,11 @@ directory_access = require_role("admin", "pemangku_jabatan")
 def list_assessments(
     search: str = Query("", max_length=100),
     severity: Optional[Literal["minimal", "mild", "moderate", "severe"]] = None,
-    instrument: Optional[Literal["PHQ-9", "GAD-7", "SRQ", "custom"]] = None,
+    instrument: Optional[str] = Query(default=None, max_length=40),
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
-    faculty_id: Optional[UUID] = None,
-    academic_unit_id: Optional[UUID] = None,
+    faculty_id: List[UUID] = Query(default=[]),
+    academic_unit_id: List[UUID] = Query(default=[]),
     page: int = Query(1, ge=1, le=2147483647),
     page_size: int = Query(20, ge=1, le=100),
     operator=Depends(operator_access),
@@ -37,19 +37,28 @@ def list_assessments(
           and (%s::date is null or a.taken_at < %s::date + interval '1 day')
           and (%s = '' or u.nama ilike %s or u.nim ilike %s
                or a.user_id::text ilike %s)
-          and (%s::uuid is null or sap.faculty_id = %s::uuid)
-          and (%s::uuid is null or sap.academic_unit_id = %s::uuid)
+          and (%s::uuid[] is null or sap.faculty_id = any(%s::uuid[]))
+          and (%s::uuid[] is null or sap.academic_unit_id = any(%s::uuid[]))
     """
     term = "%" + search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-    faculty = str(faculty_id) if faculty_id else None
-    academic_unit = str(academic_unit_id) if academic_unit_id else None
+    faculty = [str(value) for value in dict.fromkeys(faculty_id)] or None
+    academic_unit = [str(value) for value in dict.fromkeys(academic_unit_id)] or None
+    if len(faculty or []) > 20 or len(academic_unit or []) > 50:
+        raise HTTPException(422, "Terlalu banyak cakupan akademik dipilih")
+    if faculty and academic_unit:
+        valid = query(
+            "select count(*) total from academic_units where academic_unit_id=any(%s::uuid[]) and faculty_id=any(%s::uuid[])",
+            (academic_unit, faculty), user_id=operator.id,
+        )[0]["total"]
+        if valid != len(academic_unit):
+            raise HTTPException(422, "Unit akademik harus berada dalam fakultas yang dipilih")
     params = (severity, severity, instrument, instrument, date_from, date_from,
               date_to, date_to, search, term, term, term,
               faculty, faculty, academic_unit, academic_unit)
     total = query("select count(*) as total " + where, params, user_id=operator.id)[0]["total"]
     rows = query(
-        "select a.assessment_id, a.user_id, a.instrument_type, a.score, "
-        "a.severity, a.taken_at, u.nama, u.nim " + where +
+        "select a.assessment_id, a.user_id, a.instrument_type, a.instrument_version_id, a.score, "
+        "a.severity, a.taken_at, u.nama, u.nim,(select jsonb_agg(jsonb_build_object('category',r.category,'raw_score',r.raw_score,'scaled_score',r.scaled_score,'severity',r.severity) order by r.category) from assessment_category_results r where r.assessment_id=a.assessment_id) category_results " + where +
         " order by a.taken_at desc nulls last, a.assessment_id desc limit %s offset %s",
         params + (page_size, (page - 1) * page_size), user_id=operator.id,
     )
@@ -80,8 +89,9 @@ def user_assessments(
     total = query("select count(*) as total from assessments where user_id = %s",
                   (uid,), user_id=operator.id)[0]["total"]
     rows = query(
-        "select assessment_id, user_id, instrument_type, score, severity, taken_at "
-        "from assessments where user_id = %s order by taken_at desc nulls last, assessment_id desc "
+        "select a.assessment_id,a.user_id,a.instrument_type,a.instrument_version_id,a.score,a.severity,a.taken_at,"
+        "(select jsonb_agg(jsonb_build_object('category',r.category,'raw_score',r.raw_score,'scaled_score',r.scaled_score,'severity',r.severity) order by r.category) from assessment_category_results r where r.assessment_id=a.assessment_id) category_results "
+        "from assessments a where a.user_id = %s order by a.taken_at desc nulls last,a.assessment_id desc "
         "limit %s offset %s", (uid, page_size, (page - 1) * page_size), user_id=operator.id,
     )
     return {"assessments": rows, "total": total, "page": page, "page_size": page_size}
