@@ -17,6 +17,14 @@ language-specific conventions live in their own docs — see the full index in t
   [security-conventions.md](security-conventions.md).
 - High-risk messages (`guardrail` route) always return the hardcoded crisis response; never let an LLM
   rewrite it. See [semantic-router-conventions.md](semantic-router-conventions.md).
+- **Clinical instrument definitions are versioned and immutable once published.** Change wording,
+  scoring, or severity bands only through a new draft → validate → publish flow; published versions
+  are protected by DB triggers. DASS-21 wording/scoring is seeded by `db/migrations/` from the
+  approved source — never edit it in app code. See [postgresql-conventions.md](postgresql-conventions.md).
+- **Assessment answers are identifiers, not scores.** Clients submit `(question_id, option_id)`
+  pairs; the backend resolves option scores server-side and never trusts a score from the request.
+  Elevated DASS-21 categories notify admins with a category:severity summary only — no answers.
+  See [security-conventions.md](security-conventions.md), [fastapi-conventions.md](fastapi-conventions.md).
 - Admin operational endpoints (schedules, hotlines, attention, analytics) are `admin`-only and must
   never return raw chat, journal, assessment-answer, or guardrail-trigger content. See
   [fastapi-conventions.md](fastapi-conventions.md).

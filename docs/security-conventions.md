@@ -23,8 +23,11 @@
 
 `mahasiswa | konselor | admin | pemangku_jabatan` in `users.role`. Dashboard reads are tiered:
 `/admin/assessments` and the per-user histories allow `konselor`, `admin`, `pemangku_jabatan`;
-`/admin/users/{id}` (identity profile) and every operational route (schedules, hotlines, attention,
-analytics) require `admin` (or `admin`/`pemangku_jabatan` for the profile). See
+`/admin/users/{id}` (identity profile), the iteration3/4 admin platform (academic scopes,
+counseling queue/appointments, notifications, instrument authoring, comparison analytics,
+multi-counselor calendar), and every operational route (schedules, hotlines, attention, analytics)
+require `admin` (or `admin`/`pemangku_jabatan` for the profile). `/counseling/requests` is for
+authenticated students; `/assessment/instrument/submit` requires `mahasiswa`. See
 [postgresql-conventions.md](postgresql-conventions.md) for the RLS side.
 
 ## Row Level Security
@@ -43,9 +46,10 @@ analytics) require `admin` (or `admin`/`pemangku_jabatan` for the profile). See
 - All chat content stored in `messages` is encrypted before insert and decrypted on read
   (`GET /chat/history`, scoped by RLS to the caller's own `user_id`).
 - `guardrail_logs.triggered_input` is encrypted too, for crisis text from chat.
-- Assessment-triggered guardrail rows store **no clinical detail at all**: `source='assessment'`
-  plus `assessment_id`, and `triggered_input` stays NULL. The score/severity is already in
-  `assessments`, and admin endpoints must not expose it here.
+- Legacy PHQ-9/GAD-7/SRQ assessment rows store **no clinical detail at all**: `source='assessment'`
+  plus `assessment_id`, `triggered_input` NULL. DASS-21 elevated submissions store only a
+  `[ASSESSMENT]`-prefixed category:severity summary (no answers, wording, or scores), which the
+  dashboard uses to separate `assessment` signals from chat `safety` signals.
 - Requires `ENCRYPTION_KEY`; the module raises at import if missing.
 
 ```bash
@@ -64,6 +68,16 @@ python -c "import os,base64; print(base64.urlsafe_b64encode(os.urandom(32)).deco
   turn's routing — a crisis message must never reach the model by either path.
 - Moderate/severe assessments also write to `guardrail_logs` (`source='assessment'`).
 
+## Clinical data trust boundary
+
+- Instrument definitions and approval state live in the DB; only `admin` edits drafts, and
+  published content is immutable (DB triggers). `core/dass21.py` is the single scoring authority.
+- Students submit identifiers (`instrument_version_id`, `question_id`, `option_id`); the server
+  resolves scores, computes categories, and stores them. `assessments.answers` holds identifier
+  references only — never trust a client-supplied score, category, or severity.
+- Admin notifications and attention signals expose aggregates only (`category:severity`); question
+  wording is returned by the instrument endpoints, not copied into logs or notifications.
+
 ## Secrets / env
 
 Backend `.env` (`apps/backend/.env`, gitignored — copy from `.env.example`):
@@ -81,4 +95,5 @@ backend, so there are currently no `EXPO_PUBLIC_*` secrets to configure. Never p
 ## Rules
 
 - Never log or return raw chat/journal content; keep it encrypted at rest.
+- Never trust client-supplied assessment scores; resolve them from option IDs server-side.
 - Don't commit `.env` files (`apps/backend/.env` is gitignored).

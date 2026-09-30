@@ -52,8 +52,9 @@ Core React Native rules live in [react-native-conventions.md](react-native-conve
   helpers, ...). Never call `fetch` directly in a screen.
 - Auth state via `useAuth()` from `@prototype/ui-shared`.
 - Chat logic lives in `apps/mobile/hooks/useChat.ts`.
-- Dashboard API calls are wrapped in `apps/dashboard/services/operationsData.ts` and consumed via
-  `useAdminResource`; row/page interfaces come from `packages/api-client/src/admin*.ts`.
+- Dashboard API calls are wrapped in `apps/dashboard/services/{adminData,adminProductData,operationsData}.ts`
+  and consumed via `useAdminResource`; row/page interfaces come from
+  `packages/api-client/src/{admin,admin-operations,iteration3,iteration4}*.ts`.
 
 ## Env
 

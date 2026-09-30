@@ -9,7 +9,7 @@ see [fastapi-conventions.md](fastapi-conventions.md) and [pydantic-conventions.m
 apps/backend/
 ├── main.py          # app entry
 ├── auth.py          # auth guards
-├── core/            # cross-cutting (security.py, db.py)
+├── core/            # cross-cutting (security.py, db.py, dass21.py)
 ├── routes/          # API routers
 ├── services/        # business/AI logic
 ├── tests/           # isolated unittest contract tests (no DB, no AI)
@@ -17,9 +17,10 @@ apps/backend/
 ```
 
 Modules are top-level, **not** a package: imports are `from auth import ...`, `from core.security import ...`,
-`from services.chatbot.core import ...`. Always run from `apps/backend`. Scripts in `scripts/` that
-import app modules add the backend root to `sys.path` before the import (`embed.py`,
-`test_rag_performance.py`) so direct `python scripts/x.py` invocation works.
+`from services.chatbot.core import ...`. Always run from `apps/backend`. Pure business rules live in
+`core/` as plain functions with no DB/AI imports (e.g. `core/dass21.py` scoring/validation); routes do
+the I/O. Scripts in `scripts/` that import app modules add the backend root to `sys.path` before the
+import (`embed.py`, `test_rag_performance.py`) so direct `python scripts/x.py` invocation works.
 
 ## Dependencies
 

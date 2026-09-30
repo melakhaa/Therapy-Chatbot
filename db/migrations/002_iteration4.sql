@@ -208,6 +208,6 @@ insert into schema_migrations(version) values('002_iteration4') on conflict(vers
 
 grant select,insert,update,delete on
   assessment_instruments, assessment_instrument_versions, assessment_questions,
-  assessment_answer_options, assessment_category_results to sanctuary_app;
+  assessment_answer_options, assessment_category_results to sajiwa_app;
 
 commit;
