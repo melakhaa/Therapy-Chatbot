@@ -13,9 +13,9 @@ React Navigation setup for app navigation — see [react-navigation-conventions.
   `students/[id]`, `analytics`, `counseling`, `schedule`, `counselors`, `attention`, `hotlines`,
   `reports`, `users`, `settings`, plus `index` as a legacy redirect).
 - Screens are registered explicitly in the root `<Stack>` (mobile: `index`, `register`, `home`,
-  `admin`, `chat`, `journal`, `stats`, `profile`; dashboard: `index`, `(dashboard)`,
-  `report-preview`). The mobile `forgot-password` screen exists under `app/` but is reached via
-  `router.push`, not a `<Stack.Screen>` entry.
+  `admin`, `chat`, `journal`, `stats`, `profile`, `schedule`, `journal-history`; dashboard:
+  `index`, `(dashboard)`, `report-preview`). The mobile `forgot-password` screen exists under
+  `app/` but is reached via `router.push`, not a `<Stack.Screen>` entry.
 - `expo-router/entry` is the package `main` for the dashboard; mobile uses `index.ts`.
 
 ## Navigation

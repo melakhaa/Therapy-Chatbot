@@ -41,6 +41,8 @@ variants exist only for the web dashboard.
 
 - `stressDetection.ts` — keyword-based stress scoring from chat text.
 - `aiResponses.ts` — fallback/local response parsers.
+- `characterReaction.ts` — companion expression picked from the user's message (crisis-safe mapping).
+- `phone.ts` — dialable-number / extension helpers for hotline `tel:` links.
 
 ## Conventions
 

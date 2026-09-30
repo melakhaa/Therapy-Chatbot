@@ -32,6 +32,7 @@ filename order, only when the `pgdata` volume is empty:
 
 - `01_schema.sql` — tables, indexes, RLS, `match_documents()`
 - `02_auth.sql` — `sajiwa_app` role, password storage, reset table, `auth_lookup()`
+- `03_mobile_app.sql` — `list_konselor()`, the student-visible counselor directory
 
 To re-apply them after editing: `docker compose down -v && docker compose up -d`. This destroys all
 data, which is fine locally.

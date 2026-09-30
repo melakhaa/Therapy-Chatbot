@@ -36,7 +36,10 @@ under [semantic-router-conventions.md](semantic-router-conventions.md) and
   - `admin.py` exports reusable guards: `operator_access` (konselor/admin/pemangku_jabatan) for
     assessment review, `directory_access` (admin/pemangku_jabatan) for identity profiles.
   - `admin_operations.py` uses a single `admin_access = require_role("admin")` for schedules,
-    hotlines, attention signals, and analytics.
+    hotlines, attention signals, and analytics. Attention signals are `assessment`, `safety`, or
+    `request` (`request` = a student tapped "kabari tim" in the crisis sheet).
+- `GET /accounts/konselor` returns the student-visible counselor directory via `list_konselor()`
+  (public fields only: id, nama, role) — students cannot read other `users` rows under RLS.
 - Validate path/query input with FastAPI types, not manual parsing: `user_id: UUID`,
   `Query(1, ge=1, le=2147483647)` for page, `Query(20, ge=1, le=100)` for page_size, `Literal[...]` for
   filters, `date`/`time` for schedules. Business rules (date range, `waktu_selesai > waktu_mulai`) raise
@@ -54,6 +57,9 @@ under [semantic-router-conventions.md](semantic-router-conventions.md) and
 - `POST /chat` returns `{response, route, is_high_risk}` and persists the turn when a `session_id`
   is supplied; `GET /chat/history?session_id=` returns the caller's own decrypted transcript.
   Both `/chat` and `/chat/stream` generate through `core.chat_stream`, so they cannot drift.
+- `POST /chat/report` backs the crisis sheet's "kabari tim" button: it writes an unread
+  `guardrail_logs` row (`[LAPORAN PENGGUNA]` prefix) surfaced by the dashboard as a `request`
+  attention signal. It stores no message content.
 
 ## `/health` is the contract
 

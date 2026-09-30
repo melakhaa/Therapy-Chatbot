@@ -9,6 +9,8 @@ container lifecycle is in [docker-conventions.md](docker-conventions.md).
 - **`db/init/01_schema.sql`** — tables, indexes, RLS policies, `match_documents()`.
 - **`db/init/02_auth.sql`** — `sajiwa_app` role, `password_hash`, `password_resets`,
   `auth_lookup()`, `set_password()`.
+- **`db/init/03_mobile_app.sql`** — `list_konselor()`: a `SECURITY DEFINER` counselor directory
+  (id, nama, role) for students, who cannot read other `users` rows under RLS.
 - Applied by `docker compose up` on an empty volume, in filename order. There is no migration
   framework: to change the schema, edit the file and `docker compose down -v && docker compose up -d`.
 

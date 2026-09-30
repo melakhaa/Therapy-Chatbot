@@ -18,7 +18,7 @@ Therapy-Chatbot/
 │   ├── api-client/    @prototype/api-client — fetch wrappers + cross-platform storage
 │   ├── ui-shared/     @prototype/ui-shared — theme, context, auth hook, animation
 │   └── utils/         @prototype/utils — stress detection, response parsers
-├── db/                init/ SQL (schema, auth) + test_rls.sql + pgadmin config
+├── db/                init/ SQL (schema, auth, mobile extras) + test_rls.sql + pgadmin config
 ├── docs/              Per-stack convention docs (linked below)
 ├── docker-compose.yml PostgreSQL 17 + pgvector + pgAdmin
 ├── package.json       Root workspace
