@@ -1,130 +1,156 @@
 // ============================================================
-// constants/theme.ts — Sanctuary Design System
+// constants/theme.ts — Sajiwa Design System
 // Based on Material 3 color scheme: primary #496175
 // ============================================================
 
 // ── Color Palette ────────────────────────────────────────────
-export const SanctuaryColors = {
-  // Core
-  background:              '#f8f9fa',
-  surface:                 '#f8f9fa',
-  surfaceBright:           '#f8f9fa',
-  surfaceDim:              '#d1dce0',
-  surfaceVariant:          '#dbe4e7',
+export const SajiwaColors = {
+  // Role-based palette (2026-09-27). One neumorphic surface; each accent means a feature:
+  // navy = Sajiwa/chat/primary, sage = journal, amber = counseling, coral = crisis only.
+  // Text contrast on background: ink 12.3:1, sub 5.7:1, navy 9.4:1, sage 5.0:1,
+  // amber 4.0:1 (bold/large + icons), coral 4.4:1 (bold/large + icons). *Fill tokens are decorative only.
+  background:              '#E4E8EE',
+  surface:                 '#E4E8EE',
+  surfaceBright:           '#EEF1F7',
+  surfaceDim:              '#D8DDE6',
+  surfaceVariant:          '#C9D0DE',
 
-  // Surface containers
-  surfaceContainerLowest:  '#ffffff',
-  surfaceContainerLow:     '#f1f4f6',
-  surfaceContainer:        '#eaeff1',
-  surfaceContainerHigh:    '#e3e9ec',
-  surfaceContainerHighest: '#dbe4e7',
+  // Surface containers (Neumorphism base)
+  surfaceContainerLowest:  '#E4E8EE',
+  surfaceContainerLow:     '#E4E8EE',
+  surfaceContainer:        '#E4E8EE',
+  surfaceContainerHigh:    '#DADFE8',
+  surfaceContainerHighest: '#CFD5E0',
 
-  // Primary
-  primary:                 '#496175',
-  primaryDim:              '#3d5569',
-  primaryFixed:            '#cce5fd',
-  primaryFixedDim:         '#bed7ef',
-  primaryContainer:        '#cce5fd',
-  onPrimary:               '#f3f8ff',
-  onPrimaryFixed:          '#2a4255',
-  onPrimaryFixedVariant:   '#465e72',
-  onPrimaryContainer:      '#3c5468',
+  // Primary: navy (Sajiwa, chat)
+  primary:                 '#26356E',
+  primaryDim:              '#1B2757',
+  primaryFixed:            '#5B6AA8',
+  primaryFixedDim:         '#3F4E8A',
+  primaryContainer:        '#C9D0E6',
+  onPrimary:               '#FFFFFF',
+  onPrimaryFixed:          '#FFFFFF',
+  onPrimaryFixedVariant:   '#FFFFFF',
+  onPrimaryContainer:      '#1B2757',
 
-  // Secondary
-  secondary:               '#506268',
-  secondaryDim:            '#44565c',
-  secondaryFixed:          '#d2e6ed',
-  secondaryFixedDim:       '#c4d8df',
-  secondaryContainer:      '#d2e6ed',
-  onSecondary:             '#f0fbff',
-  onSecondaryFixed:        '#304248',
-  onSecondaryFixedVariant: '#4c5e65',
-  onSecondaryContainer:    '#43555b',
+  // Feature accents
+  sage:                    '#2F6B5F', // journal
+  sageFill:                '#DCE7E2',
+  amber:                   '#9A6420', // counseling (text/icons/buttons)
+  amberFill:               '#D4964A', // decorative fill only
+  coral:                   '#B24A33', // crisis only (text/icons/buttons)
+  coralFill:               '#D9674E', // decorative fill only
 
-  // Tertiary
-  tertiary:                '#555f78',
-  tertiaryDim:             '#49536b',
-  tertiaryFixed:           '#d5dffd',
-  tertiaryFixedDim:        '#c7d1ef',
-  tertiaryContainer:       '#d5dffd',
-  onTertiary:              '#f9f8ff',
-  onTertiaryFixed:         '#333d55',
-  onTertiaryFixedVariant:  '#505972',
-  onTertiaryContainer:     '#465068',
+  // Secondary / tertiary kept for components that still reference them
+  secondary:               '#5B6AA8',
+  secondaryDim:            '#3F4E8A',
+  secondaryFixed:          '#C9D0E6',
+  secondaryFixedDim:       '#A9B3D3',
+  secondaryContainer:      '#D8DDEE',
+  onSecondary:             '#FFFFFF',
+  onSecondaryFixed:        '#1B2757',
+  onSecondaryFixedVariant: '#1B2757',
+  onSecondaryContainer:    '#1B2757',
+  tertiary:                '#2F6B5F',
+  tertiaryDim:             '#245449',
+  tertiaryFixed:           '#DCE7E2',
+  tertiaryFixedDim:        '#C4D6CE',
+  tertiaryContainer:       '#DCE7E2',
+  onTertiary:              '#FFFFFF',
+  onTertiaryFixed:         '#17302C',
+  onTertiaryFixedVariant:  '#17302C',
+  onTertiaryContainer:     '#17302C',
 
-  // On-colors
-  onBackground:            '#2b3437',
-  onSurface:               '#2b3437',
-  onSurfaceVariant:        '#586064',
+  // On-colors (Text)
+  onBackground:            '#1C2447',
+  onSurface:               '#1C2447',
+  onSurfaceVariant:        '#4E5876',
 
   // Outline
-  outline:                 '#737c7f',
-  outlineVariant:          '#abb3b7',
+  outline:                 '#9AA3BA',
+  outlineVariant:          '#C3C9D6',
 
   // Error
-  error:                   '#9f403d',
-  errorDim:                '#4e0309',
-  errorContainer:          '#fe8983',
-  onError:                 '#fff7f6',
-  onErrorContainer:        '#752121',
+  error:                   '#B24A33',
+  errorDim:                '#7A2E1F',
+  errorContainer:          '#F2D3CB',
+  onError:                 '#FFFFFF',
+  onErrorContainer:        '#7A2E1F',
 
   // Inverse
-  inverseSurface:          '#0c0f10',
-  inverseOnSurface:        '#9b9d9e',
-  inversePrimary:          '#cae3fb',
+  inverseSurface:          '#1C2447',
+  inverseOnSurface:        '#E4E8EE',
+  inversePrimary:          '#C9D0E6',
 
   // Surface tint
-  surfaceTint:             '#496175',
+  surfaceTint:             '#26356E',
 
-  // Convenience aliases (for backward compat)
-  card:                    '#ffffff',
-  cardAlt:                 '#f1f4f6',
-  border:                  '#abb3b7',
-  borderLight:             '#dbe4e7',
-  divider:                 'rgba(73,97,117,0.12)',
-  textPrimary:             '#2b3437',
-  textSecondary:           '#586064',
-  textMuted:               '#737c7f',
+  // Convenience aliases
+  card:                    '#E4E8EE',
+  cardAlt:                 '#E4E8EE',
+  border:                  '#C3C9D6',
+  borderLight:             '#D8DDE6',
+  divider:                 'rgba(122, 134, 168, 0.3)',
+  textPrimary:             '#1C2447',
+  textSecondary:           '#4E5876',
+  textMuted:               '#6B7390', // hints/timestamps only
   white:                   '#ffffff',
   black:                   '#000000',
-  overlay:                 'rgba(43,52,55,0.6)',
+  overlay:                 'rgba(20, 26, 50, 0.45)',
 
   // Tab bar
-  tabActive:               '#496175',
-  tabInactive:             '#abb3b7',
-  tabBar:                  '#ffffff',
+  tabActive:               '#26356E',
+  tabInactive:             '#4E5876',
+  tabBar:                  '#E4E8EE',
 
   // Stress / mood indicators
-  stressLow:               '#4D9B6F',
-  stressMid:               '#D4A843',
-  stressHigh:              '#9f403d',
-  stressLowBg:             'rgba(77,155,111,0.12)',
-  stressMidBg:             'rgba(212,168,67,0.12)',
-  stressHighBg:            'rgba(159,64,61,0.12)',
+  stressLow:               '#2F6B5F',
+  stressMid:               '#9A6420',
+  stressHigh:              '#B24A33',
+  stressLowBg:             'rgba(47, 107, 95, 0.12)',
+  stressMidBg:             'rgba(154, 100, 32, 0.12)',
+  stressHighBg:            'rgba(178, 74, 51, 0.12)',
 
-  // Gradient helpers (used as string arrays)
-  primaryGradientStart:    '#496175',
-  primaryGradientEnd:      '#3d5569',
+  // Gradient helpers
+  primaryGradientStart:    '#3F4E8A',
+  primaryGradientEnd:      '#26356E',
+
+  // Neumorphism light sources (top-left light, bottom-right shade)
+  neuLight:                'rgba(255, 255, 255, 0.95)',
+  neuDark:                 'rgba(122, 134, 168, 0.5)',
 };
 
-export type SanctuaryColorKey = keyof typeof SanctuaryColors;
+// ── Neumorphic surfaces ───────────────────────────────────────
+// Uses the `boxShadow` style (RN new architecture + web). Two shadows fake the light source.
+export const Neu = {
+  // Bolder depth than the first pass: the mid-tone surface lets both shadows read clearly
+  raised:  `-9px -9px 20px ${SajiwaColors.neuLight}, 9px 9px 20px ${SajiwaColors.neuDark}`,
+  raisedSm:`-5px -5px 11px ${SajiwaColors.neuLight}, 5px 5px 11px ${SajiwaColors.neuDark}`,
+  inset:   `inset 6px 6px 12px ${SajiwaColors.neuDark}, inset -6px -6px 12px ${SajiwaColors.neuLight}`,
+};
+
+export type SajiwaColorKey = keyof typeof SajiwaColors;
 
 // Single theme — no more toggling
-export const Colors = SanctuaryColors;
-export type ThemeName = 'sanctuary';
-export const CurrentTheme: ThemeName = 'sanctuary';
-export const Themes = { sanctuary: SanctuaryColors };
+export const Colors = SajiwaColors;
+export type ThemeName = 'sajiwa';
+export const CurrentTheme: ThemeName = 'sajiwa';
+export const Themes = { sajiwa: SajiwaColors };
 
 // ── Typography ───────────────────────────────────────────────
 export const Typography = {
-  // Font families (loaded via _layout.tsx)
-  fontBold:         'PlusJakartaSans_800ExtraBold',
-  fontSemiBold:     'PlusJakartaSans_700Bold',
-  fontMedium:       'PlusJakartaSans_600SemiBold',
-  fontRegular:      'PlusJakartaSans_500Medium',
+  // Font family: Plus Jakarta Sans (loaded in apps/mobile/app/_layout.tsx).
+  // One humanist family, open letterforms, good legibility at small sizes.
+  fontBold:         'PlusJakartaSans_700Bold',
+  fontSemiBold:     'PlusJakartaSans_600SemiBold',
+  fontMedium:       'PlusJakartaSans_500Medium',
+  fontRegular:      'PlusJakartaSans_400Regular',
   fontLight:        'PlusJakartaSans_400Regular',
 
   // Aliases kept for backward compat
+  fontSerif:        'PlusJakartaSans_700Bold',
+  fontSerifItalic:  'PlusJakartaSans_700Bold_Italic',
+  fontPhilosopher_700Bold: 'PlusJakartaSans_800ExtraBold',
   fontHeading:      'PlusJakartaSans_800ExtraBold',
   fontHeadingSemi:  'PlusJakartaSans_700Bold',
   fontBody:         'PlusJakartaSans_400Regular',
@@ -132,7 +158,7 @@ export const Typography = {
   fontBodySemiBold: 'PlusJakartaSans_600SemiBold',
 
   // Sizes
-  xs:    11,
+  xs:    12, // floor for readable text
   sm:    13,
   base:  15,
   md:    16,
@@ -167,9 +193,17 @@ export const BorderRadius = {
 };
 
 // ── Stress Level Helpers ──────────────────────────────────────
+// Supportive labels - non-clinical, actionable language
 export const StressLevel = {
   getColor:   (l: number) => (l <= 3 ? Colors.stressLow  : l <= 6 ? Colors.stressMid  : Colors.stressHigh),
   getBgColor: (l: number) => (l <= 3 ? Colors.stressLowBg : l <= 6 ? Colors.stressMidBg : Colors.stressHighBg),
-  getLabel:   (l: number) => (l <= 3 ? 'Baik' : l <= 6 ? 'Perlu Perhatian' : l <= 8 ? 'Cukup Berat' : 'Butuh Bantuan'),
+  getLabel:   (l: number) => (l <= 3 ? 'Kondisi Baik' : l <= 6 ? 'Butuh Perhatian' : l <= 8 ? 'Cukup Berat' : 'Butuh Dukungan'),
   getEmoji:   (l: number) => (l <= 3 ? '🌿' : l <= 6 ? '🌤️' : l <= 8 ? '⛈️' : '🆘'),
+  
+  // New supportive variants for chat room
+  getSupportiveLabel: (l: number) => (l <= 3 ? 'Kondisi Baik' : l <= 6 ? 'Butuh Perhatian Ekstra' : 'Butuh Dukungan Sekarang'),
+  getSupportiveMessage: (l: number) => 
+    l <= 3 ? 'Kamu terlihat cukup tenang hari ini. Lanjutkan cerita kalau mau.'
+    : l <= 6 ? 'Sepertinya hari ini agak berat. Itu wajar kok. Mau coba latihan napas?'
+    : 'Kamu tidak sendirian. Ada yang bisa bantu. Tekan tombol di bawah atau lanjut cerita.',
 };

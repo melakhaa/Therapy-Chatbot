@@ -181,6 +181,13 @@ def get_account_list(admin=Depends(require_role("admin", "pemangku_jabatan"))):
         raise HTTPException(status_code=500, detail=f"Gagal mengambil daftar akun: {e}")
 
 
+@router.get("/accounts/konselor")
+def get_konselor_list(user=Depends(get_current_user)):
+    """Counselor directory for the booking screen (public fields only, via list_konselor())."""
+    rows = query("select user_id, nama, role from list_konselor()", user_id=user.id)
+    return {"users": rows, "total": len(rows)}
+
+
 @router.post("/accounts", status_code=status.HTTP_201_CREATED)
 def create_account(request: CreateAccountRequest, admin=Depends(require_role("admin", "pemangku_jabatan"))):
     user_id = str(uuid.uuid4())

@@ -20,20 +20,20 @@ export default function LoginScreen() {
     setBusy(true); setError(null);
     try {
       const data = await apiLogin({ email: email.trim(), password });
-      if (data.user.role !== 'admin') { await clearAuth(); setError('Portal administrasi Sanctuary hanya tersedia untuk administrator.'); }
+      if (data.user.role !== 'admin') { await clearAuth(); setError('Portal administrasi Sajiwa hanya tersedia untuk administrator.'); }
       else { setPassword(''); router.replace('/overview' as Href); }
     } catch (e) { setError(e instanceof ApiError && e.status === 401 ? 'Email atau kata sandi salah.' : errorMessage(e)); } finally { setBusy(false); }
   };
   return <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: c.background }}>
     <ScrollView contentContainerStyle={{ flexGrow: 1, flexDirection: width >= 850 ? 'row' : 'column' }} keyboardShouldPersistTaps="handled">
       <View style={{ flex: 1, backgroundColor: c.primarySoft, padding: width >= 850 ? 64 : 28, justifyContent: 'center', gap: 24 }}>
-        <View style={ui.row}><MaterialIcons name="spa" color={c.primary} size={40} /><Text style={{ color: c.primary, fontSize: 32, fontWeight: '700', letterSpacing: -1 }}>Sanctuary</Text></View>
+        <View style={ui.row}><MaterialIcons name="spa" color={c.primary} size={40} /><Text style={{ color: c.primary, fontSize: 32, fontWeight: '700', letterSpacing: -1 }}>Sajiwa</Text></View>
         <Text style={{ fontSize: width >= 850 ? 38 : 26, color: c.primary, fontWeight: '600', lineHeight: width >= 850 ? 49 : 36 }}>Ruang dukungan.{'\n'}Komunitas yang lebih sehat.</Text>
         <Text style={[ui.text, { maxWidth: 380, color: c.primary }]}>Portal administrasi untuk mendampingi mahasiswa, meninjau asesmen, dan mengelola konseling.</Text>
         {width >= 850 && <View style={{ gap: 18, marginTop: 20 }}>{['Pemantauan asesmen', 'Pengelolaan konseling', 'Akses sesuai peran'].map(t => <View key={t} style={ui.row}><MaterialIcons name="check-circle-outline" color={c.primary} size={19} /><Text style={{ color: c.primary, fontSize: 14 }}>{t}</Text></View>)}</View>}
       </View>
       <View style={{ flex: 1, padding: 28, justifyContent: 'center', alignItems: 'center' }}><View style={{ width: '100%', maxWidth: 390, gap: 22 }}>
-        <View style={{ gap: 8 }}><Text style={[ui.muted, { letterSpacing: 2, fontSize: 10 }]}>ADMIN PORTAL</Text><Text accessibilityRole="header" style={ui.title}>Selamat datang kembali</Text><Text style={ui.muted}>Masuk dengan akun Sanctuary Anda.</Text></View>
+        <View style={{ gap: 8 }}><Text style={[ui.muted, { letterSpacing: 2, fontSize: 10 }]}>ADMIN PORTAL</Text><Text accessibilityRole="header" style={ui.title}>Selamat datang kembali</Text><Text style={ui.muted}>Masuk dengan akun Sajiwa Anda.</Text></View>
         <Field label="Email" placeholder="nama@kampus.ac.id" value={email} onChangeText={setEmail} keyboardType="email-address" autoComplete="email" autoCapitalize="none" editable={!busy} />
         <Field label="Kata sandi" value={password} onChangeText={setPassword} secureTextEntry={!show} autoComplete="current-password" autoCapitalize="none" editable={!busy} onSubmitEditing={() => { void login(); }} />
         <Button label={show ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'} tone="quiet" onPress={() => setShow(v => !v)} />

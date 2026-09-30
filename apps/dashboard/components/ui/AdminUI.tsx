@@ -31,7 +31,7 @@ export function Page({ title, subtitle, action, children }: { title: string; sub
   const { language } = useAdminExperience();
   return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 24, gap: 22, width: '100%', maxWidth: 1500, alignSelf: 'center' }} keyboardShouldPersistTaps="handled">
     <View style={[ui.row, { justifyContent: 'space-between' }]}><View style={{ flex: 1, minWidth: 180, gap: 5 }}><Text accessibilityRole="header" style={ui.title}>{title}</Text><Text style={ui.muted}>{subtitle}</Text></View>{action}</View>{children}
-    <Text style={[ui.muted, { textAlign: 'center', marginTop: 12 }]}>{language === 'id' ? 'Sanctuary · Mendukung kesehatan mental mahasiswa' : 'Sanctuary · Supporting student mental health'}</Text>
+    <Text style={[ui.muted, { textAlign: 'center', marginTop: 12 }]}>{language === 'id' ? 'Sajiwa · Mendukung kesehatan mental mahasiswa' : 'Sajiwa · Supporting student mental health'}</Text>
   </ScrollView>;
 }
 export function Card({ title, subtitle, action, children }: { title?: string; subtitle?: string; action?: ReactNode; children: ReactNode }) {

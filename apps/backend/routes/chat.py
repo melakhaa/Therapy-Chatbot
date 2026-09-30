@@ -112,6 +112,22 @@ def _persist_turn(conn, request: ChatRequest, user_id, route: str, response_text
     )
 
 
+class ReportRequest(BaseModel):
+    session_id: Optional[str] = None
+
+
+@chat_router.post("/report")
+def report_to_team(request: ReportRequest, user=Depends(get_current_user)):
+    """User tapped "Kabari tim Sajiwa" in the crisis sheet. Logged as an unread safety
+    signal, which the counselor dashboard surfaces under /admin/attention."""
+    query(
+        "insert into guardrail_logs (session_id, user_id, triggered_input) values (%s, %s, %s)",
+        (request.session_id, str(user.id), "[LAPORAN PENGGUNA] Minta dihubungi tim dari modal krisis"),
+        user_id=user.id,
+    )
+    return {"status": "reported"}
+
+
 @chat_router.post("")
 def chat_unified(request: ChatRequest, user=Depends(get_current_user)):
     route_result = semantic_router(request.message)

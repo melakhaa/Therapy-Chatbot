@@ -1,441 +1,414 @@
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Animated,
-  Dimensions,
-} from 'react-native';
-import { router } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 
-import { BottomNav, FadeIn } from '../components/ui';
-import { useTheme } from '@prototype/ui-shared';
-import { Spacing, BorderRadius } from '@prototype/ui-shared';
+import { BottomNav, useToast } from '../components/ui';
+import { Companion } from '../components/chat';
+import { useAuth } from '@prototype/ui-shared';
+import type { Expression } from '@prototype/utils';
+import {
+  apiSaveJournal, apiUpdateJournal, apiGetJournals, apiGetBookingSaya, apiGetKonselor,
+} from '@prototype/api-client';
+import { MOODS, Mood, moodOf, MOOD_COMPANION } from '../constants/moods';
+import { TRI, triRaised, triInset } from '../constants/palette';
+import { PressableScale } from '../components/ui';
 
-const { width } = Dimensions.get('window');
+// Home trials the role-based palette: navy = Sajiwa/chat, sage = journal, amber = counseling, coral = crisis
 
-const getGreeting = () => {
+const DAY_SHORT = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+const DAY_LONG = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const CHECKIN_PREFIX = 'Check-in cepat:';
+// Switching mood within this window is a correction (update); later it's a real change (new entry)
+const CORRECTION_MS = 30 * 60 * 1000;
+const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+const hm = (t?: string) => (t ?? '').substring(0, 5);
+
+// What Sajiwa asks, and how it looks, depends on the time of day
+const moment = () => {
   const h = new Date().getHours();
-  if (h < 11) return 'Selamat pagi';
-  if (h < 15) return 'Selamat siang';
-  if (h < 18) return 'Selamat sore';
-  return 'Selamat malam';
+  if (h < 11) return { greet: 'Selamat pagi', ask: 'Pagi ini gimana perasaanmu?', face: 'semangat' as Expression };
+  if (h < 15) return { greet: 'Selamat siang', ask: 'Siang ini gimana harimu?', face: 'senang' as Expression };
+  if (h < 18) return { greet: 'Selamat sore', ask: 'Sore ini gimana perasaanmu?', face: 'menyapa' as Expression };
+  if (h < 22) return { greet: 'Selamat malam', ask: 'Malam ini, ada yang ingin kamu ceritakan?', face: 'tenang' as Expression };
+  return { greet: 'Selamat malam', ask: 'Belum tidur? Aku temani sebentar.', face: 'mengantuk' as Expression };
 };
 
-const formatDate = () =>
-  new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+type Booking = { status: string; jadwal_konsultasi?: { tanggal: string; waktu_mulai: string; konselor_id: string } };
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
-  const [selectedMood, setSelectedMood] = useState<number | null>(null);
+  const { user } = useAuth();
+  const toast = useToast();
+  const now = useMemo(moment, []);
 
-  const calmW  = useRef(new Animated.Value(0)).current;
-  const focusW = useRef(new Animated.Value(0)).current;
+  const [journals, setJournals] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [counselors, setCounselors] = useState<Record<string, string>>({});
+  const [savingMood, setSavingMood] = useState<Mood | null>(null);
+  const [checkin, setCheckin] = useState<any | null>(null); // the entry saved by the quick check-in
 
-  useEffect(() => {
-    Animated.delay(600).start(() => {
-      Animated.parallel([
-        Animated.timing(calmW,  { toValue: 0.85, duration: 900, useNativeDriver: false }),
-        Animated.timing(focusW, { toValue: 0.64, duration: 900, useNativeDriver: false }),
-      ]).start();
-    });
+  const load = useCallback(async () => {
+    try {
+      const res = await apiGetJournals(30, 0);
+      setJournals(res.journals || []);
+    } catch (err) {
+      console.warn('Failed to load journals for home:', err);
+      toast.show('Data jurnal belum bisa dimuat. Periksa koneksimu.', 'error');
+    }
+    // Secondary blocks: fail quietly, they simply don't render
+    Promise.all([apiGetBookingSaya(), apiGetKonselor()])
+      .then(([b, k]) => {
+        setBookings(b.bookings as Booking[]);
+        setCounselors(Object.fromEntries(k.users.map((u: any) => [u.user_id, u.nama])));
+      })
+      .catch(() => {});
   }, []);
 
-  const cardW = (width - Spacing.base * 2 - Spacing.base) / 2;
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // Navigation menu items
-  const navItems = [
-    { icon: 'chatbubble-outline', label: 'Chat', route: '/chat' },
-    { icon: 'water-outline', label: 'Mood', route: '/home' },
-    { icon: 'target-outline', label: 'Goal', route: '/stats' },
-    { icon: 'moon-outline', label: 'Night', route: '/home' },
+  // Today's latest entry counts as today's check-in
+  const todayEntry = useMemo(() => {
+    const t = dayKey(new Date());
+    return journals.find((j) => dayKey(new Date(j.created_at)) === t) ?? null;
+  }, [journals]);
+  // Latest quick check-in (journals come newest first)
+  const lastCheckin = useMemo(() => journals.find((j) => j.content?.startsWith(CHECKIN_PREFIX)) ?? null, [journals]);
+  const current = checkin ?? todayEntry;
+  const currentMood = moodOf(current?.mood);
+
+  const quickCheckin = async (m: Mood) => {
+    if (savingMood || current?.mood === m) return;
+    setSavingMood(m);
+    const label = moodOf(m)!.label.toLowerCase();
+    const content = `${CHECKIN_PREFIX} merasa ${label}.`;
+    // Quick re-tap = correction of the recent check-in; a later mood change is kept as its own entry
+    const existing = [checkin, lastCheckin].find((j) => j?.journal_id && Date.now() - new Date(j.created_at).getTime() < CORRECTION_MS);
+    try {
+      const res: any = existing
+        ? await apiUpdateJournal(existing.journal_id, { content, mood: m })
+        : await apiSaveJournal({ content, mood: m });
+      setCheckin(res.journal ?? { ...existing, mood: m });
+      toast.show(existing ? `Check-in diperbarui: ${label}.` : `Check-in tersimpan: ${label}.`);
+      load();
+    } catch (e: any) {
+      toast.show(`Check-in belum tersimpan: ${e.message || 'coba lagi sebentar.'}`, 'error');
+    } finally {
+      setSavingMood(null);
+    }
+  };
+
+  const openEntry = (j: any) =>
+    router.push({ pathname: '/journal-detail', params: { journal_id: j.journal_id, content: j.content, mood: j.mood, created_at: j.created_at } });
+
+  // Last 7 days ending today: dominant mood per day, streak, and a one-line reading
+  const week = useMemo(() => {
+    const today = new Date();
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() - (6 - i));
+      const entries = journals.filter((j) => dayKey(new Date(j.created_at)) === dayKey(d) && j.mood);
+      const tally: Record<string, number> = {};
+      entries.forEach((j) => (tally[j.mood] = (tally[j.mood] || 0) + 1));
+      const mood = (Object.keys(tally).sort((a, b) => tally[b] - tally[a])[0] as Mood) ?? null;
+      return { date: d, mood, isToday: i === 6 };
+    });
+    let streak = 0;
+    const has = new Set(journals.map((j) => dayKey(new Date(j.created_at))));
+    const cur = new Date(today);
+    if (!has.has(dayKey(cur))) cur.setDate(cur.getDate() - 1);
+    while (has.has(dayKey(cur))) { streak++; cur.setDate(cur.getDate() - 1); }
+
+    const counts: Record<string, number> = {};
+    days.forEach((d) => d.mood && (counts[d.mood] = (counts[d.mood] || 0) + 1));
+    const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const top = ranked[0];
+    const tie = ranked[1] && ranked[1][1] === top?.[1]; // no single dominant mood: don't pretend there is
+    const heavy = days.filter((d) => d.mood === 'Anxious' || d.mood === 'Tired').map((d) => DAY_LONG[d.date.getDay()]);
+    let insight = 'Belum ada check-in minggu ini. Satu ketukan di atas sudah cukup untuk mulai.';
+    if (top) {
+      insight = tie ? 'Suasana hatimu cukup beragam minggu ini.' : `${moodOf(top[0])!.label} paling sering muncul.`;
+      if (heavy.length) insight += ` ${heavy.slice(0, 2).join(' dan ')} terasa lebih berat.`;
+    }
+    return { days, streak, insight };
+  }, [journals]);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const next = bookings
+    .filter((b) => (b.status === 'menunggu' || b.status === 'dikonfirmasi') && (b.jadwal_konsultasi?.tanggal ?? '') >= todayStr)
+    .sort((a, b) => `${a.jadwal_konsultasi!.tanggal}${a.jadwal_konsultasi!.waktu_mulai}`.localeCompare(`${b.jadwal_konsultasi!.tanggal}${b.jadwal_konsultasi!.waktu_mulai}`))[0];
+
+  const firstName = user?.nama?.split(' ')[0];
+  const initials = (user?.nama || 'S').split(' ').slice(0, 2).map((w: string) => w[0]?.toUpperCase()).join('');
+  const face: Expression = current?.mood ? MOOD_COMPANION[current.mood as Mood].face : now.face;
+
+  const shortcuts = [
+    { icon: 'book', label: 'Jurnal', color: TRI.sage, to: '/journal-history' },
+    { icon: 'calendar', label: 'Konseling', color: TRI.amber, to: '/schedule' },
+    { icon: 'stats-chart', label: 'Laporan', color: TRI.navy, to: '/stats' },
+    { icon: 'call', label: 'Hotline', color: TRI.coral, to: '/hotline' },
   ];
 
   return (
-    <View style={[s.root, { backgroundColor: colors.background }]}>
+    <View style={[s.root, { backgroundColor: TRI.bg }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 72 }]}
+        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 124 }]}
       >
-        {/* ── Greeting ── */}
-        <FadeIn delay={0}>
-          <View style={s.greetRow}>
-            <View style={s.greetLeft}>
-              <Text style={[s.greetTitle, { color: colors.onSurface }]}>
-                {getGreeting()}, Luffy
-              </Text>
-              <Text style={[s.greetSub, { color: colors.onSurfaceVariant }]}>
-                A quiet space for your thoughts to settle.
+        {/* ── Header ── */}
+          <View style={s.header}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.date}>{new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
+              <Text style={s.greet} accessibilityRole="header" numberOfLines={2}>
+                {now.greet}{firstName ? `, ${firstName}` : ''}
               </Text>
             </View>
-          </View>
-        </FadeIn>
-
-        {/* ── Navigation Icons ── */}
-        <FadeIn delay={80}>
-          <View style={s.navIconsRow}>
-            {navItems.map((item, i) => (
-              <TouchableOpacity
-                key={i}
-                style={[s.navIconBtn, { backgroundColor: colors.surfaceContainerHigh }]}
-                onPress={() => router.push(item.route)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name={item.icon as any} size={24} color={colors.primary} />
-                <Text style={[s.navIconLabel, { color: colors.onSurface }]}>
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </FadeIn>
-
-        {/* ── Main CTA: Enter the Dialogue ── */}
-        <FadeIn delay={160}>
-          <TouchableOpacity activeOpacity={0.9} onPress={() => router.push('/chat')} style={s.dialogWrap}>
-            <LinearGradient
-              colors={['#496175', '#3d5569']}
-              style={s.dialogCard}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+            <PressableScale
+              onPress={() => router.push('/profile')}
+              accessibilityRole="button"
+              accessibilityLabel="Profil"
+              style={({ pressed }) => [s.avatar, { boxShadow: pressed ? triInset(0.5) : triRaised(0.5) }]}
             >
-              <View style={s.dialogBlobLarge} />
-              <View style={s.dialogBlobSmall} />
-              <View style={s.dialogText}>
-                <Text style={s.dialogTitle}>Enter the Dialogue</Text>
-                <Text style={s.dialogDesc}>
-                  Your AI companion listens to your thoughts and guides you through challenges.
-                </Text>
+              <Text style={s.avatarText}>{initials}</Text>
+            </PressableScale>
+          </View>
+
+        {/* ── Hero: talk now, or pick up where you left off ── */}
+          <View style={[s.hero, { boxShadow: triRaised(1) }]}>
+            <View style={s.heroTop}>
+              <View style={{ flex: 1, gap: 8 }}>
+                <Text style={s.heroKicker}>Sajiwa siap mendengarkan</Text>
+                <Text style={s.heroTitle}>{now.ask}</Text>
               </View>
-              <TouchableOpacity
-                style={s.dialogBtn}
-                onPress={() => router.push('/chat')}
-                activeOpacity={0.85}
-              >
-                <Text style={[s.dialogBtnText, { color: colors.primary }]}>Start Conversation →</Text>
-              </TouchableOpacity>
-            </LinearGradient>
-          </TouchableOpacity>
-        </FadeIn>
-
-        {/* ── Quotes Section 1 ── */}
-        <FadeIn delay={200}>
-          <View style={[s.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Text style={[s.sectionEyebrow, { color: colors.outline }]}>MINDFUL QUOTE</Text>
-            <View style={s.quoteBgWrapper}>
-              <MaterialCommunityIcons
-                name="format-quote-open"
-                size={64}
-                color={colors.primary + '15'}
-                style={s.quoteBgIcon}
-              />
-              <Text style={[s.quoteText, { color: colors.onSurface }]}>
-                "The soul always knows what to do to heal itself. The challenge is to silence the mind."
-              </Text>
-            </View>
-            <Text style={[s.quoteAuthor, { color: colors.primary }]}>— CAROLINE MYSS</Text>
-          </View>
-        </FadeIn>
-
-        {/* ── Inspirational Section ── */}
-        <FadeIn delay={240}>
-          <View style={[s.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Text style={[s.sectionEyebrow, { color: colors.outline }]}>ENERGY & AFFIRMATION</Text>
-            <Text style={[s.inspirationalText, { color: colors.onSurface }]}>
-              Energi positif dimulai dari dalam. Fokuskan pikiran pada hal yang dapat kamu kontrol, biarkan sisanya mengalir.
-            </Text>
-            <TouchableOpacity
-              style={[s.journalBtn, { backgroundColor: colors.primary, marginTop: 16 }]}
-              onPress={() => router.push('/journal')}
-            >
-              <Text style={s.journalBtnText}>Simak Jurnal</Text>
-            </TouchableOpacity>
-          </View>
-        </FadeIn>
-
-        {/* ── Quotes Section 2 ── */}
-        <FadeIn delay={280}>
-          <View style={[s.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <View style={s.quoteBgWrapper}>
-              <MaterialCommunityIcons
-                name="format-quote-open"
-                size={64}
-                color={colors.primary + '15'}
-                style={s.quoteBgIcon}
-              />
-              <Text style={[s.quoteText, { color: colors.onSurface }]}>
-                "Tidak ada apa-apa untuk berteriak. Bunga pun butuh waktu untuk mekar kembali."
-              </Text>
-            </View>
-            <Text style={[s.quoteAuthor, { color: colors.primary }]}>— STEPHEN LEVINE</Text>
-          </View>
-        </FadeIn>
-
-        {/* ── Progress Section ── */}
-        <FadeIn delay={320}>
-          <View style={[s.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Text style={[s.sectionEyebrow, { color: colors.outline }]}>PROGRESS PERAKUAN</Text>
-
-            {[
-              { label: 'Ketenangan', anim: calmW, pct: '85%' },
-              { label: 'Fokus/Hubungan', anim: focusW, pct: '64%' },
-            ].map((item, i) => (
-              <View key={i} style={[s.progressItem, i > 0 && { marginTop: Spacing.base }]}>
-                <View style={s.progressMeta}>
-                  <Text style={[s.progressLabel, { color: colors.onSurface }]}>{item.label}</Text>
-                  <Text style={[s.progressPct, { color: colors.primary }]}>{item.pct}</Text>
-                </View>
-                <View style={[s.progressTrack, { backgroundColor: colors.surfaceContainerHigh }]}>
-                  <Animated.View
-                    style={[
-                      s.progressFill,
-                      {
-                        backgroundColor: colors.primary,
-                        width: item.anim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
-                      },
-                    ]}
-                  />
+              {/* Neumorphism on navy: shadows are navy tints, not grey */}
+              <View style={s.heroStage}>
+                <View style={s.heroWell}>
+                  <Companion expression={face} size={118} />
                 </View>
               </View>
-            ))}
-
-            <TouchableOpacity
-              style={[s.reportBtn, { borderColor: colors.outlineVariant + '60' }]}
-              onPress={() => router.push('/stats')}
-              activeOpacity={0.75}
+            </View>
+            <PressableScale
+              onPress={() => router.push('/chat')}
+              accessibilityRole="button"
+              style={({ pressed }) => [s.heroCta, pressed && { transform: [{ scale: 0.98 }] }]}
             >
-              <Text style={[s.reportBtnText, { color: colors.onSurfaceVariant }]}>
-                Lihat Laporan Detail
-              </Text>
-            </TouchableOpacity>
+              <Ionicons name="chatbubble-ellipses" size={18} color={TRI.navy} />
+              <Text style={s.heroCtaText}>Mulai cerita baru</Text>
+              <Ionicons name="arrow-forward" size={18} color={TRI.navy} />
+            </PressableScale>
           </View>
-        </FadeIn>
 
-        <View style={{ height: 110 }} />
+        {/* ── One-tap check-in (journal = sage) ── */}
+          <View style={{ gap: 14 }}>
+            <View style={s.rowBetween}>
+              <Text style={s.section} accessibilityRole="header">Check-in cepat</Text>
+              <PressableScale onPress={() => router.push('/journal')} hitSlop={10} accessibilityRole="link">
+                <Text style={[s.link, { color: TRI.sage }]}>Tulis jurnal</Text>
+              </PressableScale>
+            </View>
+            <View style={s.moodRow} accessibilityRole="radiogroup">
+              {MOODS.map((m) => {
+                const active = current?.mood === m.key;
+                const saving = savingMood === m.key;
+                return (
+                  <PressableScale
+                    key={m.key}
+                    onPress={() => quickCheckin(m.key)}
+                    disabled={!!savingMood}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active, busy: saving }}
+                    accessibilityLabel={`Check-in ${m.label}`}
+                    style={({ pressed }) => [s.moodKey, { boxShadow: active || pressed ? triInset(0.8) : triRaised(0.55) }]}
+                  >
+                    <View style={[s.moodIcon, { backgroundColor: active ? m.color : m.color + '1F' }]}>
+                      {saving ? (
+                        <ActivityIndicator size="small" color={m.color} />
+                      ) : (
+                        <Ionicons name={m.icon.replace('-outline', '') as any} size={20} color={active ? '#fff' : m.color} />
+                      )}
+                    </View>
+                    <Text
+                      style={[s.moodLabel, { color: active ? m.color : TRI.sub, fontFamily: active ? 'PlusJakartaSans_800ExtraBold' : 'PlusJakartaSans_600SemiBold' }]}
+                    >
+                      {m.label}
+                    </Text>
+                  </PressableScale>
+                );
+              })}
+            </View>
+            {current && currentMood && (
+              <PressableScale onPress={() => openEntry(current)} accessibilityRole="button" style={[s.note, { backgroundColor: TRI.sageFill }]}>
+                <Ionicons name="leaf" size={16} color={TRI.sage} />
+                <Text style={[s.noteText, { color: TRI.sage }]}>
+                  Tercatat hari ini: {currentMood.label.toLowerCase()}. Mau tambah satu kalimat?
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={TRI.sage} />
+              </PressableScale>
+            )}
+          </View>
+
+        {/* ── This week at a glance ── */}
+          <View style={[s.card, { boxShadow: triRaised(0.8) }]}>
+            <View style={s.rowBetween}>
+              <Text style={s.section} accessibilityRole="header">Minggu ini</Text>
+              {week.streak > 1 && (
+                <View style={s.streak}>
+                  <Ionicons name="flame" size={14} color={TRI.amber} />
+                  <Text style={[s.streakText, { color: TRI.amber }]}>{week.streak} hari beruntun</Text>
+                </View>
+              )}
+            </View>
+            <View
+              style={s.week}
+              accessible
+              accessibilityLabel={'Suasana hati 7 hari: ' + week.days.map((d) => `${DAY_LONG[d.date.getDay()]} ${moodOf(d.mood)?.label ?? 'kosong'}`).join(', ')}
+            >
+              {week.days.map((d, i) => {
+                const m = moodOf(d.mood);
+                return (
+                  <View key={i} style={s.weekCol}>
+                    <View
+                      style={[
+                        s.weekDot,
+                        { backgroundColor: m ? m.color : 'rgba(122,134,168,0.18)' },
+                        d.isToday && { borderWidth: 2.5, borderColor: TRI.ink },
+                      ]}
+                    >
+                      {m && <Ionicons name={m.icon.replace('-outline', '') as any} size={14} color="#fff" />}
+                    </View>
+                    <Text style={[s.weekDay, d.isToday && { color: TRI.ink, fontFamily: 'PlusJakartaSans_800ExtraBold' }]}>
+                      {d.isToday ? 'Ini' : DAY_SHORT[d.date.getDay()]}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+            <Text style={s.insight}>{week.insight}</Text>
+            <PressableScale onPress={() => router.push('/stats')} accessibilityRole="link" style={s.inlineLink}>
+              <Text style={[s.link, { color: TRI.navy }]}>Lihat laporan lengkap</Text>
+              <Ionicons name="arrow-forward" size={14} color={TRI.navy} />
+            </PressableScale>
+          </View>
+
+        {/* ── Next counseling session (amber), only when there is one ── */}
+        {next?.jadwal_konsultasi && (
+            <PressableScale
+              onPress={() => router.push('/schedule')}
+              accessibilityRole="button"
+              style={({ pressed }) => [s.session, { boxShadow: pressed ? triInset(0.7) : triRaised(0.8) }]}
+            >
+              <View style={[s.sessionDate, { backgroundColor: TRI.amberFill }]}>
+                <Text style={s.sessionDay}>{new Date(next.jadwal_konsultasi.tanggal).getDate()}</Text>
+                <Text style={s.sessionMonth}>
+                  {new Date(next.jadwal_konsultasi.tanggal).toLocaleDateString('id-ID', { month: 'short' })}
+                </Text>
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={[s.sessionKicker, { color: TRI.amber }]}>Sesi konseling berikutnya</Text>
+                <Text style={s.sessionName} numberOfLines={1}>{counselors[next.jadwal_konsultasi.konselor_id] ?? 'Konselor kampus'}</Text>
+                <Text style={s.sessionMeta}>
+                  {DAY_LONG[new Date(next.jadwal_konsultasi.tanggal).getDay()]}, {hm(next.jadwal_konsultasi.waktu_mulai)} ·{' '}
+                  {next.status === 'dikonfirmasi' ? 'dikonfirmasi' : 'menunggu konfirmasi'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={TRI.muted} />
+            </PressableScale>
+        )}
+
+        {/* ── Shortcuts: the core color says which part of the app it opens ── */}
+          <View style={s.shortcuts}>
+            {shortcuts.map((it) => (
+              <PressableScale key={it.label} onPress={() => router.push(it.to as any)} accessibilityRole="button" accessibilityLabel={it.label} style={s.shortcut}>
+                {({ pressed }) => (
+                  <>
+                    <View style={[s.knob, { boxShadow: pressed ? triInset(0.6) : triRaised(0.6) }]}>
+                      <View style={[s.knobCore, { backgroundColor: it.color }]}>
+                        <Ionicons name={it.icon as any} size={20} color="#fff" />
+                      </View>
+                    </View>
+                    <Text style={s.knobLabel}>{it.label}</Text>
+                  </>
+                )}
+              </PressableScale>
+            ))}
+          </View>
+
+        {/* ── Affirmation, quiet ── */}
+          <View style={s.quote}>
+            <Text style={s.quoteMark}>“</Text>
+            <Text style={s.quoteText}>Tidak apa-apa untuk beristirahat. Bunga pun butuh waktu untuk mekar kembali.</Text>
+          </View>
       </ScrollView>
-
-      {/* ── Floating Nav Bar ── */}
-      <View
-        style={[
-          s.navBar,
-          {
-            paddingTop: insets.top + 12,
-            backgroundColor: colors.background + 'E8',
-            borderBottomColor: colors.outlineVariant + '20',
-          }
-        ]}
-      >
-        <View style={[s.navBarInner, { paddingBottom: 12 }]}>
-          <TouchableOpacity style={[s.navAvatar, { backgroundColor: colors.surfaceContainerHigh }]}>
-            <Ionicons name="person" size={15} color={colors.onSurfaceVariant} />
-          </TouchableOpacity>
-          <Text style={[s.navBrand, { color: colors.onSurface }]}>Sanctuary</Text>
-          <View style={{ flex: 1 }} />
-          <TouchableOpacity>
-            <Ionicons name="settings-outline" size={22} color={colors.onSurfaceVariant} />
-          </TouchableOpacity>
-        </View>
-      </View>
 
       <BottomNav />
     </View>
   );
 }
 
-/* ── Styles ── */
 const s = StyleSheet.create({
-  root:  { flex: 1 },
-  scroll: { paddingHorizontal: Spacing.base },
+  root: { flex: 1 },
+  scroll: { paddingHorizontal: 22, gap: 26 },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 
-  // Nav bar overlay
-  navBar: {
-    position: 'absolute', top: 0, left: 0, right: 0,
-    zIndex: 50,
-    borderBottomWidth: 1,
-  },
-  navBarInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.base,
-    gap: Spacing.sm,
-  },
-  navAvatar: {
-    width: 32, height: 32, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  navBrand: { fontSize: 18, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.4 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  date: { fontSize: 13, color: TRI.sub, fontFamily: 'PlusJakartaSans_600SemiBold', textTransform: 'capitalize' },
+  greet: { fontSize: 27, color: TRI.ink, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.7, lineHeight: 34 },
+  avatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: TRI.bg, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: TRI.navy, fontSize: 16, fontFamily: 'PlusJakartaSans_800ExtraBold' },
 
-  // Greeting
-  greetRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: 24,
-    gap: 12,
+  hero: { backgroundColor: TRI.navy, borderRadius: 30, padding: 20, gap: 14, overflow: 'hidden' },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  heroKicker: { color: 'rgba(255,255,255,0.78)', fontSize: 13, fontFamily: 'PlusJakartaSans_600SemiBold' },
+  heroTitle: { color: '#fff', fontSize: 23, lineHeight: 30, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.5 },
+  heroStage: {
+    width: 142, height: 142, borderRadius: 71, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center',
   },
-  greetLeft: { flex: 1 },
-  greetTitle: {
-    fontSize: 32,
-    fontFamily: 'PlusJakartaSans_800ExtraBold',
-    letterSpacing: -1,
-    lineHeight: 38,
+  heroWell: {
+    width: 120, height: 120, borderRadius: 60, backgroundColor: TRI.navyDeep, overflow: 'hidden', alignItems: 'center', justifyContent: 'flex-end',
+    boxShadow: 'inset 5px 5px 10px rgba(8,14,40,0.6), inset -4px -4px 10px rgba(255,255,255,0.08)',
   },
-  greetSub: {
-    fontSize: 14,
-    fontFamily: 'PlusJakartaSans_400Regular',
-    marginTop: 6,
+  heroCta: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 54, borderRadius: 27, paddingHorizontal: 20,
+    backgroundColor: '#EEF1F7', boxShadow: '4px 6px 14px rgba(8,14,40,0.35)',
   },
-  dateBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    flexShrink: 0,
-  },
-  dateText: { fontSize: 11, fontFamily: 'PlusJakartaSans_700Bold', letterSpacing: 0.2 },
+  heroCtaText: { flex: 1, color: TRI.navy, fontSize: 16, fontFamily: 'PlusJakartaSans_800ExtraBold' },
 
-  // Navigation Icons Row
-  navIconsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 32,
-  },
-  navIconBtn: {
-    flex: 1,
-    height: 100,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: 12,
-  },
-  navIconLabel: {
-    fontSize: 12,
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    textAlign: 'center',
-  },
+  section: { color: TRI.ink, fontSize: 17, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.3 },
+  link: { fontSize: 14, fontFamily: 'PlusJakartaSans_700Bold' },
+  inlineLink: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', minHeight: 32 },
 
-  // Card base
-  card: {
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 16,
-    shadowColor: '#2b3437',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 24,
-    elevation: 3,
-  },
-  sectionEyebrow: {
-    fontSize: 10,
-    fontFamily: 'PlusJakartaSans_700Bold',
-    letterSpacing: 2.5,
-    textTransform: 'uppercase',
-    marginBottom: 16,
-  },
+  moodRow: { flexDirection: 'row', gap: 12 },
+  moodKey: { flex: 1, backgroundColor: TRI.bg, borderRadius: 22, paddingVertical: 14, alignItems: 'center', gap: 8 },
+  moodIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  moodLabel: { fontSize: 13 },
+  note: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16 },
+  noteText: { flex: 1, fontSize: 13, fontFamily: 'PlusJakartaSans_600SemiBold', lineHeight: 19 },
 
-  // Dialogue CTA
-  dialogWrap: { marginBottom: 24 },
-  dialogCard: {
-    borderRadius: 24,
-    padding: 28,
-    flexDirection: 'column',
-    gap: 16,
-    overflow: 'hidden',
-    shadowColor: '#496175',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  dialogBlobLarge: {
-    position: 'absolute',
-    width: 200, height: 200, borderRadius: 100,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    top: -60, right: -40,
-  },
-  dialogBlobSmall: {
-    position: 'absolute',
-    width: 100, height: 100, borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    bottom: -30, left: 80,
-  },
-  dialogText: { gap: 12, zIndex: 1 },
-  dialogTitle: {
-    fontSize: 22,
-    fontFamily: 'PlusJakartaSans_800ExtraBold',
-    color: '#ffffff',
-    letterSpacing: -0.5,
-  },
-  dialogDesc: {
-    fontSize: 13,
-    fontFamily: 'PlusJakartaSans_400Regular',
-    color: 'rgba(255,255,255,0.8)',
-    lineHeight: 20,
-  },
-  dialogBtn: {
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 999,
-    alignSelf: 'flex-start',
-    marginTop: 8,
-  },
-  dialogBtnText: { fontSize: 13, fontFamily: 'PlusJakartaSans_700Bold' },
+  card: { backgroundColor: TRI.bg, borderRadius: 26, padding: 18, gap: 14 },
+  streak: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  streakText: { fontSize: 13, fontFamily: 'PlusJakartaSans_700Bold' },
+  week: { flexDirection: 'row' },
+  weekCol: { flex: 1, alignItems: 'center', gap: 8 },
+  weekDot: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  weekDay: { fontSize: 12, color: TRI.sub, fontFamily: 'PlusJakartaSans_600SemiBold' },
+  insight: { fontSize: 14, color: TRI.sub, fontFamily: 'PlusJakartaSans_500Medium', lineHeight: 21 },
 
-  // Quote
-  quoteBgWrapper: {
-    position: 'relative',
-    marginBottom: 12,
-    overflow: 'hidden',
-  },
-  quoteBgIcon: {
-    position: 'absolute',
-    top: -20, right: -10,
-    opacity: 0.15,
-  },
-  quoteText: {
-    fontSize: 16,
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    lineHeight: 24,
-    marginBottom: 0,
-    zIndex: 1,
-  },
-  quoteAuthor: {
-    fontSize: 12,
-    fontFamily: 'PlusJakartaSans_700Bold',
-    letterSpacing: 0.5,
-  },
+  session: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: TRI.bg, borderRadius: 24, padding: 14 },
+  sessionDate: { width: 58, height: 62, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  sessionDay: { color: TRI.ink, fontSize: 23, lineHeight: 27, fontFamily: 'PlusJakartaSans_800ExtraBold' },
+  sessionMonth: { color: TRI.ink, fontSize: 12, fontFamily: 'PlusJakartaSans_700Bold' },
+  sessionKicker: { fontSize: 12, fontFamily: 'PlusJakartaSans_700Bold' },
+  sessionName: { color: TRI.ink, fontSize: 15, fontFamily: 'PlusJakartaSans_800ExtraBold' },
+  sessionMeta: { color: TRI.sub, fontSize: 13, fontFamily: 'PlusJakartaSans_500Medium' },
 
-  // Inspirational text
-  inspirationalText: {
-    fontSize: 14,
-    fontFamily: 'PlusJakartaSans_500Medium',
-    lineHeight: 22,
-    marginBottom: 4,
-  },
+  shortcuts: { flexDirection: 'row' },
+  shortcut: { flex: 1, alignItems: 'center', gap: 8 },
+  knob: { width: 62, height: 62, borderRadius: 31, backgroundColor: TRI.bg, alignItems: 'center', justifyContent: 'center' },
+  knobCore: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  knobLabel: { fontSize: 13, color: TRI.ink, fontFamily: 'PlusJakartaSans_700Bold' },
 
-  // Progress section
-  progressItem: {},
-  progressMeta: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  progressLabel: { fontSize: 12, fontFamily: 'PlusJakartaSans_700Bold' },
-  progressPct:   { fontSize: 12, fontFamily: 'PlusJakartaSans_700Bold' },
-  progressTrack: { height: 6, borderRadius: 999, overflow: 'hidden' },
-  progressFill:  { height: '100%', borderRadius: 999 },
-  reportBtn: {
-    marginTop: 18, borderWidth: 1, borderRadius: 16,
-    paddingVertical: 12, alignItems: 'center',
-  },
-  reportBtnText: { fontSize: 12, fontFamily: 'PlusJakartaSans_700Bold' },
-
-  // Journal Button (reused)
-  journalBtn: { paddingVertical: 12, borderRadius: 14, alignItems: 'center' },
-  journalBtnText: { color: '#fff', fontSize: 13, fontFamily: 'PlusJakartaSans_700Bold' },
+  quote: { backgroundColor: TRI.sageFill, borderRadius: 22, padding: 18, flexDirection: 'row', gap: 10 },
+  quoteMark: { fontSize: 40, lineHeight: 40, color: TRI.sage, fontFamily: 'PlusJakartaSans_800ExtraBold' },
+  quoteText: { flex: 1, fontSize: 15, lineHeight: 23, color: TRI.sub, fontFamily: 'PlusJakartaSans_600SemiBold' },
 });
-

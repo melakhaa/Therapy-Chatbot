@@ -29,12 +29,12 @@ analytics) require `admin` (or `admin`/`pemangku_jabatan` for the profile). See
 
 ## Row Level Security
 
-- The backend connects as the non-superuser role `sanctuary_app`, and `core/db.py` sets the request
+- The backend connects as the non-superuser role `sajiwa_app`, and `core/db.py` sets the request
   identity per transaction (`set_config('app.current_user_id', ..., true)`), so every query is
   filtered by the caller's policies.
 - App-layer guards (`require_role`) and RLS are both required. RLS is the backstop if a query forgets
   `where user_id = %s`; `require_role` is what returns a useful `403` to the client.
-- **Never point `DATABASE_URL` at `sanctuary`** — that role is a superuser and silently bypasses
+- **Never point `DATABASE_URL` at `sajiwa`** — that role is a superuser and silently bypasses
   every policy, making RLS cosmetic.
 
 ## Encryption (Fernet / `cryptography`)
@@ -68,7 +68,7 @@ python -c "import os,base64; print(base64.urlsafe_b64encode(os.urandom(32)).deco
 
 Backend `.env` (`apps/backend/.env`, gitignored — copy from `.env.example`):
 ```
-DATABASE_URL=postgresql://sanctuary_app:sanctuary_app@localhost:5432/sanctuary
+DATABASE_URL=postgresql://sajiwa_app:sajiwa_app@localhost:5432/sajiwa
 JWT_SECRET=                # signs auth tokens
 ENCRYPTION_KEY=            # Fernet key
 ALLOWED_ORIGINS=           # comma-separated CORS origins (defaults to *)

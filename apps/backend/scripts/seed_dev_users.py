@@ -3,7 +3,7 @@
     cd apps/backend
     venv/bin/python scripts/seed_dev_users.py
 
-Connects as the superuser (`sanctuary`) because the first admin cannot be created
+Connects as the superuser (`sajiwa`) because the first admin cannot be created
 through the API: POST /accounts requires an existing admin.
 
 Emails use @example.com because the API's EmailStr rejects reserved TLDs such as
@@ -19,12 +19,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DB = os.getenv("SEED_DB_URL", "postgresql://sanctuary:sanctuary@localhost:5432/sanctuary")
+DB = os.getenv("SEED_DB_URL", "postgresql://sajiwa:sajiwa@localhost:5432/sajiwa")
 
 USERS = [
-    ("admin@example.com", "admin1234", "Admin Sanctuary", "admin"),
-    ("konselor@example.com", "konselor1234", "Konselor Sanctuary", "konselor"),
-    ("mahasiswa@example.com", "mahasiswa1234", "Mahasiswa Sanctuary", "mahasiswa"),
+    ("admin@example.com", "admin1234", "Admin Sajiwa", "admin"),
+    ("konselor@example.com", "konselor1234", "Konselor Sajiwa", "konselor"),
+    ("mahasiswa@example.com", "mahasiswa1234", "Mahasiswa Sajiwa", "mahasiswa"),
 ]
 
 with psycopg.connect(DB, autocommit=True) as conn:

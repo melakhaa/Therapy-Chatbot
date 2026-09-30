@@ -197,7 +197,7 @@ async function main() {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('button', { name: 'Keluar', exact: true }).click();
   await visible('Selamat datang kembali');
-  assert.equal(await page.evaluate(() => localStorage.getItem('sanctuary_token')), null);
+  assert.equal(await page.evaluate(() => localStorage.getItem('sajiwa_token')), null);
   role = 'konselor';
   await page.getByLabel('Email', { exact: true }).fill('counselor@example.com');
   await page.getByLabel('Kata sandi', { exact: true }).fill('wrong-password');

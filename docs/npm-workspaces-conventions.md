@@ -27,12 +27,12 @@ apiFetch<T>(path, { method, body, auth = true, base })  // auth defaults true
   status to a safe Bahasa Indonesia message in `apps/dashboard/hooks/useAdminResource.ts`.
 
 `src/storage.ts` is the cross-platform token store: `localStorage` on web, `AsyncStorage` on
-native. Keys `sanctuary_token`, `sanctuary_user`. Use `getStoredUser` / `clearAuth`; the `*Sync`
+native. Keys `sajiwa_token`, `sajiwa_user`. Use `getStoredUser` / `clearAuth`; the `*Sync`
 variants exist only for the web dashboard.
 
 ### `@prototype/ui-shared` (`packages/ui-shared`)
 
-- `theme.ts` — `SanctuaryColors` (Material-3 palette) + typography.
+- `theme.ts` — `SajiwaColors` (Material-3 palette) + typography.
 - `ThemeContext.tsx` — `ThemeProvider` / theme hook.
 - `useAuth.ts` — `useAuth()` state machine (load persisted user, `login`, `logout`).
 - `useAnimatedEntrance.ts` — shared entrance animation.
@@ -41,6 +41,8 @@ variants exist only for the web dashboard.
 
 - `stressDetection.ts` — keyword-based stress scoring from chat text.
 - `aiResponses.ts` — fallback/local response parsers.
+- `characterReaction.ts` — companion expression picked from the user's message (crisis-safe mapping).
+- `phone.ts` — dialable-number / extension helpers for hotline `tel:` links.
 
 ## Conventions
 

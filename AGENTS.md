@@ -1,6 +1,6 @@
 # AGENTS.md
 
-**Sanctuary** — AI mental health support for university students and counselors. Students use an
+**Sajiwa** — AI mental health support for university students and counselors. Students use an
 Expo app (AI chat, stress detection, PHQ-9/GAD-7/SRQ, journaling); counselors/admins use an Expo
 web dashboard (risk monitoring, analytics, booking). An npm-workspace monorepo holds the Expo apps,
 the FastAPI backend (Python 3.12), and the shared TypeScript packages; Docker runs PostgreSQL 17 +
@@ -18,7 +18,7 @@ Therapy-Chatbot/
 │   ├── api-client/    @prototype/api-client — fetch wrappers + cross-platform storage
 │   ├── ui-shared/     @prototype/ui-shared — theme, context, auth hook, animation
 │   └── utils/         @prototype/utils — stress detection, response parsers
-├── db/                init/ SQL (schema, auth) + test_rls.sql + pgadmin config
+├── db/                init/ SQL (schema, auth, mobile extras) + test_rls.sql + pgadmin config
 ├── docs/              Per-stack convention docs (linked below)
 ├── docker-compose.yml PostgreSQL 17 + pgvector + pgAdmin
 ├── package.json       Root workspace
@@ -52,5 +52,5 @@ cd apps/dashboard && npm run lint                       # only configured linter
 - TypeScript / React / React Native / Expo / routing / UI → [docs/typescript-conventions.md](docs/typescript-conventions.md), [docs/react-conventions.md](docs/react-conventions.md), [docs/react-native-conventions.md](docs/react-native-conventions.md), [docs/expo-conventions.md](docs/expo-conventions.md), [docs/expo-router-conventions.md](docs/expo-router-conventions.md), [docs/react-navigation-conventions.md](docs/react-navigation-conventions.md), [docs/react-native-ui-conventions.md](docs/react-native-ui-conventions.md)
 - npm workspaces / shared packages → [docs/npm-workspaces-conventions.md](docs/npm-workspaces-conventions.md)
 - Docker / local infra → [docs/docker-conventions.md](docs/docker-conventions.md)
-- Git, commits, PRs → [docs/git-conventions.md](docs/git-conventions.md)
+- Git, commits, PRs → [docs/git-conventions.md](docs/git-conventions.md) — Conventional Commits, no AI co-author trailers.
 - Security: JWT, RBAC, encryption, secrets → [docs/security-conventions.md](docs/security-conventions.md)

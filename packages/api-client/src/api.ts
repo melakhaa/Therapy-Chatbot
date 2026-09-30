@@ -1,6 +1,12 @@
 import { Platform } from 'react-native';
 import { fetch as streamFetch } from 'expo/fetch';
-import { getToken, saveToken, saveUser } from './storage';
+import { getToken, saveToken, saveUser, clearAuth } from './storage';
+
+let unauthorizedCallback: (() => void) | null = null;
+
+export function setUnauthorizedCallback(callback: () => void) {
+  unauthorizedCallback = callback;
+}
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || (__DEV__
   ? (Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000')
@@ -35,6 +41,11 @@ export async function apiFetch<T = unknown>(
   const res = await fetch(`${base}${path}`, { ...fetchOpts, headers });
 
   if (!res.ok) {
+    if (res.status === 401 && auth) {
+      await clearAuth();
+      unauthorizedCallback?.();
+    }
+
     let detail = `HTTP ${res.status}`;
     try {
       const err = await res.json();
@@ -76,6 +87,10 @@ export async function apiLogin(payload: LoginPayload): Promise<LoginResponse> {
   await saveToken(data.access_token);
   await saveUser(data.user);
   return data;
+}
+
+export async function apiLogout(): Promise<void> {
+  await clearAuth();
 }
 
 export async function apiRegister(payload: any) {
@@ -201,6 +216,14 @@ export async function apiChatStream(
   }
 }
 
+/** Crisis sheet "Kabari tim Sajiwa": logs an unread safety signal for counselors. */
+export async function apiReportToTeam(session_id?: string) {
+  return apiFetch<{ status: string }>('/chat/report', {
+    method: 'POST',
+    body: JSON.stringify({ session_id }),
+  });
+}
+
 // ── Assessment ─────────────────────────────────────────────────────────────────
 
 export interface AnswerItem {
@@ -223,8 +246,17 @@ export async function apiSubmitAssessment(payload: AssessmentPayload) {
 
 // ── Jadwal / Booking ───────────────────────────────────────────────────────────
 
-export async function apiGetJadwal() {
-  return apiFetch<{ jadwal: object[] }>('/jadwal');
+export interface JadwalSlot {
+  jadwal_id: string;
+  konselor_id: string;
+  tanggal: string;
+  waktu_mulai: string;
+  waktu_selesai: string;
+  status: string;
+}
+
+export async function apiGetJadwal(): Promise<{ jadwal: JadwalSlot[] }> {
+  return apiFetch('/jadwal');
 }
 
 export async function apiBuatBooking(jadwal_id: string, catatan?: string) {
@@ -276,6 +308,11 @@ export async function apiGetAccounts(): Promise<{ users: UserRow[]; total: numbe
   return apiFetch<{ users: UserRow[]; total: number }>('/accounts');
 }
 
+/** Counselor directory for the booking screen (public fields only). */
+export async function apiGetKonselor(): Promise<{ users: UserRow[] }> {
+  return apiFetch<{ users: UserRow[] }>('/accounts/konselor');
+}
+
 // ── Journaling ─────────────────────────────────────────────────────────────────
 
 export interface JournalPayload {
@@ -294,6 +331,17 @@ export async function apiGetTodayJournal() {
   return apiFetch<{ journal: { content: string; mood: string } | null }>('/journal/today');
 }
 
-export async function apiGetJournals() {
-  return apiFetch<{ journals: any[] }>('/journal');
+export async function apiGetJournals(limit = 20, offset = 0) {
+  return apiFetch<{ journals: any[] }>(`/journal?limit=${limit}&offset=${offset}`);
+}
+
+export async function apiUpdateJournal(journal_id: string, payload: Partial<JournalPayload>) {
+  return apiFetch(`/journal/${journal_id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiDeleteJournal(journal_id: string) {
+  return apiFetch(`/journal/${journal_id}`, { method: 'DELETE' });
 }

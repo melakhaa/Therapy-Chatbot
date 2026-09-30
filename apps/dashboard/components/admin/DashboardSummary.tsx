@@ -15,7 +15,7 @@ export default function DashboardSummary({ analytics = false }: { analytics?: bo
   const data = dashboard.data;
   const names = new Map(accounts.data?.users.map(u => [u.user_id, u.nama]));
   const title = analytics ? 'Analytics' : (id ? 'Selamat datang, ' : 'Welcome, ') + profile.nama.split(' ')[0];
-  return <Page title={title} subtitle={analytics ? (id ? 'Ringkasan data asesmen yang tercatat di Sanctuary.' : 'Summary of assessment data recorded in Sanctuary.') : (id ? 'Pantau asesmen dan dukung kesejahteraan komunitas kampus.' : 'Monitor assessments and support campus community wellbeing.')} action={<Button label={id ? 'Perbarui' : 'Refresh'} icon="refresh" tone="quiet" onPress={() => { dashboard.reload(); accounts.reload(); }} />}>
+  return <Page title={title} subtitle={analytics ? (id ? 'Ringkasan data asesmen yang tercatat di Sajiwa.' : 'Summary of assessment data recorded in Sajiwa.') : (id ? 'Pantau asesmen dan dukung kesejahteraan komunitas kampus.' : 'Monitor assessments and support campus community wellbeing.')} action={<Button label={id ? 'Perbarui' : 'Refresh'} icon="refresh" tone="quiet" onPress={() => { dashboard.reload(); accounts.reload(); }} />}>
     {dashboard.loading ? <LoadingState /> : dashboard.error ? <ErrorState message={dashboard.error} retry={dashboard.reload} /> : data && <>
       <View style={ui.grid}>
         {canManageUsers(profile) && <StatCard label={id ? 'Mahasiswa terdaftar' : 'Registered students'} value={accounts.loading ? '…' : accounts.error ? '—' : accounts.data?.users.filter(u => u.role === 'mahasiswa').length ?? 0} icon="school" note={id ? 'Akun dengan peran mahasiswa' : 'Accounts with student role'} />}

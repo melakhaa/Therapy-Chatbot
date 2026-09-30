@@ -1,16 +1,18 @@
 // components/ui/Button.tsx
 // Reusable button with variants: 'primary' | 'secondary' | 'ghost' | 'danger'
 
-import React from 'react';
+import React, { useState } from 'react';
+import Animated from 'react-native-reanimated';
+import { usePressScale } from './usePressScale';
 import {
-  TouchableOpacity,
+  Pressable,
   Text,
   StyleSheet,
   ViewStyle,
   TextStyle,
   ActivityIndicator,
 } from 'react-native';
-import { Typography, Spacing, BorderRadius } from '@prototype/ui-shared';
+import { Typography, Spacing, BorderRadius, Neu } from '@prototype/ui-shared';
 import { useTheme } from '@prototype/ui-shared';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -24,7 +26,11 @@ interface ButtonProps {
   style?: ViewStyle;
   textStyle?: TextStyle;
   icon?: React.ReactNode;
+  /** Feature color for the primary variant (e.g. sage on journal screens, amber on counseling). */
+  accent?: string;
 }
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export const Button: React.FC<ButtonProps> = ({
   label,
@@ -35,14 +41,17 @@ export const Button: React.FC<ButtonProps> = ({
   style,
   textStyle,
   icon,
+  accent,
 }) => {
   const { colors } = useTheme();
+  const [pressed, setPressed] = useState(false);
+  const press = usePressScale(0.98);
 
   const getContainerStyle = (): ViewStyle => {
     switch (variant) {
-      case 'primary':   return { backgroundColor: colors.primary };
-      case 'secondary': return { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border };
-      case 'ghost':     return { backgroundColor: 'transparent' };
+      case 'primary':   return { backgroundColor: accent ?? colors.primary, boxShadow: Neu.raised };
+      case 'secondary': return { backgroundColor: colors.background, boxShadow: Neu.raised };
+      case 'ghost':     return {};
       case 'danger':    return { backgroundColor: colors.stressHigh };
       default:          return {};
     }
@@ -51,7 +60,7 @@ export const Button: React.FC<ButtonProps> = ({
   const getLabelColor = () => {
     switch (variant) {
       case 'primary':   return '#FFFFFF';
-      case 'secondary': return colors.textSecondary;
+      case 'secondary': return colors.primary;
       case 'ghost':     return colors.textSecondary;
       case 'danger':    return '#FFFFFF';
       default:          return colors.textPrimary;
@@ -59,11 +68,23 @@ export const Button: React.FC<ButtonProps> = ({
   };
 
   return (
-    <TouchableOpacity
+    <AnimatedPressable
       onPress={onPress}
+      onPressIn={() => { setPressed(true); press.onPressIn(); }}
+      onPressOut={() => { setPressed(false); press.onPressOut(); }}
       disabled={disabled || loading}
-      style={[styles.base, getContainerStyle(), (disabled || loading) && styles.disabled, style]}
-      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
+      style={[
+        styles.base,
+        getContainerStyle(),
+        // Neumorphic press: the surface sinks in and springs back
+        pressed && variant !== 'ghost' && { boxShadow: Neu.inset },
+        (disabled || loading) && styles.disabled,
+        style,
+        press.style,
+      ]}
     >
       {loading ? (
         <ActivityIndicator color={getLabelColor()} size="small" />
@@ -73,7 +94,7 @@ export const Button: React.FC<ButtonProps> = ({
           <Text style={[styles.label, { color: getLabelColor() }, textStyle]}>{label}</Text>
         </>
       )}
-    </TouchableOpacity>
+    </AnimatedPressable>
   );
 };
 
@@ -82,8 +103,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: BorderRadius.lg,
-    paddingVertical: Spacing.base + 2,
+    borderRadius: BorderRadius.xl,
+    minHeight: 52,
+    paddingVertical: Spacing.base,
     paddingHorizontal: Spacing.xl,
     gap: Spacing.sm,
   },

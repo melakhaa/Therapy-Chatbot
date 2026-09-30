@@ -4,11 +4,11 @@ import type { BookingStatus, Role, Severity } from './admin';
 export interface AttentionSignal {
   log_id: string; user_id: string | null; assessment_id: string | null;
   is_read: boolean; notified_at: string | null; nama: string | null; nim: string | null;
-  signal_type: 'assessment' | 'safety';
+  signal_type: 'assessment' | 'safety' | 'request';
 }
 export interface AttentionPage {
   signals: AttentionSignal[];
-  summary: { signal_type: 'assessment' | 'safety'; total: number; unread: number }[];
+  summary: { signal_type: 'assessment' | 'safety' | 'request'; total: number; unread: number }[];
   total: number; page: number; page_size: number;
 }
 export interface OrganizationSchedule {

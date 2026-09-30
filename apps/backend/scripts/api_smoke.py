@@ -1,4 +1,4 @@
-"""End-to-end smoke test for the Sanctuary API.
+"""End-to-end smoke test for the Sajiwa API.
 
 Starts nothing: expects `docker compose up -d` and uvicorn to already be running.
 Exercises auth, accounts, assessments, journals, jadwal/booking, dashboard, chat
@@ -9,7 +9,7 @@ created.
     venv/bin/python scripts/api_smoke.py
 
 Env overrides: `API_BASE`, `SMOKE_DB_URL` (superuser URL, used only to seed the
-first admin and to verify DB state — the API itself always uses sanctuary_app).
+first admin and to verify DB state — the API itself always uses sajiwa_app).
 Exits non-zero on the first failing check.
 """
 
@@ -17,7 +17,7 @@ import json, os, urllib.request, urllib.error, uuid, sys, time
 import bcrypt, psycopg
 
 BASE = os.getenv("API_BASE", "http://localhost:8000")
-DB = os.getenv("SMOKE_DB_URL", "postgresql://sanctuary:sanctuary@localhost:5432/sanctuary")
+DB = os.getenv("SMOKE_DB_URL", "postgresql://sajiwa:sajiwa@localhost:5432/sajiwa")
 FAILS = []
 SFX = uuid.uuid4().hex[:8]
 

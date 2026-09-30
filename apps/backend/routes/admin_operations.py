@@ -1,4 +1,4 @@
-"""Admin-only operational views over existing Sanctuary tables.
+"""Admin-only operational views over existing Sajiwa tables.
 
 The responses deliberately exclude assessment answers, booking notes, private text,
 and raw guardrail trigger input.
@@ -42,17 +42,20 @@ class HotlineUpdate(BaseModel):
 
 @router.get("/attention")
 def attention_signals(
-    signal: Optional[Literal["assessment", "safety"]] = None,
+    signal: Optional[Literal["assessment", "safety", "request"]] = None,
     unread_only: bool = False,
     page: int = Query(1, ge=1, le=2147483647),
     page_size: int = Query(20, ge=1, le=100),
     admin=Depends(admin_access),
 ):
+    # 'request' = the student pressed "contact me" in the app's crisis dialog (routes/chat.py report_to_team).
     # Classification only. `source`/`assessment_id` are authoritative now; the LIKE arm only
     # keeps rows written before `source` existed readable. Never returned to the client.
+    # %% because this SQL is passed to psycopg with params, where a lone % starts a placeholder
     kind = (
         "case when g.assessment_id is not null or g.source = 'assessment' "
-        "or g.triggered_input like '[ASSESSMENT]%' then 'assessment' else 'safety' end"
+        "or g.triggered_input like '[ASSESSMENT]%%' then 'assessment' "
+        "when g.triggered_input like '[LAPORAN PENGGUNA]%%' then 'request' else 'safety' end"
     )
     source = (
         "from guardrail_logs g left join users u on u.user_id = g.user_id "
