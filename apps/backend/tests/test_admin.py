@@ -51,7 +51,7 @@ class AdminContractTests(unittest.TestCase):
         self.calls.append((sql, params, user_id))
         if "count(*)" in sql:
             return [{"total": 1}]
-        if "from users where" in sql:
+        if "from users" in sql:
             if params[0] != STUDENT:
                 return []
             return [{"user_id": STUDENT, "nama": "Test Student", "email": "test@example.com",
