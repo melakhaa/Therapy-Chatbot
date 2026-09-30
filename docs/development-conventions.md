@@ -19,7 +19,7 @@ cp .env.example .env           # then fill DATABASE_URL, JWT_SECRET, ENCRYPTION_
 ## Infrastructure
 
 ```bash
-docker compose up -d     # PostgreSQL 17 + pgvector (db/init/*.sql run on first boot) + pgAdmin
+docker compose up -d     # PostgreSQL 17 + pgvector (init + migrations run on boot) + pgAdmin
 docker compose ps
 docker compose down      # keep data
 docker compose down -v   # wipe data; re-applies db/init on next up
@@ -78,8 +78,9 @@ cd apps/backend && venv/bin/python scripts/api_smoke.py
 ## Gotchas
 
 - Run the backend from `apps/backend` — imports are top-level (`from auth import ...`), not a package.
-- Schema lives in `db/init/*.sql`; edit it and `docker compose down -v && docker compose up -d` to
-  re-apply. There is no migration framework, and wiping destroys local data.
+- Schema baseline is `db/init/*.sql` (empty volume); additive changes go in `db/migrations/*.sql`
+  and are applied by the one-shot `migrate` service on `docker compose up`. Wiping
+  (`docker compose down -v`) destroys local data.
 - The backend connects as `sajiwa_app` (non-superuser) so RLS applies. Pointing `DATABASE_URL` at
   `sajiwa` silently disables every policy — see [security-conventions.md](security-conventions.md).
 - `db/test_rls.sql` is the RLS/auth self-check; run it after schema or policy changes.

@@ -11,8 +11,10 @@ container lifecycle is in [docker-conventions.md](docker-conventions.md).
   `auth_lookup()`, `set_password()`.
 - **`db/init/03_mobile_app.sql`** — `list_konselor()`: a `SECURITY DEFINER` counselor directory
   (id, nama, role) for students, who cannot read other `users` rows under RLS.
-- Applied by `docker compose up` on an empty volume, in filename order. There is no migration
-  framework: to change the schema, edit the file and `docker compose down -v && docker compose up -d`.
+- **`db/migrations/*.sql`** — additive changes after the baseline, applied in order by the one-shot
+  `migrate` service on every `docker compose up` and recorded in `schema_migrations`.
+- Applied by `docker compose up`: `db/init` once on an empty volume, then migrations. To change the
+  schema, add a migration; `docker compose down -v && docker compose up -d` rebuilds from scratch.
 
 ## Extensions
 

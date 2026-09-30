@@ -8,6 +8,7 @@ GUI. `docker-compose.yml` at the repo root is the whole configuration — there 
 | Service | Image | Port | Notes |
 |---------|-------|------|-------|
 | `db` | `pgvector/pgvector:pg17` | `5432` | user/db `sajiwa` (superuser), data in the `pgdata` volume |
+| `migrate` | `pgvector/pgvector:pg17` | — | one-shot; applies `db/migrations/*.sql` after the db is healthy, then exits |
 | `pgadmin` | `dpage/pgadmin4` | `5050` | `admin@example.com` / `admin`; the `Sajiwa local` server is pre-registered by `db/pgadmin/servers.json` |
 
 pgAdmin rejects reserved TLDs, so use a normal-looking email — `.local` makes the container
@@ -36,6 +37,13 @@ filename order, only when the `pgdata` volume is empty:
 
 To re-apply them after editing: `docker compose down -v && docker compose up -d`. This destroys all
 data, which is fine locally.
+
+## Migrations
+
+`db/migrations/*.sql` is the additive track for changes after the baseline. The one-shot `migrate`
+service runs them in filename order once the db is healthy, on every `docker compose up` — so both
+fresh and existing volumes end up complete. Each migration is idempotent and records itself in
+`schema_migrations`. Add new DDL here, not by editing `01_schema.sql`.
 
 ## Roles
 
