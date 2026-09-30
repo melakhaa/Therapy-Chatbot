@@ -25,6 +25,7 @@ export interface AnalyticsData {
   severity_distribution: { severity: Severity; count: number }[];
   assessment_trend: { date: string; count: number }[];
   booking_total: number; booking_status: { status: BookingStatus; count: number }[];
+  academic_breakdown?: { faculty_name: string; academic_unit_name: string | null; assessment_count: number; attention_count: number }[];
 }
 export interface AccountDraft { nama: string; email: string; password: string; nim?: string; role: Role }
 

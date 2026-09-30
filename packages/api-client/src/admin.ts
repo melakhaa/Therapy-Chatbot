@@ -24,7 +24,8 @@ export interface IncomingBooking {
 export interface AccountInput { nama: string; email: string; password: string; nim?: string; role: Role }
 export type AccountUpdate = Pick<AccountInput, 'nama' | 'nim' | 'role'>;
 export interface AssessmentFilters {
-  search?: string; severity?: string; instrument?: string; date_from?: string; date_to?: string; page?: number;
+  search?: string; severity?: string; instrument?: string; date_from?: string; date_to?: string;
+  faculty_id?: string; academic_unit_id?: string; page?: number;
 }
 export function apiGetProfile() { return apiFetch<Profile>('/auth/me'); }
 export function apiGetAdminAssessments(filters: AssessmentFilters = {}) {
