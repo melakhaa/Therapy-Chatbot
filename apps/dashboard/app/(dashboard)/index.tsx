@@ -192,7 +192,8 @@ export default function DashboardScreen() {
   const [crisisUnread, setCrisisUnread] = useState<number | null>(null);
   const fetchAppActivity = () => {
     apiGetInsights(7).then(setWeek).catch(() => {});
-    apiGetAttention({ unreadOnly: true, pageSize: 1 }).then((r) => setCrisisUnread(r.total)).catch(() => {});
+    // Crisis signals are admin-only; counselors simply don't get that card
+    if (canManageUsers) apiGetAttention({ unreadOnly: true, pageSize: 1 }).then((r) => setCrisisUnread(r.total)).catch(() => {});
   };
 
   useEffect(() => {
@@ -305,12 +306,12 @@ export default function DashboardScreen() {
 
         {/* WHAT NEEDS ATTENTION: each card opens the page where it's handled */}
         <Grid min={230}>
-          <Stat
+          {canManageUsers && <Stat
             icon="notification-important" tone={crisisUnread ? 'coral' : 'sage'}
             value={crisisUnread ?? '…'} label="Peringatan krisis"
             hint={crisisUnread ? 'Belum ditinjau' : 'Semua sudah ditinjau'}
             onPress={() => router.push('/(dashboard)/crisis')}
-          />
+          />}
           <Stat
             icon="event-note" tone={pendingBookings ? 'amber' : 'sage'}
             value={loadingDB ? '…' : pendingBookings} label="Booking menunggu"
