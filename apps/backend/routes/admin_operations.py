@@ -15,9 +15,9 @@ from core.db import query
 
 router = APIRouter(prefix="/admin", tags=["Admin Operations"])
 admin_access = require_role("admin")
-# Counselors act on crisis signals and read aggregate insights too (RLS already lets them read guardrail_logs)
+# Aggregate insights carry no identifiers, so counselors may read them (same tier as /admin/assessments).
+# Everything operational stays admin-only per docs/security-conventions.md.
 staff_access = require_role("konselor", "admin", "pemangku_jabatan")
-report_access = require_role("admin", "pemangku_jabatan")
 
 
 
@@ -50,15 +50,16 @@ def attention_signals(
     unread_only: bool = False,
     page: int = Query(1, ge=1, le=2147483647),
     page_size: int = Query(20, ge=1, le=100),
-    admin=Depends(staff_access),
+    admin=Depends(admin_access),
 ):
     # 'request' = the student pressed "contact me" in the app's crisis dialog (routes/chat.py report_to_team).
     # Classification only. `source`/`assessment_id` are authoritative now; the LIKE arm only
     # keeps rows written before `source` existed readable. Never returned to the client.
     kind = (
         "case when g.assessment_id is not null or g.source = 'assessment' "
-        "or g.triggered_input like '[ASSESSMENT]%' then 'assessment' "
-        "when g.triggered_input like '[LAPORAN PENGGUNA]%' then 'request' else 'safety' end"
+        # %% because this SQL is passed to psycopg with params, where a lone % starts a placeholder
+        "or g.triggered_input like '[ASSESSMENT]%%' then 'assessment' "
+        "when g.triggered_input like '[LAPORAN PENGGUNA]%%' then 'request' else 'safety' end"
     )
     source = (
         "from guardrail_logs g left join users u on u.user_id = g.user_id "
@@ -81,7 +82,7 @@ def attention_signals(
 
 
 @router.patch("/attention/{log_id}/read")
-def mark_attention_read(log_id: UUID, admin=Depends(staff_access)):
+def mark_attention_read(log_id: UUID, admin=Depends(admin_access)):
     rows = query(
         "update guardrail_logs set is_read = true where log_id = %s returning log_id",
         (str(log_id),), user_id=admin.id,
@@ -198,7 +199,7 @@ def delete_hotline(hotline_id: UUID, admin=Depends(admin_access)):
 def analytics(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
-    admin=Depends(report_access),
+    admin=Depends(admin_access),
 ):
     end = date_to or date.today()
     start = date_from or end - timedelta(days=29)
