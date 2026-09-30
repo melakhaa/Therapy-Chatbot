@@ -11,7 +11,7 @@ const MENU: Item[] = [
   { icon: 'space-dashboard', label: 'Ringkasan', href: '/(dashboard)', match: '/' },
   { icon: 'event-note', label: 'Daftar Konsultasi', href: '/(dashboard)/schedule', match: 'schedule' },
   { icon: 'event-available', label: 'Atur Ketersediaan', href: '/(dashboard)/availability', match: 'availability' },
-  { icon: 'notifications-active', label: 'Peringatan Krisis', href: '/(dashboard)/crisis', match: 'crisis', badge: 'crisis' },
+  { icon: 'notifications-active', label: 'Peringatan Krisis', href: '/(dashboard)/crisis', match: 'crisis', badge: 'crisis', adminOnly: true },
   { icon: 'insights', label: 'Insight Mahasiswa', href: '/(dashboard)/insights', match: 'insights' },
   { icon: 'assessment', label: 'Laporan', href: '/(dashboard)/reports', match: 'reports', adminOnly: true },
   { icon: 'call', label: 'Hotline', href: '/(dashboard)/hotlines', match: 'hotlines', adminOnly: true },
@@ -50,10 +50,11 @@ export default function DashboardLayout() {
     m === '/' ? pathname === '/' || pathname === '/(dashboard)' : !!m && pathname.includes(m);
   const [crisis, setCrisis] = useState(0);
   // Unread crisis signals from the student app, refreshed on every page change
-  useEffect(() => {
-    apiGetAttention({ unreadOnly: true, pageSize: 1 }).then((r) => setCrisis(r.total)).catch(() => {});
-  }, [pathname]);
   const isStaffAdmin = user?.role === 'admin' || user?.role === 'pemangku_jabatan';
+  useEffect(() => {
+    if (!isStaffAdmin) return; // /admin/attention is admin-only (docs/security-conventions.md)
+    apiGetAttention({ unreadOnly: true, pageSize: 1 }).then((r) => setCrisis(r.total)).catch(() => {});
+  }, [pathname, isStaffAdmin]);
   const initials = (user?.nama || 'S').split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase()).join('');
 
   return (
