@@ -21,7 +21,16 @@ HTTPS, verified with a live completion call. Nothing else.
 
 Single GGUF in the repo → the llama.cpp engine auto-detects it; no `gguf_file` selection needed.
 
-## ⚠ Hard prerequisite — fix auth first
+## ⚠ Hard prerequisite — billing and auth
+
+### Billing
+
+Inference Endpoints need an active payment method / available credit on the `melakha` account.
+**Top up the credit first** (<https://huggingface.co/settings/billing>) — the deploy in Step 2
+fails otherwise, and the endpoint bills per hour while a replica is running (mitigated below by
+the 15-min auto scale-to-zero).
+
+### Auth
 
 The token currently on this machine **cannot touch the Endpoints API**:
 
@@ -79,8 +88,13 @@ hf endpoints deploy sajiwa-llama3-8b-gguf \
   --region         us-east-1 \
   --task           text-generation \
   --min-replica 1 --max-replica 1 \
+  --scale-to-zero-timeout 15 \
   --type authenticated
 ```
+
+`--scale-to-zero-timeout 15` makes the endpoint **automatically scale to zero after 15 minutes
+with no requests** — no idle GPU charges while nothing is using it; the next request triggers a
+cold start (~1–2 min) before it serves again.
 
 - `--instance-type/--instance-size/--vendor/--region` = the values from Step 1 (the strings above
   are placeholders).
@@ -124,14 +138,13 @@ Pass = HTTP 200 and a `choices[0].message.content` that isn't empty. If `/v1/cha
 
 ## Cost safety
 
-Idle GPUs burn money. When not actively using it:
+Auto scale-to-zero is already configured at deploy time (`--scale-to-zero-timeout 15` above), so
+an idle endpoint costs nothing after 15 quiet minutes. To stop it immediately or manually:
 
 ```bash
 hf endpoints scale-to-zero sajiwa-llama3-8b-gguf --namespace melakha   # or:
 hf endpoints pause        sajiwa-llama3-8b-gguf --namespace melakha
 ```
-
-(Optionally pass `--scale-to-zero-timeout <min>` at deploy time to automate this.)
 
 ## Out of scope (follow-up)
 
