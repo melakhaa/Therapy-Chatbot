@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 import { apiFetch, apiGetJournals, apiGetBookingSaya, apiGetKonselor } from '@prototype/api-client';
 
 import {
-  BottomNav, FadeIn, NeuView, Button, ScreenHeader, useToast,
+  BottomNav, BOTTOM_CLEARANCE, FadeIn, NeuView, Button, ScreenHeader, useToast,
   Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '../components/ui';
 import { Companion } from '../components/chat';
@@ -92,35 +92,18 @@ export default function ProfileScreen() {
     : null;
 
   const tiles = [
-    { icon: 'book-outline', value: String(journals.length), label: 'catatan jurnal', color: colors.sage, to: '/journal-history' },
-    { icon: 'flame-outline', value: String(journey.streak), label: 'hari menulis berturut-turut', color: colors.stressMid, to: '/journal-history' },
+    { icon: 'book-outline', value: String(journals.length), label: 'catatan jurnal', color: colors.sage },
+    { icon: 'flame-outline', value: String(journey.streak), label: 'hari berturut-turut', color: colors.stressMid },
     journey.topMood
-      ? { icon: journey.topMood.icon, value: journey.topMood.label, label: 'suasana paling sering', color: journey.topMood.color, to: '/stats' }
-      : { icon: 'leaf-outline', value: '–', label: 'suasana paling sering', color: colors.onSurfaceVariant, to: '/stats' },
-  ];
-
-  const groups = [
-    {
-      title: 'Aktivitas',
-      items: [
-        { icon: 'book-outline', label: 'Jurnal', to: '/journal-history', color: colors.sage },
-        { icon: 'stats-chart-outline', label: 'Laporan mingguan', to: '/stats' },
-      ],
-    },
-    {
-      title: 'Bantuan',
-      items: [
-        { icon: 'calendar-outline', label: 'Konseling', to: '/schedule', color: colors.amber },
-        { icon: 'call-outline', label: 'Hotline darurat', to: '/hotline', danger: true },
-      ],
-    },
+      ? { icon: journey.topMood.icon, value: journey.topMood.label, label: 'suasana tersering', color: journey.topMood.color }
+      : { icon: 'leaf-outline', value: '–', label: 'suasana tersering', color: colors.onSurfaceVariant },
   ];
 
   return (
     <View style={[s.root, { backgroundColor: colors.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 120 }]}
+        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + BOTTOM_CLEARANCE }]}
       >
         <ScreenHeader title="Profil" />
 
@@ -137,7 +120,7 @@ export default function ProfileScreen() {
               </Text>
               {joinedLabel && <Text style={[s.joined, { color: colors.textMuted }]}>{joinedLabel}</Text>}
             </View>
-            <Companion expression="senang" size={108} />
+            <Companion expression="senang" size={84} />
           </NeuView>
         </FadeIn>
 
@@ -147,19 +130,18 @@ export default function ProfileScreen() {
             <Text style={[s.sectionTitle, { color: colors.onSurface }]} accessibilityRole="header">Perjalananmu</Text>
             <View style={s.grid}>
               {tiles.map((t) => (
-                <PressableScale
+                <View
                   key={t.label}
-                  onPress={() => router.push(t.to as any)}
-                  accessibilityRole="button"
+                  accessible
                   accessibilityLabel={`${t.value} ${t.label}`}
-                  style={({ pressed }) => [s.tile, { backgroundColor: colors.background, boxShadow: pressed ? Neu.inset : Neu.raisedSm }]}
+                  style={[s.tile, { backgroundColor: colors.background, boxShadow: Neu.raisedSm }]}
                 >
                   <Ionicons name={t.icon as any} size={20} color={t.color} />
                   <Text style={[s.tileValue, { color: t.color === colors.primary || t.color === colors.sage ? colors.onSurface : t.color }]} numberOfLines={1}>
                     {t.value}
                   </Text>
                   <Text style={[s.tileLabel, { color: colors.onSurfaceVariant }]} numberOfLines={2}>{t.label}</Text>
-                </PressableScale>
+                </View>
               ))}
             </View>
           </View>
@@ -194,28 +176,24 @@ export default function ProfileScreen() {
           </FadeIn>
         )}
 
-        {/* ── Menu ── */}
-        {groups.map((g, gi) => (
-          <FadeIn key={g.title}>
-            <View style={{ gap: 10 }}>
-              <Text style={[s.groupTitle, { color: colors.onSurfaceVariant }]}>{g.title}</Text>
-              <NeuView radius={24} style={s.menuCard}>
-                {g.items.map((item) => (
-                  <PressableScale
-                    key={item.label}
-                    onPress={() => router.push(item.to as any)}
-                    accessibilityRole="button"
-                    style={({ pressed }) => [s.menuItem, pressed && { backgroundColor: colors.background, boxShadow: Neu.inset }]}
-                  >
-                    <Ionicons name={item.icon as any} size={20} color={(item as any).color ?? ((item as any).danger ? colors.stressHigh : colors.primary)} />
-                    <Text style={[s.menuLabel, { color: colors.onSurface }]}>{item.label}</Text>
-                    <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-                  </PressableScale>
-                ))}
-              </NeuView>
+        {/* The one destination the bottom nav does not reach */}
+        <FadeIn>
+          <PressableScale
+            onPress={() => router.push('/hotline')}
+            accessibilityRole="button"
+            accessibilityLabel="Hotline darurat"
+            style={({ pressed }) => [s.hotline, { backgroundColor: colors.background, boxShadow: pressed ? Neu.inset : Neu.raisedSm }]}
+          >
+            <View style={[s.hotlineIcon, { backgroundColor: colors.stressHigh }]}>
+              <Ionicons name="call" size={18} color="#fff" />
             </View>
-          </FadeIn>
-        ))}
+            <View style={{ flex: 1 }}>
+              <Text style={[s.menuLabel, { color: colors.onSurface }]}>Hotline darurat</Text>
+              <Text style={[s.hotlineHint, { color: colors.onSurfaceVariant }]}>Bantuan profesional, gratis dan rahasia</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </PressableScale>
+        </FadeIn>
 
         {/* ── Privacy, stated honestly ── */}
         <FadeIn>
@@ -259,10 +237,10 @@ export default function ProfileScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  scroll: { paddingHorizontal: Spacing.lg, gap: 24 },
+  scroll: { paddingHorizontal: Spacing.lg, gap: 14 },
 
-  identity: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingLeft: 18, paddingVertical: 14, paddingRight: 8 },
-  avatar: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 16, paddingVertical: 10, paddingRight: 8 },
+  avatar: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 20, fontFamily: 'PlusJakartaSans_800ExtraBold' },
   name: { fontSize: 18, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.3 },
   meta: { fontSize: 13, fontFamily: 'PlusJakartaSans_500Medium' },
@@ -270,9 +248,9 @@ const s = StyleSheet.create({
 
   sectionTitle: { fontSize: 17, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.3 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  tile: { flexBasis: '46%', flexGrow: 1, padding: 16, borderRadius: 22, gap: 6, minHeight: 116 },
-  tileValue: { fontSize: 24, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.5, marginTop: 4 },
-  tileLabel: { fontSize: 13, fontFamily: 'PlusJakartaSans_500Medium', lineHeight: 18 },
+  tile: { flexBasis: '30%', flexGrow: 1, padding: 12, borderRadius: 18, gap: 2, minHeight: 92 },
+  tileValue: { fontSize: 20, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.5, marginTop: 4 },
+  tileLabel: { fontSize: 11, fontFamily: 'PlusJakartaSans_500Medium', lineHeight: 15 },
 
   session: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 24 },
   sessionDate: { width: 56, height: 60, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
@@ -282,12 +260,12 @@ const s = StyleSheet.create({
   sessionName: { fontSize: 15, fontFamily: 'PlusJakartaSans_700Bold' },
   sessionMeta: { fontSize: 13, fontFamily: 'PlusJakartaSans_600SemiBold' },
 
-  groupTitle: { fontSize: 13, fontFamily: 'PlusJakartaSans_700Bold', paddingHorizontal: 4 },
-  menuCard: { padding: 8 },
-  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 54, paddingHorizontal: 14, borderRadius: 16 },
-  menuLabel: { flex: 1, fontSize: 15, fontFamily: 'PlusJakartaSans_600SemiBold' },
+  hotline: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 20 },
+  hotlineIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  menuLabel: { fontSize: 15, fontFamily: 'PlusJakartaSans_600SemiBold' },
+  hotlineHint: { fontSize: 12, fontFamily: 'PlusJakartaSans_500Medium' },
 
-  privacy: { flexDirection: 'row', gap: 12, padding: 16, alignItems: 'flex-start' },
+  privacy: { flexDirection: 'row', gap: 10, padding: 12, alignItems: 'center' },
   privacyText: { flex: 1, fontSize: 13, fontFamily: 'PlusJakartaSans_500Medium', lineHeight: 20 },
 
   version: { textAlign: 'center', fontSize: 12, fontFamily: 'PlusJakartaSans_400Regular' },

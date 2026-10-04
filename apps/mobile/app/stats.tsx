@@ -1,11 +1,12 @@
-import React, { useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Animated } from 'react-native';
+import React, { useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { apiGetJournals } from '@prototype/api-client';
 
-import { BottomNav, FadeIn, NeuView, Button, ScreenHeader, IconButton, useToast } from '../components/ui';
+import { BottomNav, BOTTOM_CLEARANCE, FadeIn, NeuView, Button, ScreenHeader, IconButton, useToast } from '../components/ui';
 import { useTheme, Neu } from '@prototype/ui-shared';
 import { MOODS, Mood, moodOf } from '../constants/moods';
 
@@ -14,6 +15,24 @@ type Day = { day: string; score: number; mood: Mood | null };
 const INIT_WEEK: Day[] = Array(7).fill({ day: '-', score: 0, mood: null });
 const CHART_H = 100;
 const SCORE: Record<string, number> = { Calm: 100, Focused: 80, Tired: 50, Anxious: 30 };
+
+// One bar of the weekly chart, grown on the UI thread. The RN Animated version drove `height`
+// through the JS driver, so the whole chart re-laid-out on the JS thread every frame. Mounted
+// fresh per week (see its key), so a week change grows from zero; a data change within the
+// same week animates from where the bar already is.
+const Bar: React.FC<{ score: number; color: string; index: number }> = ({ score, color, index }) => {
+  const fill = useSharedValue(0);
+  useEffect(() => {
+    fill.value = withDelay(
+      60 * index,
+      withSpring(score / 100, { damping: 22, stiffness: 170, overshootClamping: true, reduceMotion: ReduceMotion.System }),
+    );
+    // fill is a stable shared value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [score, index]);
+  const style = useAnimatedStyle(() => ({ height: `${fill.value * 100}%` }));
+  return <Animated.View style={[s.barFill, { backgroundColor: color }, style]} />;
+};
 
 // weekOffset: 0 = minggu ini, -1 = minggu lalu, dst.
 function getWeekRange(weekOffset: number) {
@@ -45,7 +64,6 @@ export default function StatsScreen() {
   const [weekData, setWeekData] = React.useState<Day[]>(INIT_WEEK);
   const [counts, setCounts] = React.useState<Record<Mood, number>>({ Calm: 0, Focused: 0, Tired: 0, Anxious: 0 });
   const [total, setTotal] = React.useState(0);
-  const barAnims = useRef(INIT_WEEK.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
     apiGetJournals(200, 0)
@@ -88,13 +106,6 @@ export default function StatsScreen() {
     period.forEach((j: any) => { if (j.mood in c) c[j.mood as Mood]++; });
     setCounts(c);
     setTotal(period.length);
-
-    barAnims.forEach((a) => a.setValue(0));
-    Animated.parallel(
-      barAnims.map((anim, idx) =>
-        Animated.timing(anim, { toValue: next[idx].score / 100, duration: 500, delay: 60 * idx, useNativeDriver: false }),
-      ),
-    ).start();
   }, [allJournals, weekOffset]);
 
   useEffect(() => {
@@ -149,7 +160,7 @@ export default function StatsScreen() {
     <View style={[s.container, { backgroundColor: colors.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 120 }]}
+        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + BOTTOM_CLEARANCE }]}
       >
         <ScreenHeader
           back
@@ -204,14 +215,11 @@ export default function StatsScreen() {
               {weekData.map((d, i) => (
                 <View key={i} style={s.barContainer}>
                   <View style={[s.barTrack, { backgroundColor: colors.background, boxShadow: Neu.inset }]}>
-                    <Animated.View
-                      style={[
-                        s.barFill,
-                        {
-                          backgroundColor: moodOf(d.mood)?.color ?? 'transparent',
-                          height: barAnims[i].interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
-                        },
-                      ]}
+                    <Bar
+                      key={`${weekOffset}-${i}`}
+                      score={d.score}
+                      color={moodOf(d.mood)?.color ?? 'transparent'}
+                      index={i}
                     />
                   </View>
                   <Text style={[s.barDay, { color: colors.onSurfaceVariant }]}>{d.day}</Text>

@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, Neu } from '@prototype/ui-shared';
-import { BottomNav, FadeIn, NeuView, Button, ScreenHeader, useToast } from '../components/ui';
+import { BottomNav, BOTTOM_CLEARANCE, FadeIn, NeuView, Button, ScreenHeader, useToast, Calendar, longDate, toYmd, haptic } from '../components/ui';
 import { Companion } from '../components/chat';
 import type { Expression } from '@prototype/utils';
 import {
@@ -19,23 +19,7 @@ type Booking = {
   jadwal_konsultasi?: { tanggal: string; waktu_mulai: string; waktu_selesai: string; konselor_id: string };
 };
 
-const DAYS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
-const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const hm = (t?: string) => (t ?? '').substring(0, 5);
-
-function getDates() {
-  const today = new Date();
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    return {
-      day: i === 0 ? 'Ini' : DAYS[d.getDay()],
-      date: d.getDate(),
-      long: d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' }),
-      formatted: ymd(d),
-    };
-  });
-}
 
 const initials = (name: string) => name.split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase()).join('');
 
@@ -43,13 +27,12 @@ export default function ScheduleScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const toast = useToast();
-  const dates = getDates();
 
   const [counselors, setCounselors] = useState<Counselor[]>([]);
   const [jadwalList, setJadwalList] = useState<Jadwal[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [selectedCounselor, setSelectedCounselor] = useState<Counselor | null>(null);
-  const [selectedDay, setSelectedDay] = useState(0);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<Jadwal | null>(null);
   const [isBooking, setIsBooking] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -82,21 +65,38 @@ export default function ScheduleScreen() {
     loadData();
   }, [loadData]);
 
-  const selectedDate = dates[selectedDay];
-  // Open slots for the chosen counselor/day, in time order; today's slots that already started are hidden
-  const nowHM = new Date().toTimeString().substring(0, 5);
-  const availableSlots = selectedCounselor
-    ? jadwalList
-        .filter((j) => j.konselor_id === selectedCounselor.id && j.tanggal === selectedDate.formatted && j.status === 'tersedia')
-        .filter((j) => selectedDay !== 0 || hm(j.waktu_mulai) > nowHM)
-        .sort((a, b) => a.waktu_mulai.localeCompare(b.waktu_mulai))
-    : [];
-  // First later day this week where the chosen counselor still has an open slot
-  const nextOpenDay = dates.findIndex((d, i) => i > selectedDay && jadwalList.some(
-    (j) => j.konselor_id === selectedCounselor?.id && j.tanggal === d.formatted && j.status === 'tersedia'));
+  const today = toYmd(new Date());
+
+  // The chosen counselor's bookable slots from now on. /jadwal returns every open slot with no
+  // date bound, past ones included, so this is where "can still be booked" is decided: a
+  // later date, or today with a start time still ahead. Tanggal is 'YYYY-MM-DD', so string
+  // comparison is date comparison.
+  const counselorSlots = useMemo(() => {
+    if (!selectedCounselor) return [];
+    const nowHM = new Date().toTimeString().substring(0, 5);
+    return jadwalList.filter(
+      (j) =>
+        j.konselor_id === selectedCounselor.id &&
+        j.status === 'tersedia' &&
+        (j.tanggal > today || (j.tanggal === today && hm(j.waktu_mulai) > nowHM)),
+    );
+  }, [jadwalList, selectedCounselor, today]);
+
+  // The days the calendar colors in; every other day is grey and cannot be picked.
+  const openDates = useMemo(() => new Set(counselorSlots.map((j) => j.tanggal)), [counselorSlots]);
+
+  // Land on the counselor's first open day, and move off a day that stopped being open (its
+  // last slot was just booked, or another counselor was picked) instead of showing it empty.
+  useEffect(() => {
+    setSelectedDate((cur) => (cur && openDates.has(cur) ? cur : [...openDates].sort()[0] ?? null));
+  }, [openDates]);
+
+  const availableSlots = counselorSlots
+    .filter((j) => j.tanggal === selectedDate)
+    .sort((a, b) => a.waktu_mulai.localeCompare(b.waktu_mulai));
+  const nextOpenDate = [...openDates].filter((d) => d > (selectedDate ?? '')).sort()[0];
 
   // Nearest upcoming session that is still active
-  const today = ymd(new Date());
   const upcoming = bookings
     .filter((b) => (b.status === 'menunggu' || b.status === 'dikonfirmasi') && (b.jadwal_konsultasi?.tanggal ?? '') >= today)
     .sort((a, b) =>
@@ -143,7 +143,7 @@ export default function ScheduleScreen() {
     <View style={[s.root, { backgroundColor: colors.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 120 }]}
+        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + BOTTOM_CLEARANCE }]}
       >
         <ScreenHeader title="Konseling" subtitle="Ngobrol langsung dengan konselor kampus. Gratis dan rahasia." />
 
@@ -239,7 +239,11 @@ export default function ScheduleScreen() {
                       return (
                         <PressableScale
                           key={c.id}
-                          onPress={() => { setSelectedCounselor(c); setSelectedSlot(null); }}
+                          onPress={() => {
+                            if (!active) haptic.select();
+                            setSelectedCounselor(c);
+                            setSelectedSlot(null);
+                          }}
                           accessibilityRole="radio"
                           accessibilityState={{ selected: active }}
                           accessibilityLabel={`${c.name}, ${c.specialty}`}
@@ -259,44 +263,43 @@ export default function ScheduleScreen() {
                 {/* ── Dates ── */}
                 <FadeIn>
                   <Text style={[s.sectionLabel, { color: colors.onSurface }]}>Pilih tanggal</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hList} style={s.hScroll}>
-                    {dates.map((d, i) => {
-                      const active = selectedDay === i;
-                      return (
-                        <PressableScale
-                          key={d.formatted}
-                          onPress={() => { setSelectedDay(i); setSelectedSlot(null); }}
-                          accessibilityRole="radio"
-                          accessibilityState={{ selected: active }}
-                          accessibilityLabel={d.long}
-                          style={[s.dateChip, { backgroundColor: active ? colors.amber : colors.background, boxShadow: Neu.raisedSm }]}
-                        >
-                          <Text style={[s.dayLabel, { color: active ? colors.onPrimary : colors.onSurfaceVariant }]}>{d.day}</Text>
-                          <Text style={[s.dateNum, { color: active ? colors.onPrimary : colors.onSurface }]}>{d.date}</Text>
-                        </PressableScale>
-                      );
-                    })}
-                  </ScrollView>
+                  <NeuView radius={24} style={s.calendarCard}>
+                    <Calendar
+                      value={selectedDate}
+                      onChange={(d) => { setSelectedDate(d); setSelectedSlot(null); }}
+                      available={openDates}
+                      minDate={today}
+                    />
+                  </NeuView>
                 </FadeIn>
 
                 {/* ── Slots ── */}
                 <FadeIn>
-                  <Text style={[s.sectionLabel, { color: colors.onSurface }]}>Pilih waktu</Text>
+                  <Text style={[s.sectionLabel, { color: colors.onSurface, marginBottom: selectedDate ? 2 : 12 }]}>
+                    Pilih waktu
+                  </Text>
+                  {selectedDate && (
+                    <Text style={[s.slotDate, { color: colors.onSurfaceVariant }]}>{longDate(selectedDate)}</Text>
+                  )}
                   {availableSlots.length === 0 ? (
                     <StateCard
                       face="berpikir"
-                      title="Belum ada jadwal di hari ini"
-                      body={`${selectedCounselor?.name ?? 'Konselor'} tidak membuka sesi pada ${selectedDate.long}.`}
+                      title={selectedDate ? 'Belum ada jadwal di hari ini' : 'Belum ada jadwal terbuka'}
+                      body={
+                        selectedDate
+                          ? `${selectedCounselor?.name ?? 'Konselor'} tidak membuka sesi pada ${longDate(selectedDate)}.`
+                          : `${selectedCounselor?.name ?? 'Konselor'} belum membuka sesi dalam waktu dekat.`
+                      }
                     >
-                      {nextOpenDay > 0 ? (
+                      {nextOpenDate ? (
                         <Button
-                          label={`Lihat ${dates[nextOpenDay].long}`}
+                          label={`Lihat ${longDate(nextOpenDate)}`}
                           variant="secondary"
-                          onPress={() => { setSelectedDay(nextOpenDay); setSelectedSlot(null); }}
+                          onPress={() => { haptic.select(); setSelectedDate(nextOpenDate); setSelectedSlot(null); }}
                         />
                       ) : (
                         <Text style={[s.muted, { color: colors.onSurfaceVariant }]}>
-                          Belum ada jadwal minggu ini. Coba pilih konselor lain.
+                          Coba pilih konselor lain, atau cerita dulu ke Sajiwa sambil menunggu.
                         </Text>
                       )}
                     </StateCard>
@@ -308,7 +311,7 @@ export default function ScheduleScreen() {
                         return (
                           <PressableScale
                             key={slot.jadwal_id}
-                            onPress={() => setSelectedSlot(slot)}
+                            onPress={() => { if (!active) haptic.select(); setSelectedSlot(slot); }}
                             accessibilityRole="radio"
                             accessibilityState={{ selected: active }}
                             accessibilityLabel={`Pukul ${label}`}
@@ -393,9 +396,8 @@ const s = StyleSheet.create({
   counselorName: { fontSize: 14, fontFamily: 'PlusJakartaSans_700Bold' },
   counselorSpec: { fontSize: 12, fontFamily: 'PlusJakartaSans_500Medium' },
 
-  dateChip: { width: 58, minHeight: 72, borderRadius: 18, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  dayLabel: { fontSize: 12, fontFamily: 'PlusJakartaSans_600SemiBold' },
-  dateNum: { fontSize: 19, fontFamily: 'PlusJakartaSans_800ExtraBold' },
+  calendarCard: { padding: 16 },
+  slotDate: { fontSize: 13, fontFamily: 'PlusJakartaSans_500Medium', marginBottom: 12 },
 
   slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   slotChip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 48, paddingHorizontal: 14, borderRadius: 16 },

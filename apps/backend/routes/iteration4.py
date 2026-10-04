@@ -346,7 +346,10 @@ def submit_instrument_assessment(body: InstrumentSubmission, student=Depends(stu
             "select v.instrument_version_id,v.expected_question_count,v.authoritative_config,v.scoring_config,"
             "i.instrument_id,i.code,i.name,i.instrument_kind,i.norms_enabled "
             "from assessment_instrument_versions v join assessment_instruments i on i.instrument_id=v.instrument_id "
-            "where v.instrument_version_id=%s and v.status='published' and i.active for share of v,i",
+            # No FOR SHARE: a locking read also has to satisfy the UPDATE policy, which students
+            # do not match, so the published version came back empty and every submit failed with 409.
+            # A published version is immutable, so the lock bought nothing here.
+            "where v.instrument_version_id=%s and v.status='published' and i.active",
             (str(body.instrument_version_id),),
         ).fetchone()
         if not version or not version["authoritative_config"]:

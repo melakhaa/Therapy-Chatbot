@@ -42,8 +42,11 @@ data, which is fine locally.
 
 `db/migrations/*.sql` is the additive track for changes after the baseline. The one-shot `migrate`
 service runs them in filename order once the db is healthy, on every `docker compose up` — so both
-fresh and existing volumes end up complete. Each migration is idempotent and records itself in
-`schema_migrations`. Add new DDL here, not by editing `01_schema.sql`.
+fresh and existing volumes end up complete. Each migration records its filename stem in
+`schema_migrations`, and the service reads that table to skip files it has already applied, so a
+repeat `up` is a no-op rather than a re-execution. A file that does fail stops the run, so the
+container's exit code means a real problem instead of a second pass hitting a reseeding guard.
+Add new DDL here, not by editing `01_schema.sql`.
 
 ## Roles
 
