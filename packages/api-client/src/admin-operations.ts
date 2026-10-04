@@ -42,13 +42,28 @@ export interface OrganizationSchedule {
   booking_status: BookingStatus | null;
 }
 
+export type HotlineVerificationStatus = 'active' | 'verification_required' | 'inactive';
+
 export interface HotlineRow {
   hotline_id: string;
   nama: string;
   nomor: string;
   deskripsi: string | null;
   created_at: string | null;
+  verification_status?: HotlineVerificationStatus;
+  verified_at?: string | null;
+  verified_by?: string | null;
+  verification_note?: string | null;
+  updated_at?: string | null;
+  updated_by?: string | null;
 }
+
+export type HotlineCreate = Pick<HotlineRow, 'nama' | 'nomor' | 'deskripsi'> &
+  Partial<Pick<HotlineRow, 'verification_status' | 'verification_note'>>;
+
+export type HotlineUpdate = Partial<
+  Pick<HotlineRow, 'nama' | 'nomor' | 'deskripsi' | 'verification_status' | 'verification_note'>
+>;
 
 export interface AnalyticsData {
   date_from: string;
@@ -177,10 +192,8 @@ export function apiGetHotlines() {
   }>('/admin/hotlines');
 }
 
-export function apiCreateHotline(
-  data: Pick<HotlineRow, 'nama' | 'nomor' | 'deskripsi'>,
-) {
-  return apiFetch('/admin/hotlines', {
+export function apiCreateHotline(data: HotlineCreate) {
+  return apiFetch<{ hotline: HotlineRow }>('/admin/hotlines', {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -188,16 +201,16 @@ export function apiCreateHotline(
 
 export function apiUpdateHotline(
   id: string,
-  data: Pick<HotlineRow, 'nama' | 'nomor' | 'deskripsi'>,
+  data: HotlineUpdate,
 ) {
-  return apiFetch(`/admin/hotlines/${encodeURIComponent(id)}`, {
+  return apiFetch<{ hotline: HotlineRow }>(`/admin/hotlines/${encodeURIComponent(id)}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   });
 }
 
 export function apiDeleteHotline(id: string) {
-  return apiFetch(`/admin/hotlines/${encodeURIComponent(id)}`, {
+  return apiFetch<{ message: string }>(`/admin/hotlines/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   });
 }

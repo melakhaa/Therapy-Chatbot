@@ -173,7 +173,7 @@ def list_hotlines(admin=Depends(admin_access)):
 def create_hotline(request: HotlineCreate, admin=Depends(admin_access)):
     rows = query(
         "insert into hotline (nama,nomor,deskripsi,verification_status,verified_at,verified_by,verification_note,updated_by) values (%s,%s,%s,%s,case when %s='active' then now() end,case when %s='active' then %s::uuid end,%s,%s) "
-        "returning hotline_id,nama,nomor,deskripsi,verification_status,verified_at,verified_by,verification_note,created_at,updated_at",
+        "returning hotline_id,nama,nomor,deskripsi,verification_status,verified_at,verified_by,verification_note,created_at,updated_at,updated_by",
         (request.nama.strip(), request.nomor.strip(), request.deskripsi, request.verification_status, request.verification_status, request.verification_status, admin.id, request.verification_note, admin.id), user_id=admin.id,
     )
     return {"hotline": rows[0]}
@@ -183,17 +183,19 @@ def create_hotline(request: HotlineCreate, admin=Depends(admin_access)):
 def update_hotline(hotline_id: UUID, request: HotlineUpdate, admin=Depends(admin_access)):
     if request.nama is None and request.nomor is None and request.deskripsi is None and request.verification_status is None and request.verification_note is None:
         raise HTTPException(422, "Tidak ada data yang diubah")
+    content_changed = request.nama is not None or request.nomor is not None or request.deskripsi is not None
+    next_verification_status = "verification_required" if content_changed else request.verification_status
     rows = query(
         "update hotline set nama=coalesce(%s,nama),nomor=coalesce(%s,nomor),deskripsi=coalesce(%s,deskripsi),"
-        "verification_status=case when %s::text is not null then %s when %s::text is not null or %s::text is not null or %s::text is not null then 'verification_required' else verification_status end,"
-        "verified_at=case when %s='active' then now() when %s::text is not null or %s::text is not null or %s::text is not null then null else verified_at end,"
-        "verified_by=case when %s='active' then %s::uuid when %s::text is not null or %s::text is not null or %s::text is not null then null else verified_by end,"
+        "verification_status=coalesce(%s,verification_status),"
+        "verified_at=case when %s='active' then now() when %s::text is not null then null else verified_at end,"
+        "verified_by=case when %s='active' then %s::uuid when %s::text is not null then null else verified_by end,"
         "verification_note=coalesce(%s,verification_note),updated_at=now(),updated_by=%s where hotline_id=%s "
-        "returning hotline_id,nama,nomor,deskripsi,verification_status,verified_at,verified_by,verification_note,created_at,updated_at",
+        "returning hotline_id,nama,nomor,deskripsi,verification_status,verified_at,verified_by,verification_note,created_at,updated_at,updated_by",
         (request.nama.strip() if request.nama else None, request.nomor.strip() if request.nomor else None, request.deskripsi,
-         request.verification_status, request.verification_status, request.nama, request.nomor, request.deskripsi,
-         request.verification_status, request.nama, request.nomor, request.deskripsi,
-         request.verification_status, admin.id, request.nama, request.nomor, request.deskripsi,
+         next_verification_status,
+         next_verification_status, next_verification_status,
+         next_verification_status, admin.id, next_verification_status,
          request.verification_note, admin.id, str(hotline_id)), user_id=admin.id,
     )
     if not rows:

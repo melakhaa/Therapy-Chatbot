@@ -2,6 +2,21 @@
 begin;
 select pg_advisory_xact_lock(hashtext('sanctuary_schema_migrations'));
 
+-- Preserve grants made by immutable Sanctuary-era migrations while keeping
+-- sajiwa_app as the only canonical runtime identity. Existing compatibility
+-- roles retain their login properties; newly created ones cannot log in.
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'sanctuary_app') then
+    execute 'create role sanctuary_app nologin nosuperuser';
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'sajiwa_app') then
+    raise exception 'Canonical runtime role sajiwa_app must exist before migration 004';
+  end if;
+end
+$$;
+grant sanctuary_app to sajiwa_app with inherit true;
+
 alter table assessment_instrument_versions add column if not exists definition_revision integer not null default 1 check (definition_revision > 0);
 alter table assessment_questions drop constraint if exists assessment_questions_category_check;
 alter table assessment_questions add constraint assessment_questions_category_check check (category ~ '^[a-z][a-z0-9_-]{0,59}$');
@@ -125,5 +140,10 @@ do $$ begin
     create policy verified_hotline_visibility on hotline as restrictive for select using(verification_status='active' or current_user_role()='admin');
   end if;
 end $$;
+grant select,insert,update,delete on
+  assessment_dimensions, assessment_version_reviews, assessment_review_comments,
+  student_support_profiles, counseling_resources, counseling_resource_blocks to sajiwa_app;
+grant execute on function reject_locked_assessment_dimension_change() to sajiwa_app;
+grant execute on function reject_locked_definition_revision_change() to sajiwa_app;
 insert into schema_migrations(version) values ('004_backend_enablement') on conflict(version) do nothing;
 commit;
