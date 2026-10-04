@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 from dotenv import load_dotenv
 import json
+import logging
 
 from auth import get_current_user
 from core.security import decrypt_text, encrypt_text
@@ -82,8 +83,17 @@ def stream_chat_response(request: ChatRequest, user=Depends(get_current_user)):
 
         response_text = "".join(parts)
         if request.session_id:
-            with db(user.id) as conn:
-                _persist_turn(conn, request, user.id, route, response_text, is_high_risk)
+            try:
+                with db(user.id) as conn:
+                    _persist_turn(conn, request, user.id, route, response_text, is_high_risk)
+            except Exception:
+                # The reply is already on the wire. Raising here aborts the chunked response
+                # before its terminating chunk, so the client reports
+                # ERR_INCOMPLETE_CHUNKED_ENCODING and throws away a complete answer. Log and
+                # still close the stream; db() already rolled the half-written turn back.
+                # No error frame: the client swaps the message for a failure fallback on
+                # `error`, which would misreport an answer the user did receive.
+                logging.exception("chat turn not persisted (session_id=%s)", request.session_id)
 
         yield "data: [DONE]\n\n"
 
@@ -91,10 +101,14 @@ def stream_chat_response(request: ChatRequest, user=Depends(get_current_user)):
 
 def _persist_turn(conn, request: ChatRequest, user_id, route: str, response_text: str, is_high_risk: bool):
     """One transaction: session row (idempotent), optional crisis log, then both turns."""
+    # No title. It used to store the first 80 characters of the user's message in plaintext,
+    # beside messages that are encrypted precisely so the database never holds what a
+    # student wrote — anyone reading the table as the owner saw how every conversation
+    # opened. /chat/sessions derives the label from the encrypted first message instead.
     conn.execute(
-        "insert into sessions (session_id, user_id, title) values (%s, %s, %s) "
+        "insert into sessions (session_id, user_id) values (%s, %s) "
         "on conflict (session_id) do nothing",
-        (request.session_id, user_id, request.message[:80]),
+        (request.session_id, user_id),
     )
     if is_high_risk:
         conn.execute(
@@ -179,3 +193,48 @@ def chat_history(session_id: str, limit: int = 50, user=Depends(get_current_user
         })
 
     return {"session_id": session_id, "messages": messages}
+
+
+SESSION_PREVIEW_CHARS = 80
+
+
+@chat_router.get("/sessions")
+def chat_sessions(limit: int = 30, user=Depends(get_current_user)):
+    """The caller's own conversations, most recently active first, for the history drawer.
+
+    Each one is labelled by its first user message, decrypted here: the plaintext never has
+    to be stored to show a list. A conversation whose opening cannot be decrypted (written
+    under another key) still appears, with no preview, rather than vanishing.
+    """
+    rows = query(
+        "select s.session_id, s.started_at, "
+        "  (select max(m.created_at) from messages m "
+        "    where m.session_id = s.session_id and m.user_id = s.user_id) as last_message_at, "
+        "  (select m.content from messages m "
+        "    where m.session_id = s.session_id and m.user_id = s.user_id and m.role = 'user' "
+        "    order by m.created_at asc limit 1) as first_message "
+        "from sessions s "
+        # RLS already limits this to the caller; the explicit filter keeps it true even for
+        # a connection that bypasses RLS, and lets the planner use idx_sessions_user_id.
+        "where s.user_id = %s "
+        "order by last_message_at desc nulls last, s.started_at desc "
+        "limit %s",
+        (str(user.id), min(max(limit, 1), 100)),
+        user_id=user.id,
+    )
+
+    sessions = []
+    for row in rows:
+        preview = None
+        if row["first_message"]:
+            try:
+                preview = " ".join(decrypt_text(row["first_message"]).split())[:SESSION_PREVIEW_CHARS]
+            except Exception:
+                pass
+        sessions.append({
+            "session_id": row["session_id"],
+            "preview": preview,
+            "started_at": row["started_at"],
+            "last_message_at": row["last_message_at"],
+        })
+    return {"sessions": sessions}
