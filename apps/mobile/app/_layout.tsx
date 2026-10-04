@@ -18,11 +18,14 @@ import { ThemeProvider } from '@prototype/ui-shared';
 import { SajiwaColors } from '@prototype/ui-shared';
 import { AnimatedSplashScreen } from '../components/AnimatedSplashScreen';
 import { ToastProvider } from '../components/ui/Toast';
+import { ConsentSheet } from '../components/ui/ConsentSheet';
 
 SplashScreen.preventAutoHideAsync();
 
-// Bottom-nav tabs switch instantly, like a tab bar
-const TAB = { animation: 'none' } as const;
+// Bottom-nav tabs switch instantly, the way a native tab bar does, and never swipe back
+const TAB = { animation: 'none', gestureEnabled: false } as const;
+// Auth screens replace each other rather than stacking, so they cross-fade
+const AUTH = { animation: 'fade', gestureEnabled: false } as const;
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -53,13 +56,25 @@ export default function RootLayout() {
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: SajiwaColors.background },
-            animation: 'fade',
+            // Native stack: the push runs on the platform compositor, so it keeps
+            // 60fps even while JS is busy. 'ios_from_right' gives Android the iOS push (the
+            // screen underneath drifts left instead of sitting still) and resolves to the
+            // native push on iOS itself.
+            animation: 'ios_from_right',
+            gestureEnabled: true,
+            gestureDirection: 'horizontal',
+            // Swipe back from anywhere on the screen, not just the 20pt left edge — how
+            // iOS apps with a custom bar (no navigation bar) usually feel. Catch: a rightward
+            // swipe anywhere now means "back", so a pushed screen that pages content
+            // sideways (carousel, calendar, horizontal list) must set it false for itself.
+            // Today those all live on TAB screens, where swipe-back is off anyway.
+            fullScreenGestureEnabled: true,
           }}
         >
-          <Stack.Screen name="index" />
-          <Stack.Screen name="register" />
+          <Stack.Screen name="index" options={AUTH} />
+          <Stack.Screen name="register" options={AUTH} />
           <Stack.Screen name="home" options={TAB} />
-          <Stack.Screen name="admin" />
+          <Stack.Screen name="admin" options={AUTH} />
           <Stack.Screen name="chat" options={TAB} />
           <Stack.Screen name="journal" />
           <Stack.Screen name="assessment" />
@@ -68,6 +83,8 @@ export default function RootLayout() {
           <Stack.Screen name="schedule" options={TAB} />
           <Stack.Screen name="journal-history" options={TAB} />
         </Stack>
+        {/* Privacy consent, once per account, above every screen */}
+        <ConsentSheet />
         {!splashAnimationFinished && (
           <AnimatedSplashScreen onAnimationComplete={() => setSplashAnimationFinished(true)} />
         )}

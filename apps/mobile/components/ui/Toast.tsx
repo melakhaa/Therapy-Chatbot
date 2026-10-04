@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@prototype/ui-shared';
 import type { Expression } from '@prototype/utils';
 import { CHARACTER } from '../../constants/character';
+import { haptic } from './haptics';
 
 type ToastType = 'success' | 'error' | 'info';
 interface ToastState { type: ToastType; message: string; id: number }
@@ -47,7 +48,12 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setToast({ message, type, id: Date.now() });
       slide.setValue(0);
       timeLeft.setValue(1);
-      Animated.timing(slide, { toValue: 1, duration: 280, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+      // Spring, not a fixed-length ease: the sheet decelerates into place the way iOS
+      // banners do. Clamped, because any overshoot would open a gap above the top edge.
+      Animated.spring(slide, { toValue: 1, stiffness: 320, damping: 30, mass: 0.9, overshootClamping: true, useNativeDriver: true }).start();
+      // Success and failure get the matching iOS notification tap; plain info stays silent.
+      if (type === 'success') haptic.success();
+      else if (type === 'error') haptic.error();
       Animated.timing(timeLeft, { toValue: 0, duration, easing: Easing.linear, useNativeDriver: true }).start();
       timer.current = setTimeout(hide, duration);
     },

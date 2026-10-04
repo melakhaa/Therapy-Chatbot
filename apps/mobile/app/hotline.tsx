@@ -13,7 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, Neu } from '@prototype/ui-shared';
-import { BottomNav, FadeIn, NeuView, ScreenHeader, useToast } from '../components/ui';
+import { BottomNav, BOTTOM_CLEARANCE, FadeIn, NeuView, ScreenHeader, useToast } from '../components/ui';
 import { callNumber } from '../components/chat/AlertModal';
 import { apiGetHotline } from '@prototype/api-client';
 import { PressableScale } from '../components/ui';
@@ -65,7 +65,7 @@ export default function HotlineScreen() {
     <View style={[s.root, { backgroundColor: colors.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 130 }]}
+        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + BOTTOM_CLEARANCE }]}
       >
         <FadeIn>
           <ScreenHeader back title="Hotline darurat" subtitle="Bantuan profesional, gratis dan rahasia." />

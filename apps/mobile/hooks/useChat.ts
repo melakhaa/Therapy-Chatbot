@@ -30,6 +30,10 @@ export interface UseChatReturn {
   isHighRisk: boolean;
   isLoadingHistory: boolean;
   expression: Expression;
+  /** Leave this conversation for a brand-new one. */
+  startNewChat: () => void;
+  /** Switch to a past conversation by id. */
+  openSession: (id: string) => void;
 }
 
 // Session id lives in storage so a reload resumes the same conversation; the transcript
@@ -45,6 +49,13 @@ const GREETINGS = [
   'Selamat datang. Ceritakan apa pun yang ada di pikiranmu.',
 ];
 const pickGreeting = () => GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
+const greetingMessage = (): Message => ({
+  id: `ai-${Date.now()}`,
+  text: pickGreeting(),
+  sender: 'ai',
+  timestamp: new Date(),
+  expression: 'menyapa',
+});
 
 export function useChat(initialSessionId?: string): UseChatReturn {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -65,50 +76,100 @@ export function useChat(initialSessionId?: string): UseChatReturn {
   const sendBtnScale = useRef(new Animated.Value(1)).current;
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // ── Resume the stored session, or start one ────────────────────
+  // Bumped by every switch (open, new, unmount). A history fetch that resolves after the
+  // student has already moved to another conversation sees a stale number and drops its
+  // result, instead of painting conversation A over conversation B.
+  const loadSeq = useRef(0);
+
+  // Leave the current conversation: stop its stream and clear everything derived from it.
+  // Clearing `messages` matters: the stress effect re-reads them, and with alertTriggered
+  // reset here, the previous conversation's heavy turns would otherwise pop the crisis card
+  // while the next one is still loading.
+  const resetConversation = useCallback(() => {
+    abortControllerRef.current?.abort();
+    setMessages([]);
+    setIsTyping(false);
+    setInputText('');
+    setShowAlert(false);
+    setAlertTriggered(false);
+    setIsHighRisk(false);
+    setQuickReplies(QUICK_REPLIES.initial);
+    setShowQuickReplies(true);
+    setExpression('menyapa');
+  }, []);
+
+  // ── Show one conversation: its transcript, or the greeting if it has none ──
+  const loadSession = useCallback(async (id: string) => {
+    const seq = ++loadSeq.current;
+    setSessionId(id);
+    setIsLoadingHistory(true);
+    // Remembered so leaving and reopening chat resumes this conversation.
+    saveChatSessionId(id).catch(() => {});
+
+    let initial: Message[] = [];
+    let lastReaction: Expression = 'senang';
+    try {
+      const { messages: history } = await apiChatHistory(id);
+      initial = history.map((m, i) => {
+        const isUser = m.role === 'user';
+        if (isUser) lastReaction = reactToUserMessage(m.text, lastReaction);
+        return {
+          id: `hist-${i}-${m.created_at}`,
+          text: m.text,
+          sender: isUser ? 'user' : 'ai',
+          timestamp: new Date(m.created_at),
+          expression: isUser ? undefined : (m.route === 'guardrail' ? 'tenang' : lastReaction),
+        };
+      });
+    } catch {
+      // Offline or expired token: start from the greeting, history is not critical.
+    }
+    if (seq !== loadSeq.current) return;
+
+    if (initial.length > 0) setExpression(lastReaction);
+    // No history: open on the greeting itself, set in the same batch that ends loading, so
+    // the first frame after loading already has Sajiwa and the greeting (a separate delayed
+    // effect used to leave an empty list that flashed a placeholder first).
+    setMessages(initial.length > 0 ? initial : [greetingMessage()]);
+    setIsLoadingHistory(false);
+  }, []);
+
+  // ── Resume the stored conversation, or start one ───────────────
   useEffect(() => {
-    let cancelled = false;
-
+    const mountSeq = loadSeq.current;
     (async () => {
-      let id = initialSessionId;
-      if (!id) {
-        const stored = await getChatSessionId();
-        id = stored ?? newSessionId();
-        if (!stored) await saveChatSessionId(id);
-      }
-      if (cancelled) return;
-      setSessionId(id);
-
-      try {
-        const { messages: history } = await apiChatHistory(id);
-        if (cancelled) return;
-        let lastReaction: Expression = 'senang';
-        const histMessages: Message[] = history.map((m, i) => {
-          const isUser = m.role === 'user';
-          if (isUser) lastReaction = reactToUserMessage(m.text, lastReaction);
-          return {
-            id: `hist-${i}-${m.created_at}`,
-            text: m.text,
-            sender: isUser ? 'user' : 'ai',
-            timestamp: new Date(m.created_at),
-            expression: isUser ? undefined : (m.route === 'guardrail' ? 'tenang' : lastReaction),
-          };
-        });
-        setMessages(histMessages);
-        if (histMessages.length > 0) {
-          setExpression(lastReaction);
-        }
-      } catch {
-        // Offline or expired token: start from the greeting, history is not critical.
-      } finally {
-        if (!cancelled) setIsLoadingHistory(false);
-      }
+      const id = initialSessionId ?? (await getChatSessionId()) ?? newSessionId();
+      // Unmounted (or switched) while storage was resolving.
+      if (loadSeq.current !== mountSeq) return;
+      loadSession(id);
     })();
-
     return () => {
-      cancelled = true;
+      loadSeq.current++;
     };
-  }, [initialSessionId]);
+  }, [initialSessionId, loadSession]);
+
+  // ── "Percakapan baru": a fresh id, straight to the greeting ─────
+  const startNewChat = useCallback(() => {
+    resetConversation();
+    loadSeq.current++; // a history load still in flight belongs to the old conversation
+    const id = newSessionId();
+    setSessionId(id);
+    saveChatSessionId(id).catch(() => {});
+    // Nothing to fetch: the server has no row for this id until its first message is sent,
+    // which is also why an untouched new conversation never shows up in the history list.
+    setMessages([greetingMessage()]);
+    setIsLoadingHistory(false);
+  }, [resetConversation]);
+
+  // ── Reopen a conversation from the history list ────────────────
+  const openSession = useCallback(
+    (id: string) => {
+      if (id === sessionId) return;
+      resetConversation();
+      loadSession(id);
+    },
+    [sessionId, resetConversation, loadSession],
+  );
 
   // ── Add AI message ─────────────────────────────────────────────
   const addAI = useCallback((text: string, expr: Expression = 'menyapa') => {
@@ -129,13 +190,6 @@ export function useChat(initialSessionId?: string): UseChatReturn {
       );
     });
   }, []);
-
-  // ── Greeting on mount, only when there is no history to show ───
-  useEffect(() => {
-    if (isLoadingHistory || messages.length > 0) return;
-    const t = setTimeout(() => addAI(pickGreeting(), 'menyapa'), 600);
-    return () => clearTimeout(t);
-  }, [addAI, isLoadingHistory, messages.length]);
 
   // ── Abort stream on unmount ────────────────────────────────────
   useEffect(() => {
@@ -278,5 +332,7 @@ export function useChat(initialSessionId?: string): UseChatReturn {
     isHighRisk,
     isLoadingHistory,
     expression,
+    startNewChat,
+    openSession,
   };
 }

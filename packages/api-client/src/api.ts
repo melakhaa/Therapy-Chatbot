@@ -26,6 +26,18 @@ async function authHeader(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+/**
+ * Drop a token the server has rejected, so the app asks for a login instead of retrying with
+ * it. Every authenticated response goes through this: a token can stop being valid without
+ * expiring — its account may be deleted, or the database rebuilt under it — and the stream
+ * path used to only throw, leaving the session stuck until the token's own expiry.
+ */
+async function handleUnauthorized(status: number): Promise<void> {
+  if (status !== 401) return;
+  await clearAuth();
+  unauthorizedCallback?.();
+}
+
 export async function apiFetch<T = unknown>(
   path: string,
   options: FetchOptions = {}
@@ -41,10 +53,7 @@ export async function apiFetch<T = unknown>(
   const res = await fetch(`${base}${path}`, { ...fetchOpts, headers });
 
   if (!res.ok) {
-    if (res.status === 401 && auth) {
-      await clearAuth();
-      unauthorizedCallback?.();
-    }
+    if (auth) await handleUnauthorized(res.status);
 
     let detail = `HTTP ${res.status}`;
     try {
@@ -157,6 +166,19 @@ export async function apiChatHistory(
   );
 }
 
+export interface ChatSessionSummary {
+  session_id: string;
+  /** The conversation's first user message, tidied and cut to 80 characters; null if none. */
+  preview: string | null;
+  started_at: string;
+  last_message_at: string | null;
+}
+
+/** The caller's own conversations, most recently active first. */
+export async function apiChatSessions(limit = 30): Promise<{ sessions: ChatSessionSummary[] }> {
+  return apiFetch(`/chat/sessions?limit=${limit}`);
+}
+
 export interface ChatStreamEvent {
   /** One token, present on most frames. */
   token?: string;
@@ -185,7 +207,10 @@ export async function apiChatStream(
     signal,
   });
 
-  if (!res.ok) throw new ApiError(res.status, `HTTP ${res.status}`);
+  if (!res.ok) {
+    await handleUnauthorized(res.status);
+    throw new ApiError(res.status, `HTTP ${res.status}`);
+  }
   if (!res.body) throw new ApiError(res.status, 'Respons tidak bisa di-stream');
 
   const reader = res.body.getReader();
