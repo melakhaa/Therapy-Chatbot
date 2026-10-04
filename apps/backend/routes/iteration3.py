@@ -28,9 +28,10 @@ class AvailabilityBody(BaseModel):
     counselor_id:UUID; day_of_week:int=Field(ge=0,le=6); start_time:time; end_time:time
     timezone:str=Field(default="Asia/Jakarta",max_length=50); effective_from:Optional[date]=None; effective_to:Optional[date]=None; active:bool=True
 class AppointmentBody(BaseModel):
-    counselor_id:UUID; starts_at:datetime; ends_at:datetime
+    counselor_id:UUID; starts_at:datetime; ends_at:datetime; resource_id:Optional[UUID]=None
 class AppointmentPatch(BaseModel):
     counselor_id:Optional[UUID]=None; starts_at:Optional[datetime]=None; ends_at:Optional[datetime]=None
+    resource_id:Optional[UUID]=None
     status:Optional[Literal["confirmed","completed","cancelled","rescheduled","no_show"]]=None
 class BlockBody(BaseModel):
     counselor_id:UUID; starts_at:datetime; ends_at:datetime; reason:Optional[str]=Field(default=None,max_length=250)
@@ -148,7 +149,7 @@ def requests(state:Optional[str]=Query(None,alias="status"),page:int=Query(1,ge=
                p+(page_size,(page-1)*page_size),user_id=admin.id)
     return {"requests":rows,"total":total,"page":page,"page_size":page_size}
 
-def validate_slot(conn,student,counselor,start_value,end_value,exclude=None):
+def validate_slot(conn,student,counselor,start_value,end_value,exclude=None,resource=None):
     start,end=utc(start_value),utc(end_value)
     if end<=start: raise HTTPException(422,"Waktu selesai harus setelah waktu mulai")
     if start<=datetime.now(timezone.utc): raise HTTPException(422,"Janji temu tidak boleh pada waktu lampau")
@@ -165,6 +166,13 @@ def validate_slot(conn,student,counselor,start_value,end_value,exclude=None):
     if conn.execute("select 1 from counseling_appointments where status in ('confirmed','rescheduled') and (counselor_id=%s or student_id=%s) "
                     "and (%s::uuid is null or appointment_id<>%s::uuid) and tstzrange(starts_at,ends_at,'[)') && tstzrange(%s,%s,'[)') limit 1",
                     (counselor,student,exclude,exclude,start,end)).fetchone(): raise HTTPException(409,"Jadwal bertumpang tindih")
+    if resource:
+        conn.execute("select pg_advisory_xact_lock(hashtext(%s))",("resource:"+resource,))
+        item=conn.execute("select capacity from counseling_resources where resource_id=%s and active",(resource,)).fetchone()
+        if not item: raise HTTPException(422,"Resource tidak aktif atau tidak ditemukan")
+        if conn.execute("select 1 from counseling_resource_blocks where resource_id=%s and tstzrange(starts_at,ends_at,'[)') && tstzrange(%s,%s,'[)') limit 1",(resource,start,end)).fetchone(): raise HTTPException(409,"Resource sedang diblokir")
+        used=conn.execute("select count(*) total from counseling_appointments where resource_id=%s and status in ('confirmed','rescheduled') and (%s::uuid is null or appointment_id<>%s::uuid) and tstzrange(starts_at,ends_at,'[)') && tstzrange(%s,%s,'[)')",(resource,exclude,exclude,start,end)).fetchone()["total"]
+        if used>=item["capacity"]: raise HTTPException(409,"Kapasitas resource sudah penuh")
     return start,end
 
 @admin_router.post("/counseling/requests/{request_id}/assign",status_code=201)
@@ -176,10 +184,11 @@ def assign(request_id:UUID,b:AppointmentBody,admin=Depends(admin_access)):
             if req["status"] in ("completed","cancelled","no_show"): raise HTTPException(409,"Permintaan sudah ditutup")
             student,counselor=str(req["student_id"]),str(b.counselor_id)
             for key in sorted((student,counselor)): conn.execute("select pg_advisory_xact_lock(hashtext(%s))",("appointment:"+key,))
-            start,end=validate_slot(conn,student,counselor,b.starts_at,b.ends_at)
-            row=conn.execute("insert into counseling_appointments(counseling_request_id,student_id,counselor_id,starts_at,ends_at,created_by) "
-                             "values(%s,%s,%s,%s,%s,%s) returning appointment_id,counseling_request_id,student_id,counselor_id,starts_at,ends_at,status",
-                             (str(request_id),student,counselor,start,end,admin.id)).fetchone()
+            resource=str(b.resource_id) if b.resource_id else None
+            start,end=validate_slot(conn,student,counselor,b.starts_at,b.ends_at,resource=resource)
+            row=conn.execute("insert into counseling_appointments(counseling_request_id,student_id,counselor_id,starts_at,ends_at,created_by,resource_id) "
+                             "values(%s,%s,%s,%s,%s,%s,%s) returning appointment_id,counseling_request_id,student_id,counselor_id,starts_at,ends_at,status,resource_id",
+                             (str(request_id),student,counselor,start,end,admin.id,resource)).fetchone()
             conn.execute("update counseling_requests set status='confirmed' where counseling_request_id=%s",(str(request_id),))
     except ExclusionViolation: raise HTTPException(409,"Jadwal bertumpang tindih dengan janji aktif")
     return {"appointment":row}
@@ -211,6 +220,8 @@ def counselors(admin=Depends(admin_access)):
 
 @admin_router.put("/counselors/{counselor_id}/profile")
 def counselor_update(counselor_id:UUID,b:CounselorBody,admin=Depends(admin_access)):
+    if not b.active and query("select 1 from counseling_appointments where counselor_id=%s and status in ('confirmed','rescheduled') and starts_at>now() limit 1",(str(counselor_id),),user_id=admin.id):
+        raise HTTPException(409,"Konselor masih memiliki janji aktif di masa mendatang")
     rows=query("insert into counselor_profiles(user_id,title,specialization,active) select user_id,%s,%s,%s from users where user_id=%s and role='konselor' "
                "on conflict(user_id) do update set title=excluded.title,specialization=excluded.specialization,active=excluded.active returning user_id,title,specialization,active",
                (clean(b.title),clean(b.specialization),b.active,str(counselor_id)),user_id=admin.id)
@@ -283,14 +294,15 @@ def appointment_update(appointment_id:UUID,b:AppointmentPatch,admin=Depends(admi
             old=conn.execute("select * from counseling_appointments where appointment_id=%s for update",(str(appointment_id),)).fetchone()
             if not old: raise HTTPException(404,"Janji temu tidak ditemukan")
             counselor=str(b.counselor_id or old["counselor_id"]); start=b.starts_at or old["starts_at"]; end=b.ends_at or old["ends_at"]
-            moved=b.counselor_id is not None or b.starts_at is not None or b.ends_at is not None
+            resource=str(b.resource_id) if b.resource_id is not None else (str(old["resource_id"]) if old["resource_id"] else None)
+            moved=b.counselor_id is not None or b.starts_at is not None or b.ends_at is not None or b.resource_id is not None
             next_state=b.status or ("rescheduled" if moved else old["status"])
             if moved:
                 for key in sorted((str(old["student_id"]),counselor)): conn.execute("select pg_advisory_xact_lock(hashtext(%s))",("appointment:"+key,))
-                start,end=validate_slot(conn,str(old["student_id"]),counselor,start,end,str(appointment_id))
-            row=conn.execute("update counseling_appointments set counselor_id=%s,starts_at=%s,ends_at=%s,status=%s where appointment_id=%s "
-                             "returning appointment_id,counseling_request_id,student_id,counselor_id,starts_at,ends_at,status",
-                             (counselor,utc(start),utc(end),next_state,str(appointment_id))).fetchone()
+                start,end=validate_slot(conn,str(old["student_id"]),counselor,start,end,str(appointment_id),resource)
+            row=conn.execute("update counseling_appointments set counselor_id=%s,starts_at=%s,ends_at=%s,status=%s,resource_id=%s where appointment_id=%s "
+                             "returning appointment_id,counseling_request_id,student_id,counselor_id,starts_at,ends_at,status,resource_id",
+                             (counselor,utc(start),utc(end),next_state,resource,str(appointment_id))).fetchone()
             conn.execute("insert into counseling_appointment_events(appointment_id,event_type,actor_user_id) values(%s,%s,%s)",
                          (str(appointment_id),"rescheduled" if moved else next_state,admin.id))
             conn.execute("update counseling_requests set status=%s where counseling_request_id=%s",(next_state,old["counseling_request_id"]))

@@ -32,12 +32,16 @@ class HotlineCreate(BaseModel):
     nama: str = Field(min_length=1, max_length=100)
     nomor: str = Field(min_length=1, max_length=20)
     deskripsi: Optional[str] = Field(default=None, max_length=500)
+    verification_status: Literal["active", "verification_required", "inactive"] = "verification_required"
+    verification_note: Optional[str] = Field(default=None, max_length=1000)
 
 
 class HotlineUpdate(BaseModel):
     nama: Optional[str] = Field(default=None, min_length=1, max_length=100)
     nomor: Optional[str] = Field(default=None, min_length=1, max_length=20)
     deskripsi: Optional[str] = Field(default=None, max_length=500)
+    verification_status: Optional[Literal["active", "verification_required", "inactive"]] = None
+    verification_note: Optional[str] = Field(default=None, max_length=1000)
 
 
 @router.get("/attention")
@@ -159,7 +163,7 @@ def update_organization_schedule(schedule_id: UUID, request: ScheduleUpdate, adm
 @router.get("/hotlines")
 def list_hotlines(admin=Depends(admin_access)):
     rows = query(
-        "select hotline_id, nama, nomor, deskripsi, created_at from hotline order by created_at, nama",
+        "select hotline_id,nama,nomor,deskripsi,verification_status,verified_at,verified_by,verification_note,created_at,updated_at,updated_by from hotline order by created_at,nama",
         user_id=admin.id,
     )
     return {"hotlines": rows, "total": len(rows)}
@@ -168,23 +172,29 @@ def list_hotlines(admin=Depends(admin_access)):
 @router.post("/hotlines", status_code=status.HTTP_201_CREATED)
 def create_hotline(request: HotlineCreate, admin=Depends(admin_access)):
     rows = query(
-        "insert into hotline (nama, nomor, deskripsi) values (%s, %s, %s) "
-        "returning hotline_id, nama, nomor, deskripsi, created_at",
-        (request.nama.strip(), request.nomor.strip(), request.deskripsi), user_id=admin.id,
+        "insert into hotline (nama,nomor,deskripsi,verification_status,verified_at,verified_by,verification_note,updated_by) values (%s,%s,%s,%s,case when %s='active' then now() end,case when %s='active' then %s::uuid end,%s,%s) "
+        "returning hotline_id,nama,nomor,deskripsi,verification_status,verified_at,verified_by,verification_note,created_at,updated_at",
+        (request.nama.strip(), request.nomor.strip(), request.deskripsi, request.verification_status, request.verification_status, request.verification_status, admin.id, request.verification_note, admin.id), user_id=admin.id,
     )
     return {"hotline": rows[0]}
 
 
 @router.put("/hotlines/{hotline_id}")
 def update_hotline(hotline_id: UUID, request: HotlineUpdate, admin=Depends(admin_access)):
-    if request.nama is None and request.nomor is None and request.deskripsi is None:
+    if request.nama is None and request.nomor is None and request.deskripsi is None and request.verification_status is None and request.verification_note is None:
         raise HTTPException(422, "Tidak ada data yang diubah")
     rows = query(
-        "update hotline set nama = coalesce(%s, nama), nomor = coalesce(%s, nomor), "
-        "deskripsi = coalesce(%s, deskripsi) where hotline_id = %s "
-        "returning hotline_id, nama, nomor, deskripsi, created_at",
-        (request.nama.strip() if request.nama else None, request.nomor.strip() if request.nomor else None,
-         request.deskripsi, str(hotline_id)), user_id=admin.id,
+        "update hotline set nama=coalesce(%s,nama),nomor=coalesce(%s,nomor),deskripsi=coalesce(%s,deskripsi),"
+        "verification_status=case when %s::text is not null then %s when %s::text is not null or %s::text is not null or %s::text is not null then 'verification_required' else verification_status end,"
+        "verified_at=case when %s='active' then now() when %s::text is not null or %s::text is not null or %s::text is not null then null else verified_at end,"
+        "verified_by=case when %s='active' then %s::uuid when %s::text is not null or %s::text is not null or %s::text is not null then null else verified_by end,"
+        "verification_note=coalesce(%s,verification_note),updated_at=now(),updated_by=%s where hotline_id=%s "
+        "returning hotline_id,nama,nomor,deskripsi,verification_status,verified_at,verified_by,verification_note,created_at,updated_at",
+        (request.nama.strip() if request.nama else None, request.nomor.strip() if request.nomor else None, request.deskripsi,
+         request.verification_status, request.verification_status, request.nama, request.nomor, request.deskripsi,
+         request.verification_status, request.nama, request.nomor, request.deskripsi,
+         request.verification_status, admin.id, request.nama, request.nomor, request.deskripsi,
+         request.verification_note, admin.id, str(hotline_id)), user_id=admin.id,
     )
     if not rows:
         raise HTTPException(404, "Hotline tidak ditemukan")
@@ -194,12 +204,12 @@ def update_hotline(hotline_id: UUID, request: HotlineUpdate, admin=Depends(admin
 @router.delete("/hotlines/{hotline_id}")
 def delete_hotline(hotline_id: UUID, admin=Depends(admin_access)):
     rows = query(
-        "delete from hotline where hotline_id = %s returning hotline_id",
-        (str(hotline_id),), user_id=admin.id,
+        "update hotline set verification_status='inactive',verified_at=null,verified_by=null,updated_at=now(),updated_by=%s where hotline_id=%s returning hotline_id",
+        (admin.id, str(hotline_id)), user_id=admin.id,
     )
     if not rows:
         raise HTTPException(404, "Hotline tidak ditemukan")
-    return {"message": "Hotline dihapus"}
+    return {"message": "Hotline dinonaktifkan"}
 
 
 @router.get("/analytics")
