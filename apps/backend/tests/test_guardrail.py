@@ -40,6 +40,20 @@ class CrisisDetectionTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertTrue(is_crisis(text))
 
+    def test_detects_colloquial_crisis(self):
+        # slang, alay/leet spelling, letter elongation — the Bahasa Indonesia gap
+        for text in [
+            "bunuh d1r1",
+            "aku mau matiii",
+            "gw udah gak kuat idup",
+            "cabut nyawa aja",
+            "nggak mau bangun lagi",
+            "gw pengen mati aja",
+            "lebih baik gw mati",
+        ]:
+            with self.subTest(text=text):
+                self.assertTrue(is_crisis(text))
+
     def test_does_not_fire_on_everyday_phrases(self):
         # A false positive shows the crisis sheet over an ordinary chat, so these matter
         for text in ["mati lampu", "hp mati", "baterai mati", "matiin lampu",
