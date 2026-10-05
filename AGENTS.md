@@ -13,7 +13,8 @@ provides the local LLM/embeddings.
 Therapy-Chatbot/
 ├── apps/
 │   ├── mobile/        Expo React Native app (expo-router) — student-facing
-│   ├── dashboard/     Expo Router web app (react-native-web) — counselor/admin
+│   ├── dashboard/     Expo Router web app (react-native-web) — counselor/admin (legacy, until cutover)
+│   ├── dashboard-next/ Next.js 16 App Router admin dashboard — replaces apps/dashboard at cutover
 │   └── backend/       FastAPI (Python 3.12) API + routes/ + services/ + tests/
 ├── packages/
 │   ├── api-client/    @prototype/api-client — fetch wrappers + cross-platform storage
@@ -48,6 +49,7 @@ App/package commands live in their own `AGENTS.md` (`apps/backend`, `apps/mobile
 - PostgreSQL, RLS, schema, pgvector → [docs/postgresql-conventions.md](docs/postgresql-conventions.md)
 - AI: semantic-router / LangChain / Ollama → [docs/semantic-router-conventions.md](docs/semantic-router-conventions.md), [docs/langchain-conventions.md](docs/langchain-conventions.md), [docs/ollama-conventions.md](docs/ollama-conventions.md)
 - TypeScript / React / React Native / Expo / routing / UI → [docs/typescript-conventions.md](docs/typescript-conventions.md), [docs/react-conventions.md](docs/react-conventions.md), [docs/react-native-conventions.md](docs/react-native-conventions.md), [docs/expo-conventions.md](docs/expo-conventions.md), [docs/expo-router-conventions.md](docs/expo-router-conventions.md), [docs/react-navigation-conventions.md](docs/react-navigation-conventions.md), [docs/react-native-ui-conventions.md](docs/react-native-ui-conventions.md)
+- Next.js admin dashboard (`apps/dashboard-next`) → [docs/nextjs-conventions.md](docs/nextjs-conventions.md); specs in [docs/dashboard-next-m0-architecture.md](docs/dashboard-next-m0-architecture.md) and following milestones
 - npm workspaces / shared packages → [docs/npm-workspaces-conventions.md](docs/npm-workspaces-conventions.md)
 - Docker / local infra → [docs/docker-conventions.md](docs/docker-conventions.md)
 - Git, commits, PRs → [docs/git-conventions.md](docs/git-conventions.md) — Conventional Commits, no AI co-author trailers.
