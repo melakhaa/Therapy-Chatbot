@@ -16,6 +16,11 @@ user message
            └─ "rag"            → retrieve_docs() → LLM answer   rag.py
 ```
 
+After the crisis gate, `core.chat_stream` calls `strip_profanity()` (guardrail.py):
+curses-only input returns the fixed `PROFANITY_REPLY`, otherwise the stripped message
+goes to the model. Crisis always wins — a profanity-laced crisis message still gets
+`HARDCODED_RESPONSE`.
+
 `core.py` builds the single router and exposes `chat_stream(user_message, session_id=None,
 user_id=None, route=None)`, with `chat(...)` as that generator joined. Callers that already routed
 (`routes/chat.py` does, for the guardrail decision) pass `route=` so the message is not embedded
@@ -61,6 +66,12 @@ Rules when touching this:
   wording.
 - Bias toward matching. A false positive shows a student the hotline card — harmless.
   A false negative means a student in crisis is talking to an LLM.
+- Profanity is **not** a route — `PROFANITY` tokens (Indonesian + Javanese only) are
+  stripped in `strip_profanity()`, with `_FILLER` dropped alongside so curses-only
+  input collapses to `""` and gets `PROFANITY_REPLY`. English cursing is deliberately
+  absent: llama3.2 absorbs it on its own (measured — `scripts/profanity_probe.py`),
+  while it mirrors ID/JV curses back at the student. Add new tokens to `PROFANITY`,
+  whole-token matching only.
 - Keep the battery in `scripts/api_smoke.py` green; it asserts every crisis phrasing is
   flagged, that the reply is the fixed hotline text, and that ordinary distress still
   reaches the normal path.
