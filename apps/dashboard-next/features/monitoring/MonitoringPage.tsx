@@ -85,7 +85,7 @@ export function MonitoringPage() {
     medium: filteredCases.filter((item) => item.risk === 'medium').length,
     low: filteredCases.filter((item) => item.risk === 'low').length,
     unreviewed: filteredCases.filter((item) => item.reviewState === 'unreviewed').length,
-    unknown: filteredCases.filter((item) => item.risk === 'unknown').length,
+    reviewed: filteredCases.filter((item) => item.reviewState === 'reviewed').length,
   }), [filteredCases]);
 
   const toggleSelected = (id: string) => setSelected((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
@@ -94,6 +94,15 @@ export function MonitoringPage() {
     if (item.type === 'request' || item.reviewState === 'reviewed') return;
     setActionError(false);
     try { await markAttentionReviewed(item.sourceId); refresh(); } catch { setActionError(true); }
+  };
+  const markSelectedReviewed = async () => {
+    const eligible = filteredCases.filter((item) => selected.has(item.id) && item.type !== 'request' && item.reviewState === 'unreviewed');
+    if (eligible.length === 0) return;
+    setActionError(false);
+    try {
+      for (const item of eligible) await markAttentionReviewed(item.sourceId);
+      refresh();
+    } catch { setActionError(true); }
   };
 
   return <PageShell title={text.monitoring.title} actions={<Button variant="secondary" icon="refresh" onClick={refresh}>{text.monitoring.refresh}</Button>}>
@@ -112,9 +121,9 @@ export function MonitoringPage() {
 
       {academicError && <InlineAlert tone="warning">{text.monitoring.academicError}</InlineAlert>}
       {loadedBoundary && <InlineAlert tone="info">{text.monitoring.boundary}</InlineAlert>}
-      <section className="monitoring-summary" aria-label={text.monitoring.title} aria-live="polite"><Summary value={summary.active} label={text.monitoring.summary.active} /><Summary value={summary.high} label={text.monitoring.summary.high} tone="danger" /><Summary value={summary.medium} label={text.monitoring.summary.medium} tone="warning" /><Summary value={summary.low} label={text.monitoring.summary.low} tone="info" /><Summary value={summary.unreviewed} label={text.monitoring.summary.unreviewed} /><Summary value={summary.unknown} label={text.monitoring.summary.unknown} /></section>
+      <section className="monitoring-summary" aria-label={text.monitoring.title} aria-live="polite"><Summary value={summary.active} label={text.monitoring.summary.active} /><Summary value={summary.high} label={text.monitoring.summary.high} tone="danger" /><Summary value={summary.medium} label={text.monitoring.summary.medium} tone="warning" /><Summary value={summary.low} label={text.monitoring.summary.low} tone="info" /><Summary value={summary.unreviewed} label={text.monitoring.summary.unreviewed} /><Summary value={summary.reviewed} label={text.monitoring.summary.reviewed} /></section>
 
-      {selected.size > 0 && <div className="bulk-selection monitoring-bulk" role="status"><strong>{selected.size} {text.monitoring.selected}</strong><Button variant="ghost" onClick={() => setSelected(clearMonitoringSelection())}>{text.monitoring.cancelSelection}</Button></div>}
+      {selected.size > 0 && <div className="bulk-selection monitoring-bulk" role="status"><strong>{selected.size} {text.monitoring.selected}</strong><div className="bulk-actions"><Button icon="check" onClick={() => { void markSelectedReviewed(); }}>{text.monitoring.bulkReview}</Button><Button variant="secondary" disabled title={text.monitoring.backendPending}>{text.monitoring.bulkDelegate}</Button><Button variant="secondary" disabled title={text.monitoring.exportUnavailable}>{text.monitoring.bulkExport}</Button><Button variant="ghost" onClick={() => setSelected(clearMonitoringSelection())}>{text.monitoring.cancelSelection}</Button></div></div>}
       {actionError && <InlineAlert tone="danger">{text.monitoring.actionError}</InlineAlert>}
       {loading && !sources ? <MonitoringLoading /> : error || !sources ? <section className="operations-panel"><ErrorState title={text.errors.title} message={text.monitoring.loadError} retry={refresh} retryLabel={text.common.retry} /></section> : filteredCases.length === 0 ? <section className="operations-panel"><EmptyState title={hasFilters ? text.monitoring.empty : text.monitoring.emptyUnfiltered} /></section> : <section className="operations-panel" aria-label={text.monitoring.title}>
         <div className="operations-table-wrap"><table className="operations-table monitoring-table"><thead><tr><th className="selection-column"><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisible} aria-label={text.monitoring.columns.selectPage} /></th><th>{text.monitoring.columns.student}</th><th>{text.monitoring.columns.academic}</th><th>{text.monitoring.columns.type}</th><th>{text.monitoring.columns.detail}</th><th aria-sort="descending">{text.monitoring.columns.risk}</th><th>{text.monitoring.columns.time}</th><th>{text.monitoring.columns.status}</th><th>{text.monitoring.columns.action}</th></tr></thead><tbody>{pagination.rows.map((item) => <MonitoringRow key={item.id} item={item} selected={selected.has(item.id)} onToggle={() => toggleSelected(item.id)} onOpen={() => item.studentId && router.push(`/students/${item.studentId}`)} onMarkReviewed={() => { void markReviewed(item); }} />)}</tbody></table></div>

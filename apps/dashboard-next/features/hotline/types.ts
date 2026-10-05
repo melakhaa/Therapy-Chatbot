@@ -12,7 +12,10 @@ export interface HotlineRecord {
   created_at?: string | null;
   updated_at?: string | null;
   updated_by?: string | null;
+  service_type?: string | null;
+  operational_hours?: string | null;
+  coverage?: string | null;
 }
 
-export interface HotlineDraft { name: string; phone: string; description: string; verificationNote: string }
-export type HotlinePayload = { nama: string; nomor: string; deskripsi: string | null; verification_note: string | null; verification_status?: HotlineStatus };
+export interface HotlineDraft { name: string; phone: string; description: string; verificationNote: string; serviceType?: string; operationalHours?: string; coverage?: string }
+export type HotlinePayload = { nama: string; nomor: string; deskripsi: string | null; verification_note: string | null; verification_status?: HotlineStatus; service_type?: string | null; operational_hours?: string | null; coverage?: string | null };

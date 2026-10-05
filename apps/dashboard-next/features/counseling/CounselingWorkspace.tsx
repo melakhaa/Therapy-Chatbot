@@ -8,10 +8,11 @@ import { assignCounselingRequest, createBlockedPeriod, deleteBlockedPeriod, getC
 import { activeAvailability, addDays, deriveSessionStatus, filterAppointments, hasObviousConflict, jakartaDateKey, JAKARTA_TIME_ZONE, localSchedulePayload, normalizeRequests, weekRange, type SessionDisplayStatus } from './model';
 import type { Appointment, AppointmentStatus, BlockedPeriod, CalendarResponse, Counselor, CounselingRequest, RequestResponse } from './types';
 import type { Messages } from '@/lib/i18n/messages';
+import { isPreviewMode } from '@/lib/previewMode';
 
 const REQUEST_PAGE_SIZE = 20;
 type Tab = 'calendar' | 'requests' | 'availability' | 'exceptions';
-type View = 'week' | 'list';
+type View = 'week' | 'month' | 'list';
 type CounselingCopy = Messages['counseling'];
 
 export function CounselingWorkspace() {
@@ -38,7 +39,7 @@ export function CounselingWorkspace() {
   const [selectedRequest, setSelectedRequest] = useState<CounselingRequest | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [exceptionOpen, setExceptionOpen] = useState(false);
-  const range = useMemo(() => weekRange(anchor), [anchor]);
+  const range = useMemo(() => view === 'month' ? monthRange(anchor) : weekRange(anchor), [anchor, view]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
@@ -88,6 +89,9 @@ export function CounselingWorkspace() {
   const today = jakartaDateKey(now);
   const todaySessions = range.days.includes(today) ? appointments.filter((item) => jakartaDateKey(new Date(item.starts_at)) === today && !['cancelled', 'no_show'].includes(item.status)).length : null;
   const activeCounselors = counselors.filter((item) => item.active).length;
+  const activeRules = activeAvailability(calendar?.availability ?? []);
+  const availableSlots = Math.max(0, activeRules.length - (calendar?.blocked_periods.length ?? 0));
+  const conflicts = useMemo(() => appointments.filter((item, index) => appointments.some((other, otherIndex) => otherIndex !== index && item.counselor_id === other.counselor_id && item.starts_at < other.ends_at && item.ends_at > other.starts_at)).length, [appointments]);
 
   return <PageShell title={copy.title} actions={<Button variant="secondary" icon="refresh" onClick={refresh}>{copy.refresh}</Button>}>
     <div className="counseling-stack">
@@ -95,19 +99,20 @@ export function CounselingWorkspace() {
         <ScheduleMetric icon="calendar" value={requestError ? '—' : requests?.total ?? '—'} label={copy.metrics.pending} />
         <ScheduleMetric icon="check" value={calendarError ? '—' : todaySessions ?? '—'} label={todaySessions === null ? copy.metrics.todayOutsideRange : copy.metrics.today} />
         <ScheduleMetric icon="counselor" value={counselorError ? '—' : activeCounselors} label={copy.metrics.counselors} />
-        <ScheduleMetric icon="alert" value={calendarError ? '—' : calendar?.blocked_periods.length ?? '—'} label={copy.metrics.exceptions} />
+        <ScheduleMetric icon="calendar" value={calendarError ? '—' : availableSlots} label={copy.metrics.slots} />
+        <ScheduleMetric icon="alert" value={calendarError ? '—' : conflicts} label={copy.metrics.conflicts} />
       </section>
 
       <div className="workspace-tabs" role="tablist" aria-label={copy.tabs.label} onKeyDown={handleTabListKeyDown}>
         {(['calendar', 'requests', 'availability', 'exceptions'] as Tab[]).map((key) => <button key={key} role="tab" aria-selected={tab === key} tabIndex={tab === key ? 0 : -1} aria-controls={`counseling-${key}`} id={`counseling-tab-${key}`} onClick={() => setTab(key)}>{copy.tabs[key]}</button>)}
       </div>
 
-      <section id={`counseling-${tab}`} role="tabpanel" aria-labelledby={`counseling-tab-${tab}`} className="counseling-workspace">
+      <div className={tab === 'calendar' ? 'counseling-layout' : undefined}><section id={`counseling-${tab}`} role="tabpanel" aria-labelledby={`counseling-tab-${tab}`} className="counseling-workspace">
         {tab === 'calendar' && <CalendarTab copy={copy} locale={locale} now={now} range={range} anchor={anchor} setAnchor={(value) => { setCalendarLoading(true); setAnchor(value); }} view={view} setView={setView} counselorId={counselorId} setCounselorId={(value) => { setCalendarLoading(true); setCounselorId(value); }} status={status} setStatus={setStatus} counselors={counselors} appointments={appointments} loading={calendarLoading} error={calendarError} retry={refresh} onOpen={setSelectedAppointment} />}
         {tab === 'requests' && <RequestsTab copy={copy} locale={locale} response={requests} loading={requestLoading} error={requestError} page={requestPage} setPage={(value) => { setRequestLoading(true); setRequestPage(value); }} retry={refresh} onAssign={setSelectedRequest} />}
         {tab === 'availability' && <AvailabilityTab copy={copy} locale={locale} calendar={calendar} counselors={counselors} loading={calendarLoading} error={calendarError} retry={refresh} />}
         {tab === 'exceptions' && <ExceptionsTab copy={copy} locale={locale} blocks={calendar?.blocked_periods ?? []} loading={calendarLoading} error={calendarError} retry={refresh} onCreate={() => setExceptionOpen(true)} onDeleted={afterMutation} />}
-      </section>
+      </section>{tab === 'calendar' && <aside className="counseling-rail" aria-label={copy.rail.title}><RailSection title={copy.rail.requests} value={requestError ? '—' : requests?.total ?? 0}>{copy.rail.requestsBody}</RailSection><RailSection title={copy.rail.counselors} value={activeCounselors}>{copy.rail.counselorsBody}</RailSection>{isPreviewMode() ? <section className="rail-card"><header><h2>{copy.rail.resources}</h2><Badge tone="info">{copy.rail.preview}</Badge></header><ul className="resource-list"><li><span>Ruang A</span><Badge tone="success">{copy.rail.available}</Badge></li><li><span>Ruang B</span><Badge tone="success">{copy.rail.available}</Badge></li><li><span>Virtual Room</span><Badge tone="success">{copy.rail.available}</Badge></li></ul></section> : <section className="rail-card"><h2>{copy.rail.resources}</h2><p>{copy.rail.backendPending}</p></section>}</aside>}</div>
     </div>
     <ScheduleDrawer key={selectedRequest?.counseling_request_id ?? selectedAppointment?.appointment_id ?? 'closed'} request={selectedRequest} appointment={selectedAppointment} counselors={counselors.filter((item) => item.active)} calendar={calendar} copy={copy} onClose={() => { setSelectedRequest(null); setSelectedAppointment(null); }} onSaved={afterMutation} />
     <ExceptionDrawer open={exceptionOpen} counselors={counselors.filter((item) => item.active)} copy={copy} onClose={() => setExceptionOpen(false)} onSaved={afterMutation} />
@@ -117,19 +122,20 @@ export function CounselingWorkspace() {
 function ScheduleMetric({ icon, value, label }: { icon: 'calendar' | 'check' | 'counselor' | 'alert'; value: number | string; label: string }) {
   return <article className="schedule-metric"><span><Icon name={icon} /></span><div><strong>{value}</strong><p>{label}</p></div></article>;
 }
+function RailSection({ title, value, children }: { title: string; value: number | string; children: React.ReactNode }) { return <section className="rail-card"><header><h2>{title}</h2><strong>{value}</strong></header><p>{children}</p></section>; }
 
 interface CalendarTabProps { copy: CounselingCopy; locale: string; now: Date; range: ReturnType<typeof weekRange>; anchor: string; setAnchor: (value: string) => void; view: View; setView: Dispatch<SetStateAction<View>>; counselorId: string; setCounselorId: (value: string) => void; status: '' | AppointmentStatus; setStatus: Dispatch<SetStateAction<'' | AppointmentStatus>>; counselors: Counselor[]; appointments: Appointment[]; loading: boolean; error: boolean; retry: () => void; onOpen: (item: Appointment) => void }
 function CalendarTab({ copy, locale, now, range, anchor, setAnchor, view, setView, counselorId, setCounselorId, status, setStatus, counselors, appointments, loading, error, retry, onOpen }: CalendarTabProps) {
   return <>
     <div className="calendar-toolbar">
-      <div className="calendar-navigation"><Button variant="ghost" onClick={() => setAnchor(addDays(anchor, -7))}>{copy.calendar.previous}</Button><Button variant="secondary" onClick={() => setAnchor(jakartaDateKey(new Date()))}>{copy.calendar.today}</Button><Button variant="ghost" onClick={() => setAnchor(addDays(anchor, 7))}>{copy.calendar.next}</Button><strong>{formatDateRange(range.start, range.end, locale)}</strong></div>
+      <div className="calendar-navigation"><Button variant="ghost" onClick={() => setAnchor(view === 'month' ? addMonths(anchor, -1) : addDays(anchor, -7))}>{copy.calendar.previous}</Button><Button variant="secondary" onClick={() => setAnchor(jakartaDateKey(new Date()))}>{copy.calendar.today}</Button><Button variant="ghost" onClick={() => setAnchor(view === 'month' ? addMonths(anchor, 1) : addDays(anchor, 7))}>{copy.calendar.next}</Button><strong>{formatDateRange(range.start, range.end, locale)}</strong></div>
       <div className="calendar-controls">
         <label>{copy.filters.counselor}<select value={counselorId} onChange={(event) => setCounselorId(event.target.value)}><option value="">{copy.filters.allCounselors}</option>{counselors.filter((item: Counselor) => item.active).map((item: Counselor) => <option key={item.user_id} value={item.user_id}>{item.nama}</option>)}</select></label>
         <label>{copy.filters.status}<select value={status} onChange={(event) => setStatus(event.target.value as '' | AppointmentStatus)}><option value="">{copy.filters.allStatuses}</option>{(['confirmed', 'rescheduled', 'completed', 'cancelled', 'no_show'] as AppointmentStatus[]).map((item) => <option value={item} key={item}>{copy.status.backend[item]}</option>)}</select></label>
-        <div className="segmented-control" aria-label={copy.calendar.view}><button aria-pressed={view === 'week'} onClick={() => setView('week')}>{copy.calendar.week}</button><button aria-pressed={view === 'list'} onClick={() => setView('list')}>{copy.calendar.list}</button></div>
+        <div className="segmented-control" aria-label={copy.calendar.view}><button aria-pressed={view === 'week'} onClick={() => setView('week')}>{copy.calendar.week}</button><button aria-pressed={view === 'month'} onClick={() => setView('month')}>{copy.calendar.month}</button><button aria-pressed={view === 'list'} onClick={() => setView('list')}>{copy.calendar.list}</button></div>
       </div>
     </div>
-    {loading ? <CalendarSkeleton /> : error ? <ErrorState title={copy.errors.calendarTitle} message={copy.errors.calendar} retry={retry} /> : appointments.length === 0 ? <EmptyState title={copy.empty.calendar} /> : view === 'week' ? <WeekCalendar days={range.days} appointments={appointments} now={now} locale={locale} copy={copy} onOpen={onOpen} /> : <AppointmentList appointments={appointments} now={now} locale={locale} copy={copy} onOpen={onOpen} />}
+    {loading ? <CalendarSkeleton /> : error ? <ErrorState title={copy.errors.calendarTitle} message={copy.errors.calendar} retry={retry} /> : appointments.length === 0 ? <EmptyState title={copy.empty.calendar} /> : view === 'list' ? <AppointmentList appointments={appointments} now={now} locale={locale} copy={copy} onOpen={onOpen} /> : <WeekCalendar days={range.days} appointments={appointments} now={now} locale={locale} copy={copy} onOpen={onOpen} />}
   </>;
 }
 
@@ -208,4 +214,6 @@ function formatTimeRange(start: string, end: string, locale: string) { return `$
 function inputTime(value: string) { const parts = new Intl.DateTimeFormat('en-GB', { timeZone: JAKARTA_TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(value)); return `${parts.find((part) => part.type === 'hour')?.value ?? ''}:${parts.find((part) => part.type === 'minute')?.value ?? ''}`; }
 function shortTime(value: string) { return value.slice(0, 5); }
 function weekdayName(day: number, locale: string) { const base = new Date(Date.UTC(2026, 0, 4 + day)); return new Intl.DateTimeFormat(locale, { timeZone: 'UTC', weekday: 'long' }).format(base); }
+function addMonths(value: string, amount: number) { const date = new Date(`${value}T12:00:00Z`); date.setUTCMonth(date.getUTCMonth() + amount); return date.toISOString().slice(0, 10); }
+function monthRange(anchor: string) { const base = new Date(`${anchor}T12:00:00Z`); const first = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), 1, 12)); const start = new Date(first); start.setUTCDate(first.getUTCDate() - first.getUTCDay()); const last = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0, 12)); const end = new Date(last); end.setUTCDate(last.getUTCDate() + (6 - last.getUTCDay())); const days: string[] = []; for (const cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) days.push(cursor.toISOString().slice(0, 10)); return { start: days[0], end: days.at(-1)!, days }; }
 function initials(name: string) { return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase(); }

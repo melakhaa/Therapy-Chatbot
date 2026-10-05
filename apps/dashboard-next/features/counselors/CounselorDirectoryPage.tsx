@@ -48,9 +48,13 @@ export function CounselorDirectoryPage({ initialCounselorId = null }: { initialC
   const locale = language === 'id' ? 'id-ID' : 'en-GB';
   const changeFilter = (action: () => void) => { setPage(1); action(); };
   const closeSelected = () => { setSelectedId(null); if (initialCounselorId) router.push('/counselors'); };
+  const activeCount = counselors.filter((item) => item.active).length;
+  const routineCount = availability.filter((item) => item.active).length;
+  const counselorsWithCapacity = new Set(availability.filter((item) => item.active).map((item) => item.counselor_id)).size;
 
   return <PageShell title={copy.title} actions={<Button variant="secondary" icon="refresh" onClick={refresh}>{copy.refresh}</Button>}>
     <div className="counselor-stack">
+      <section className="counselor-metrics" aria-label={copy.metrics.label}><article><Icon name="counselor" /><strong>{directoryError ? '—' : activeCount}</strong><span>{copy.metrics.active}</span></article><article><Icon name="calendar" /><strong>{availabilityError ? '—' : routineCount}</strong><span>{copy.metrics.windows}</span></article><article><Icon name="check" /><strong>{availabilityError ? '—' : counselorsWithCapacity}</strong><span>{copy.metrics.capacity}</span></article></section>
       <section className="counselor-filters" aria-label={copy.filters.label}>
         <label className="filter-field counselor-search"><span>{copy.filters.search}</span><div className="filter-input"><Icon name="search" size={18} /><input value={search} onChange={(event) => changeFilter(() => setSearch(event.target.value))} placeholder={copy.filters.searchPlaceholder} /></div></label>
         <label className="filter-field"><span>{copy.filters.status}</span><select value={status} onChange={(event) => changeFilter(() => setStatus(event.target.value as CounselorStatusFilter))}><option value="all">{copy.filters.allStatuses}</option><option value="active">{copy.status.active}</option><option value="inactive">{copy.status.inactive}</option></select></label>

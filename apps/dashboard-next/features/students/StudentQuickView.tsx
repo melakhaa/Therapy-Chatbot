@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/components/providers/LanguageProvider';
-import { Badge, Button, Drawer, ErrorState, InlineAlert, Skeleton } from '@/components/ui';
+import { Badge, Button, Drawer, ErrorState, handleTabListKeyDown, InlineAlert, Skeleton } from '@/components/ui';
 import { getStudent, getStudentAssessments, getStudentBookings } from './api';
 import { isStudentProfile, safeAssessmentSummary, studentInitials } from './model';
 import { StudentEditPanel } from './StudentEditPanel';
-import type { AcademicStructure, StudentAssessmentPage, StudentBookingPage, StudentRow } from './types';
+import type { AcademicStructure, StudentAssessmentPage, StudentBookingPage, StudentRow, StudentWorkspaceTab } from './types';
 
 export function StudentQuickView({ studentId, academic, onClose, onDirectoryRefresh }: { studentId: string | null; academic: AcademicStructure | null; onClose: () => void; onDirectoryRefresh: () => void }) {
   const { language, text } = useLanguage();
@@ -20,9 +20,10 @@ export function StudentQuickView({ studentId, academic, onClose, onDirectoryRefr
   const [bookingError, setBookingError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [tab, setTab] = useState<StudentWorkspaceTab>('overview');
   const [version, setVersion] = useState(0);
 
-  const reload = useCallback(() => { setLoading(true); setProfileError(false); setAssessmentError(false); setBookingError(false); setEditing(false); setVersion((value) => value + 1); onDirectoryRefresh(); }, [onDirectoryRefresh]);
+  const reload = useCallback(() => { setLoading(true); setProfileError(false); setAssessmentError(false); setBookingError(false); setEditing(false); setTab('overview'); setVersion((value) => value + 1); onDirectoryRefresh(); }, [onDirectoryRefresh]);
   useEffect(() => {
     if (!studentId) return;
     const controller = new AbortController(); let active = true;
@@ -38,11 +39,11 @@ export function StudentQuickView({ studentId, academic, onClose, onDirectoryRefr
     {loading ? <div className="drawer-skeleton" aria-busy="true"><Skeleton lines={9} /></div> : profileError || !student ? <ErrorState title={text.errors.title} message={text.students.errors.profile} retry={reload} retryLabel={text.common.retry} /> : editing ? <StudentEditPanel student={student} academic={academic} onSaved={reload} /> : <div className="student-quick-content">
       <section className="student-identity"><span className="avatar student-avatar">{studentInitials(student.nama)}</span><div><Badge tone="success">{text.students.studentRole}</Badge><h3>{student.nama}</h3><p>{student.nim ?? text.students.unavailable} · {student.email}</p></div></section>
       <div className="quick-actions"><Button variant="secondary" onClick={() => setEditing(true)}>{text.students.edit.action}</Button></div>
-      <ProfileCard title={text.students.sections.account}><Definition label={text.students.fields.registered} value={formatDate(student.created_at, locale)} /><Definition label={text.students.fields.lastLogin} value={text.students.unsupported.lastLogin} /></ProfileCard>
-      <ProfileCard title={text.students.sections.academic}><Definition label={text.students.fields.faculty} value={student.faculty_name ?? text.students.unavailable} /><Definition label={text.students.fields.unit} value={student.academic_unit_name ?? text.students.unavailable} /></ProfileCard>
-      <ProfileCard title={text.students.sections.support}><SupportSnapshot student={student} /></ProfileCard>
-      <ProfileCard title={text.students.sections.latestAssessment}>{assessmentError ? <InlineAlert tone="warning">{text.students.errors.assessments}</InlineAlert> : assessments?.assessments[0] ? <AssessmentSnapshot assessment={assessments.assessments[0]} /> : <p className="section-empty">{text.students.empty.assessments}</p>}</ProfileCard>
-      <ProfileCard title={text.students.sections.latestCounseling}>{bookingError ? <InlineAlert tone="warning">{text.students.errors.counseling}</InlineAlert> : bookings?.bookings[0] ? <BookingSnapshot booking={bookings.bookings[0]} locale={locale} /> : <p className="section-empty">{text.students.empty.counseling}</p>}</ProfileCard>
+      <div className="detail-tabs student-drawer-tabs" role="tablist" aria-label={text.students.quick.title} onKeyDown={handleTabListKeyDown}>{(['overview', 'assessments', 'counseling', 'academic'] as StudentWorkspaceTab[]).map((key) => <button key={key} role="tab" aria-selected={tab === key} tabIndex={tab === key ? 0 : -1} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{text.students.tabs[key]}</button>)}</div>
+      {tab === 'overview' && <><ProfileCard title={text.students.sections.account}><Definition label={text.students.fields.registered} value={formatDate(student.created_at, locale)} /><Definition label={text.students.fields.lastLogin} value={text.students.unsupported.lastLogin} /></ProfileCard><ProfileCard title={text.students.sections.support}><SupportSnapshot student={student} /></ProfileCard><ProfileCard title={text.students.sections.latestAssessment}>{assessmentError ? <InlineAlert tone="warning">{text.students.errors.assessments}</InlineAlert> : assessments?.assessments[0] ? <AssessmentSnapshot assessment={assessments.assessments[0]} /> : <p className="section-empty">{text.students.empty.assessments}</p>}</ProfileCard><ProfileCard title={text.students.sections.latestCounseling}>{bookingError ? <InlineAlert tone="warning">{text.students.errors.counseling}</InlineAlert> : bookings?.bookings[0] ? <BookingSnapshot booking={bookings.bookings[0]} locale={locale} /> : <p className="section-empty">{text.students.empty.counseling}</p>}</ProfileCard></>}
+      {tab === 'assessments' && <ProfileCard title={text.students.sections.latestAssessment}>{assessmentError ? <InlineAlert tone="warning">{text.students.errors.assessments}</InlineAlert> : assessments?.assessments[0] ? <AssessmentSnapshot assessment={assessments.assessments[0]} /> : <p className="section-empty">{text.students.empty.assessments}</p>}</ProfileCard>}
+      {tab === 'counseling' && <ProfileCard title={text.students.sections.latestCounseling}>{bookingError ? <InlineAlert tone="warning">{text.students.errors.counseling}</InlineAlert> : bookings?.bookings[0] ? <BookingSnapshot booking={bookings.bookings[0]} locale={locale} /> : <p className="section-empty">{text.students.empty.counseling}</p>}</ProfileCard>}
+      {tab === 'academic' && <ProfileCard title={text.students.sections.academic}><Definition label={text.students.fields.faculty} value={student.faculty_name ?? text.students.unavailable} /><Definition label={text.students.fields.unit} value={student.academic_unit_name ?? text.students.unavailable} /></ProfileCard>}
     </div>}
   </Drawer>;
 }
@@ -51,7 +52,7 @@ export function ProfileCard({ title, children }: { title: string; children: Reac
 export function Definition({ label, value }: { label: string; value: string }) { return <div className="definition-row"><dt>{label}</dt><dd>{value}</dd></div>; }
 export function SupportSnapshot({ student }: { student: StudentRow }) {
   const { language, text } = useLanguage();
-  if (!student.support_condition && !student.support_disability) return <p className="section-empty">{text.students.unsupported.support}</p>;
+  if (!student.support_condition && !student.support_disability) return <p className="section-empty">{text.students.unsupported.historicalSupport}</p>;
   const labels = language === 'id'
     ? { condition: 'Kondisi dilaporkan', disability: 'Disabilitas', none: 'Tidak ada', present: 'Ada', unknown: 'Belum diketahui', prefer_not_to_say: 'Memilih tidak menjawab' }
     : { condition: 'Reported condition', disability: 'Disability', none: 'None', present: 'Present', unknown: 'Unknown', prefer_not_to_say: 'Prefer not to say' };

@@ -29,6 +29,9 @@ export function OverviewPage() {
   const [actionError, setActionError] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [riskFilter, setRiskFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
   const today = jakartaDateKey(now);
 
   useEffect(() => {
@@ -61,10 +64,17 @@ export function OverviewPage() {
   }, []);
 
   const cases = useMemo(() => sources ? buildPriorityCases(sources) : [], [sources]);
+  const filteredCases = useMemo(() => cases.filter((item) => {
+    const needle = search.trim().toLocaleLowerCase();
+    const matchesSearch = !needle || `${item.studentName ?? ''} ${item.nim ?? ''} ${item.facultyName ?? ''}`.toLocaleLowerCase().includes(needle);
+    const severity = normalizeSeverity(item.backendSeverity);
+    const matchesRisk = riskFilter === 'all' || (riskFilter === 'critical' ? item.source === 'safety' || severity === 'extremely_severe' : riskFilter === 'high' ? severity === 'severe' : riskFilter === 'medium' ? severity === 'moderate' : riskFilter === 'low' ? ['normal', 'minimal', 'mild'].includes(severity ?? '') : false);
+    return matchesSearch && matchesRisk && (sourceFilter === 'all' || item.source === sourceFilter);
+  }), [cases, search, riskFilter, sourceFilter]);
   const metrics = useMemo(() => sources ? deriveMetrics(sources) : null, [sources]);
-  const pageCount = Math.max(1, Math.ceil(cases.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(filteredCases.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
-  const visibleCases = cases.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const visibleCases = filteredCases.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const allVisibleSelected = visibleCases.length > 0 && visibleCases.every((item) => selected.has(item.id));
 
   const toggle = (id: string) => setSelected((current) => {
@@ -87,6 +97,15 @@ export function OverviewPage() {
     } catch {
       setActionError(true);
     }
+  };
+  const markSelectedReviewed = async () => {
+    const eligible = filteredCases.filter((item) => selected.has(item.id) && item.source !== 'request');
+    if (eligible.length === 0) return;
+    setActionError(false);
+    try {
+      for (const item of eligible) await markAttentionReviewed(item.sourceId);
+      refresh();
+    } catch { setActionError(true); }
   };
 
   const locale = language === 'id' ? 'id-ID' : 'en-GB';
@@ -112,9 +131,10 @@ export function OverviewPage() {
 
           <section className="operations-panel" aria-labelledby="priority-queue-title">
             <header className="operations-panel-header"><div><h2 id="priority-queue-title">{text.overview.queueTitle}</h2><p>{cases.length} {text.overview.queueCount}</p></div></header>
-            {selected.size > 0 && <div className="bulk-selection" role="status"><strong>{selected.size} {text.overview.selected}</strong><Button variant="ghost" onClick={() => setSelected(clearPrioritySelection())}>{text.overview.cancelSelection}</Button></div>}
+            <div className="overview-filters"><label className="filter-field"><span>{text.overview.filters.search}</span><div className="filter-input"><Icon name="search" size={18} /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={text.overview.filters.searchPlaceholder} /></div></label><label className="filter-field"><span>{text.overview.filters.risk}</span><select value={riskFilter} onChange={(event) => { setRiskFilter(event.target.value); setPage(1); }}><option value="all">{text.overview.filters.allRisks}</option><option value="critical">{text.monitoring.risk.critical}</option><option value="high">{text.monitoring.risk.high}</option><option value="medium">{text.monitoring.risk.medium}</option><option value="low">{text.monitoring.risk.low}</option></select></label><label className="filter-field"><span>{text.overview.filters.source}</span><select value={sourceFilter} onChange={(event) => { setSourceFilter(event.target.value); setPage(1); }}><option value="all">{text.overview.filters.allSources}</option><option value="safety">{text.monitoring.types.safety}</option><option value="assessment">{text.monitoring.types.assessment}</option><option value="request">{text.monitoring.types.request}</option></select></label></div>
+            {selected.size > 0 && <div className="bulk-selection" role="status"><strong>{selected.size} {text.overview.selected}</strong><div className="bulk-actions"><Button icon="check" onClick={() => { void markSelectedReviewed(); }}>{text.overview.markReviewed}</Button><Button variant="secondary" disabled title={text.monitoring.backendPending}>{text.monitoring.bulkDelegate}</Button><Button variant="ghost" onClick={() => setSelected(clearPrioritySelection())}>{text.overview.cancelSelection}</Button></div></div>}
             {actionError && <div className="panel-alert"><InlineAlert tone="danger">{text.overview.actionError}</InlineAlert></div>}
-            {cases.length === 0 ? <EmptyState title={text.overview.emptyQueue} message={text.overview.emptyQueueBody} /> : <>
+            {filteredCases.length === 0 ? <EmptyState title={text.overview.emptyQueue} message={text.overview.emptyQueueBody} /> : <>
               <div className="operations-table-wrap">
                 <table className="operations-table priority-table">
                   <thead><tr>

@@ -22,8 +22,8 @@ export function validateHotlineDraft(draft: HotlineDraft): Partial<Record<keyof 
   return errors;
 }
 
-export function toHotlinePayload(draft: HotlineDraft, creating = false): HotlinePayload {
-  return { nama: draft.name.trim(), nomor: draft.phone.trim(), deskripsi: draft.description.trim() || null, verification_note: draft.verificationNote.trim() || null, ...(creating ? { verification_status: 'verification_required' as const } : {}) };
+export function toHotlinePayload(draft: HotlineDraft, creating = false, includePreviewFields = false): HotlinePayload {
+  return { nama: draft.name.trim(), nomor: draft.phone.trim(), deskripsi: draft.description.trim() || null, verification_note: draft.verificationNote.trim() || null, ...(creating ? { verification_status: 'verification_required' as const } : {}), ...(includePreviewFields ? { service_type: draft.serviceType?.trim() || null, operational_hours: draft.operationalHours?.trim() || null, coverage: draft.coverage?.trim() || null } : {}) };
 }
 
 export function hotlineActionPayload(action: 'verify' | 'reactivate'): Pick<HotlinePayload, 'verification_status'> {

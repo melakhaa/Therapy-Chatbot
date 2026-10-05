@@ -6,8 +6,9 @@ import { Badge, Button, ConfirmationDialog, Drawer, DropdownMenu, EmptyState, Er
 import { createHotline, deactivateHotline, getHotlines, updateHotline } from './api';
 import { filterHotlines, hotlineActionPayload, normalizeHotlineStatus, toHotlinePayload, validateHotlineDraft } from './model';
 import type { HotlineDraft, HotlineRecord, HotlineStatus } from './types';
+import { isPreviewMode } from '@/lib/previewMode';
 
-const blankDraft: HotlineDraft = { name: '', phone: '', description: '', verificationNote: '' };
+const blankDraft: HotlineDraft = { name: '', phone: '', description: '', verificationNote: '', serviceType: '', operationalHours: '', coverage: '' };
 type PendingAction = { kind: 'verify' | 'deactivate' | 'reactivate'; row: HotlineRecord } | null;
 
 export function HotlinePage() {
@@ -38,14 +39,14 @@ export function HotlinePage() {
 
   function openCreate() { setEditing(null); setDraft(blankDraft); setErrors({}); setMutationError(false); setSaved(false); setEditorOpen(true); }
   function openEdit(row: HotlineRecord) {
-    setEditing(row); setDraft({ name: row.nama, phone: row.nomor, description: row.deskripsi ?? '', verificationNote: row.verification_note ?? '' }); setErrors({}); setMutationError(false); setSaved(false); setEditorOpen(true);
+    setEditing(row); setDraft({ name: row.nama, phone: row.nomor, description: row.deskripsi ?? '', verificationNote: row.verification_note ?? '', serviceType: row.service_type ?? '', operationalHours: row.operational_hours ?? '', coverage: row.coverage ?? '' }); setErrors({}); setMutationError(false); setSaved(false); setEditorOpen(true);
   }
   async function save() {
     const nextErrors = validateHotlineDraft(draft); setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
     setSaving(true); setMutationError(false);
     try {
-      if (editing) await updateHotline(editing.hotline_id, toHotlinePayload(draft)); else await createHotline(toHotlinePayload(draft, true));
+      if (editing) await updateHotline(editing.hotline_id, toHotlinePayload(draft, false, isPreviewMode())); else await createHotline(toHotlinePayload(draft, true, isPreviewMode()));
       setEditorOpen(false); await load(); setSaved(true);
     } catch { setMutationError(true); } finally { setSaving(false); }
   }
@@ -73,10 +74,10 @@ export function HotlinePage() {
           <Input label={copy.filters.search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.filters.placeholder} />
           <label>{copy.filters.status}<select value={status} onChange={(event) => setStatus(event.target.value as typeof status)}><option value="all">{copy.filters.all}</option><option value="active">{copy.status.active}</option><option value="verification_required">{copy.status.verification_required}</option><option value="inactive">{copy.status.inactive}</option></select></label>
         </div>
-        {loading ? <div className="m09-loading"><Skeleton lines={7} /></div> : loadError ? <ErrorState title={copy.errors.title} message={copy.errors.load} retry={() => void load()} retryLabel={text.common.retry} /> : filtered.length === 0 ? <EmptyState title={copy.empty} message={copy.emptyBody} /> : <div className="table-wrap"><table className="data-table hotline-table"><thead><tr><th>{copy.fields.service}</th><th>{copy.fields.phone}</th><th>{copy.fields.status}</th><th>{copy.fields.verified}</th><th>{copy.fields.note}</th><th>{copy.fields.action}</th></tr></thead><tbody>{filtered.map((row) => {
+        {loading ? <div className="m09-loading"><Skeleton lines={7} /></div> : loadError ? <ErrorState title={copy.errors.title} message={copy.errors.load} retry={() => void load()} retryLabel={text.common.retry} /> : filtered.length === 0 ? <EmptyState title={copy.empty} message={copy.emptyBody} /> : <div className="table-wrap"><table className="data-table hotline-table"><thead><tr><th>{copy.fields.service}</th><th>{copy.fields.phone}</th>{isPreviewMode() && <><th>{copy.fields.type}</th><th>{copy.fields.hours}</th></>}<th>{copy.fields.status}</th><th>{copy.fields.verified}</th><th>{copy.fields.action}</th></tr></thead><tbody>{filtered.map((row) => {
           const rowStatus = normalizeHotlineStatus(row.verification_status);
           const items = [{ label: copy.actions.edit, onSelect: () => openEdit(row) }, ...(rowStatus !== 'active' ? [{ label: rowStatus === 'inactive' ? copy.actions.reactivate : copy.actions.verify, onSelect: () => setPending({ kind: rowStatus === 'inactive' ? 'reactivate' : 'verify', row }) }] : []), ...(rowStatus !== 'inactive' ? [{ label: copy.actions.deactivate, danger: true, onSelect: () => setPending({ kind: 'deactivate', row }) }] : [])];
-          return <tr key={row.hotline_id}><td><strong>{row.nama}</strong><small>{row.deskripsi || copy.noDescription}</small></td><td><a href={`tel:${row.nomor}`}>{row.nomor}</a></td><td><Badge tone={statusTone(rowStatus)}>{statusLabel(rowStatus)}</Badge></td><td>{formatDate(row.verified_at)}{row.verified_by && <small>{copy.verifiedActor}</small>}</td><td>{row.verification_note || '—'}</td><td><DropdownMenu label={copy.actions.menu} trigger={<Icon name="more" />} items={items} /></td></tr>;
+          return <tr key={row.hotline_id}><td><strong>{row.nama}</strong><small>{row.deskripsi || copy.noDescription}</small></td><td><a href={`tel:${row.nomor}`}>{row.nomor}</a></td>{isPreviewMode() && <><td>{row.service_type || '—'}</td><td>{row.operational_hours || '—'}<small>{row.coverage || ''}</small></td></>}<td><Badge tone={statusTone(rowStatus)}>{statusLabel(rowStatus)}</Badge></td><td>{formatDate(row.verified_at)}{row.verified_by && <small>{copy.verifiedActor}</small>}</td><td><DropdownMenu label={copy.actions.menu} trigger={<Icon name="more" />} items={items} /></td></tr>;
         })}</tbody></table></div>}
         {!loading && !loadError && <footer className="m09-table-footer">{copy.showing.replace('{shown}', String(filtered.length)).replace('{total}', String(rows.length))}</footer>}
       </section>
@@ -87,6 +88,7 @@ export function HotlinePage() {
         {mutationError && <InlineAlert tone="danger">{copy.errors.mutation}</InlineAlert>}
         <Input label={copy.fields.service} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} error={errors.name ? copy.validation.required : undefined} required />
         <Input label={copy.fields.phone} value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} error={errors.phone === 'invalid' ? copy.validation.phone : errors.phone ? copy.validation.required : undefined} hint={copy.editor.phoneHint} required />
+        {isPreviewMode() && <><Input label={copy.fields.type} value={draft.serviceType ?? ''} onChange={(event) => setDraft({ ...draft, serviceType: event.target.value })} /><Input label={copy.fields.hours} value={draft.operationalHours ?? ''} onChange={(event) => setDraft({ ...draft, operationalHours: event.target.value })} /><Input label={copy.fields.coverage} value={draft.coverage ?? ''} onChange={(event) => setDraft({ ...draft, coverage: event.target.value })} /><InlineAlert tone="info">{copy.editor.previewFields}</InlineAlert></>}
         <label>{copy.fields.description}<textarea value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} rows={4} /></label>
         <label>{copy.fields.note}<textarea value={draft.verificationNote} onChange={(event) => setDraft({ ...draft, verificationNote: event.target.value })} rows={3} /></label>
         <InlineAlert>{editing ? copy.editor.editPolicy : copy.editor.createPolicy}</InlineAlert>

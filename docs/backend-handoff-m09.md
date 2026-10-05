@@ -1,5 +1,19 @@
 # M09 backend and database handoff
 
+## Final admin UX contract review
+
+The final frontend pass keeps production behavior on authenticated APIs and uses synthetic state only behind the existing development-only preview guard. The remaining screenshot workflows need backend support:
+
+- **Hotline metadata:** persist and return `service_type`, `operational_hours`, and `coverage`; material edits must continue to invalidate verification. These fields are demonstrated only in local preview.
+- **Administrator account:** add self-profile update, password change, two-factor authentication, and revoke-all-sessions contracts. Production remains read-only and supports current-session logout.
+- **Account creation:** provide authorized student and counselor creation workflows before add controls can be enabled.
+- **Counseling resources:** expose and runtime-verify resource lists, capacity, appointment-resource linkage, and conflict responses. Production never invents room assignments; preview shows Room A, Room B, and Virtual Room.
+- **Bulk delegation:** provide an atomic authorized assignment contract with explicit partial-failure semantics.
+- **Report files:** add an aggregate-only PDF/PPT/Excel renderer. The web report preview remains the only supported output.
+- **UNDIP import:** define an authenticated import job, validation report, and conflict policy.
+
+Existing production contracts retained here include attention review, counseling assignment and appointment updates, counselor profile and availability operations, academic structure mutations, instrument version operations, and hotline verification/deactivation.
+
 ## Scope and current validation state
 
 The M09 Next.js administrator UI integrates the documented B1 contracts for emergency contacts and academic structure. Type checking, linting, model tests, and production compilation can validate the frontend contract. End-to-end PostgreSQL behavior remains **runtime-unverified** because the frontend environment has no PostgreSQL or Docker runtime. No production data or simulated API success is used as a fallback.
