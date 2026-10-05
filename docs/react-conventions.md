@@ -1,6 +1,6 @@
 # React conventions
 
-**React 19** is used in both apps (and `react-dom` for web). Function components + hooks only.
+**React 19** is used in both frontend apps (and `react-dom` for the Next.js dashboard). Function components + hooks only.
 
 ## Conventions
 
@@ -13,9 +13,8 @@
 - Global state via **React Context**, not a state library: `ThemeProvider` / `ThemeContext` in
   `@prototype/ui-shared`; consume with the exported hook.
 - Effects that load persisted data run once on mount (see `useAuth`); always clean up subscriptions.
-- `"use client"`-style directives are not used — the dashboard is Expo Router web, not Next.js.
-- Dashboard enables the React Compiler experiment; avoid patterns that fight auto-memoization
-  (don't hand-memoize everything).
+- Use `"use client"` only for dashboard components that require browser APIs, state, effects, or event handlers.
+- The mobile application remains Expo Router; dashboard routes use the Next.js App Router.
 
 ## Component composition
 

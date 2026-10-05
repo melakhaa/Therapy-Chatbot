@@ -17,6 +17,18 @@ const contentSecurityPolicy = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  async redirects() {
+    return [
+      { source: '/assessments', destination: '/monitoring', permanent: false },
+      { source: '/attention', destination: '/monitoring', permanent: false },
+      { source: '/risk', destination: '/monitoring', permanent: false },
+      { source: '/schedule', destination: '/counseling', permanent: false },
+      { source: '/hotlines', destination: '/hotline', permanent: false },
+      { source: '/reports', destination: '/analytics', permanent: false },
+      { source: '/report-preview', destination: '/reports/preview', permanent: false },
+      { source: '/users', destination: '/students', permanent: false },
+    ];
+  },
   async headers() {
     return [{ source: '/(.*)', headers: [
       { key: 'Content-Security-Policy', value: contentSecurityPolicy },

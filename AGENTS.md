@@ -2,8 +2,8 @@
 
 **Sajiwa** — AI mental health support for university students and counselors. Students use an
 Expo app (AI chat, stress detection, PHQ-9/GAD-7/SRQ + the versioned DASS-21 instrument,
-journaling); counselors/admins use an Expo web dashboard (risk monitoring, analytics, booking,
-instrument authoring). An npm-workspace monorepo holds the Expo apps, the FastAPI backend
+journaling); counselors/admins use a Next.js dashboard (risk monitoring, analytics, booking,
+instrument authoring). An npm-workspace monorepo holds the frontend apps, the FastAPI backend
 (Python 3.12), and the shared TypeScript packages; Docker runs PostgreSQL 17 + pgvector, Ollama
 provides the local LLM/embeddings.
 
@@ -13,7 +13,7 @@ provides the local LLM/embeddings.
 Therapy-Chatbot/
 ├── apps/
 │   ├── mobile/        Expo React Native app (expo-router) — student-facing
-│   ├── dashboard/     Expo Router web app (react-native-web) — counselor/admin
+│   ├── dashboard/     Next.js app — counselor/admin
 │   └── backend/       FastAPI (Python 3.12) API + routes/ + services/ + tests/
 ├── packages/
 │   ├── api-client/    @prototype/api-client — fetch wrappers + cross-platform storage
@@ -39,8 +39,9 @@ venv/bin/python -m unittest discover -s tests -v        # API tests, no DB/AI
 venv/bin/python scripts/api_smoke.py                    # end-to-end check (full stack up)
 
 cd apps/mobile    && npx expo start                     # student app
-cd apps/dashboard && npx expo start --web               # counselor dashboard
-cd apps/dashboard && npm run lint                       # only configured linter
+npm run dashboard:dev                                   # counselor/admin dashboard
+npm run dashboard:typecheck && npm run dashboard:lint   # dashboard static checks
+npm run dashboard:test && npm run dashboard:build       # dashboard tests + build
 ```
 
 ## Read when relevant

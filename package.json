@@ -1,8 +1,17 @@
 {
   "name": "prototype-monorepo",
   "private": true,
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
-    "prepare": "git config core.hooksPath .githooks || true"
+    "prepare": "git config core.hooksPath .githooks || true",
+    "dashboard:dev": "npm run dev --workspace @sajiwa/dashboard",
+    "dashboard:build": "npm run build --workspace @sajiwa/dashboard",
+    "dashboard:start": "npm run start --workspace @sajiwa/dashboard",
+    "dashboard:typecheck": "npm run typecheck --workspace @sajiwa/dashboard",
+    "dashboard:lint": "npm run lint --workspace @sajiwa/dashboard",
+    "dashboard:test": "npm run test --workspace @sajiwa/dashboard"
   },
   "workspaces": [
     "apps/*",
