@@ -28,7 +28,11 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
 | Table | Purpose |
 |-------|---------|
 | `users` | Account + `role` + `password_hash` (oauth was removed with Supabase) |
-| `assessments` | PHQ-9 / GAD-7 / SRQ results, `score`, `severity` |
+| `assessments` | PHQ-9 / GAD-7 / SRQ / DASS-21 results, `score`, `severity`, optional `instrument_version_id` |
+| `assessment_instruments` | Versioned instrument identity (`standard`/`custom`, language, provenance) |
+| `assessment_instrument_versions` | `draft`/`published`/`archived` versions, `scoring_config` jsonb, one published per instrument |
+| `assessment_questions`, `assessment_answer_options` | Item wording, category, position; answer labels + scores |
+| `assessment_category_results` | Per-category raw/scaled score + severity for a DASS-21 submission |
 | `guardrail_logs` | High-risk trigger log (chat + assessments) |
 | `messages` | Encrypted chat turns (`route_used`); belongs to a `sessions` row |
 | `sessions` | Chat session owner, title, lifetime; `messages.session_id` is client-generated but pinned to `(session_id, user_id)` by FK |
@@ -38,6 +42,11 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
 | `jadwal_konsultasi` | Counselor availability slots |
 | `booking_konsultasi` | Student bookings |
 | `password_resets` | OTP reset codes (bcrypt hash, 15 min expiry) |
+| `faculties`, `academic_units`, `student_academic_profiles` | Academic scope for filtered analytics/reports |
+| `admin_notifications` | Server-generated admin inbox items (deduped by `dedupe_key`) |
+| `counselor_profiles`, `counselor_availability_rules`, `counselor_blocked_periods` | Counselor roster and scheduling |
+| `counseling_requests`, `counseling_appointments`, `counseling_appointment_events`, `counseling_admin_notes` | Counseling request → appointment workflow, event history, admin notes |
+| `report_export_audits` | Audit trail for report exports (scope, actor, timestamp) |
 
 ## Conventions
 
@@ -47,7 +56,9 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
 - Timestamps: `timestamptz default now()`; mutable rows use `updated_at` maintained by a
   `set_updated_at()` trigger.
 - Enumerated columns use `check` constraints, e.g. `role in (...)`, `severity in (...)`.
-  Roles `mahasiswa | konselor | admin | pemangku_jabatan`; severity `minimal | mild | moderate | severe`.
+  Roles `mahasiswa | konselor | admin | pemangku_jabatan`; legacy `assessments.severity` is
+  `minimal | mild | moderate | severe`, while `assessment_category_results.severity` adds
+  `normal` and `extremely_severe` (DASS-21 bands).
 - `users` is the root identity table; child tables reference `users(user_id)`. There is no
   `auth.users`.
 - Rows owned by a session pin both ids: `messages(session_id, user_id)` references
@@ -55,6 +66,13 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
   it cannot attach a row to another student's session.
 - Booking side effects (`jadwal` → `dipesan` / back to `tersedia`) are `SECURITY DEFINER` triggers,
   because the student who books cannot update the counselor's slot row directly.
+- Instrument definitions are versioned: instrument → version (`draft`/`published`/`archived`, one
+  published via partial unique index) → questions → answer options. `reject_published_*` triggers
+  block update/delete of published or archived definitions and their questions/options; publishing
+  archives the previous published version.
+- `notify_dass21_admins(uuid)` is `SECURITY DEFINER`: it verifies the assessment belongs to
+  `app_user_id()` and writes one admin notification per elevated DASS-21 submission with a
+  category:severity summary only (no answers, wording, or guardrail text).
 - Vector search: `documents.content`, `documents.embedding vector(768)`, `documents.metadata jsonb`;
   HNSW index; queries via `match_documents(query_embedding, match_threshold, match_count)`.
 
@@ -73,6 +91,10 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
   `current_user_role()`, which is `SECURITY DEFINER` to avoid infinite recursion on `users`.
 - Anonymous requests have an empty setting, so `app_user_id()` is `NULL` and only `using (true)`
   policies (public `hotline`, `documents` reads, `password_resets`) match.
+- Iteration3/4 tables follow the same model: instrument authoring is admin-managed, non-admin roles
+  can read active instruments plus *published* versions/questions/options,
+  `assessment_category_results` lets a student insert/select their own rows (`konselor`/`admin` can
+  read them), and counseling/academic tables are scoped by role.
 - **Never build SQL by string concatenation.** Pass parameters (`%s`); `ORDER BY`/column names must
   come from a fixed whitelist, never from request data.
 

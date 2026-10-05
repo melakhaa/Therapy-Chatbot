@@ -52,7 +52,8 @@ Three tiers, all manual (no CI). Tiers 2 and 3 need the stack running; tier 1 is
 ```bash
 # 1. Isolated API contract tests — no DB, no AI, no network. Needs httpx installed
 #    (FastAPI TestClient) and only the venv. Stubs core.db and signs real JWTs.
-#    Covers the admin/ops contracts plus prompt-history assembly
+#    Covers the admin/ops + iteration3/4 contracts, DASS-21 scoring and instrument
+#    validation, migration static checks, and prompt-history assembly
 #    (tests/test_chat_history.py — the crisis filter and history budget).
 cd apps/backend && venv/bin/python -m unittest discover -s tests -v
 
@@ -83,6 +84,9 @@ cd apps/backend && venv/bin/python scripts/api_smoke.py
   (`docker compose down -v`) destroys local data.
 - The backend connects as `sajiwa_app` (non-superuser) so RLS applies. Pointing `DATABASE_URL` at
   `sajiwa` silently disables every policy — see [security-conventions.md](security-conventions.md).
+- New migrations must grant CRUD on their tables (and `execute` on privileged functions) to
+  `sajiwa_app`, enable RLS, and use `create or replace` so re-runs stay idempotent. A grant to a
+  role that doesn't exist rolls back the whole migration transaction.
 - `db/test_rls.sql` is the RLS/auth self-check; run it after schema or policy changes.
 - No Ollama → the backend does not start (the router embeds route utterances at import). Fail loud,
   never silently degrade: see [ollama-conventions.md](ollama-conventions.md).

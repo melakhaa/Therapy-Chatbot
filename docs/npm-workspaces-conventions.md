@@ -20,9 +20,12 @@ apiFetch<T>(path, { method, body, auth = true, base })  // auth defaults true
   global `fetch` buffers the whole response; on web that module is just `globalThis.fetch`).
 - `auth: false` for login/register/hotline/guardrail.
 - `apiLogin` persists token + user via `src/storage.ts`.
-- `src/admin.ts` + `src/admin-operations.ts` hold the dashboard helpers (`apiGetAdminAssessments`,
-  `apiGetUserDetail`, `apiGetAttention`, `apiGetOrganizationSchedules`, `apiGetHotlines`,
-  `apiGetAnalytics`, ...) and their row/page interfaces. `src/index.ts` re-exports all four modules.
+- `src/admin.ts`, `src/admin-operations.ts`, `src/iteration3.ts`, and `src/iteration4.ts` hold the
+  dashboard/assessment helpers (`apiGetAdminAssessments`, `apiGetUserDetail`, `apiGetAttention`,
+  `apiGetHotlines`, `apiGetAnalytics`, `apiGetInstrumentVersion`, `apiSaveInstrumentDraft`,
+  `apiSubmitInstrumentAssessment`, `apiGetComparisonAnalytics`,
+  `apiGetMultiCounselorCalendar`, ...) and their row/page interfaces. `src/index.ts` re-exports
+  every module.
 - Failed requests throw `ApiError` (an `Error` subclass carrying `status`); dashboard code maps the
   status to a safe Bahasa Indonesia message in `apps/dashboard/hooks/useAdminResource.ts`.
 

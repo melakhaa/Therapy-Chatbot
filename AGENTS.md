@@ -1,10 +1,11 @@
 # AGENTS.md
 
 **Sajiwa** — AI mental health support for university students and counselors. Students use an
-Expo app (AI chat, stress detection, PHQ-9/GAD-7/SRQ, journaling); counselors/admins use an Expo
-web dashboard (risk monitoring, analytics, booking). An npm-workspace monorepo holds the Expo apps,
-the FastAPI backend (Python 3.12), and the shared TypeScript packages; Docker runs PostgreSQL 17 +
-pgvector, Ollama provides the local LLM/embeddings.
+Expo app (AI chat, stress detection, PHQ-9/GAD-7/SRQ + the versioned DASS-21 instrument,
+journaling); counselors/admins use an Expo web dashboard (risk monitoring, analytics, booking,
+instrument authoring). An npm-workspace monorepo holds the Expo apps, the FastAPI backend
+(Python 3.12), and the shared TypeScript packages; Docker runs PostgreSQL 17 + pgvector, Ollama
+provides the local LLM/embeddings.
 
 ## Structure
 
@@ -18,7 +19,7 @@ Therapy-Chatbot/
 │   ├── api-client/    @prototype/api-client — fetch wrappers + cross-platform storage
 │   ├── ui-shared/     @prototype/ui-shared — theme, context, auth hook, animation
 │   └── utils/         @prototype/utils — stress detection, response parsers
-├── db/                init/ SQL (schema, auth, mobile extras) + test_rls.sql + pgadmin config
+├── db/                init/ SQL baseline + migrations/ + test_rls.sql + pgadmin config
 ├── docs/              Per-stack convention docs (linked below)
 ├── docker-compose.yml PostgreSQL 17 + pgvector + pgAdmin
 ├── package.json       Root workspace
@@ -29,7 +30,7 @@ Therapy-Chatbot/
 
 ```bash
 npm install                                             # all workspaces (run from root)
-docker compose up -d                                    # PostgreSQL 17 + pgvector + pgAdmin
+docker compose up -d                                    # PostgreSQL 17 + pgvector + pgAdmin (applies db/init + db/migrations)
 
 cd apps/backend
 venv/bin/uvicorn main:app --reload                      # API :8000 (always run from apps/backend)

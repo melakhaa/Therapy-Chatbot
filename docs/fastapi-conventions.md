@@ -11,7 +11,8 @@ apps/backend/
 ├── routes/              # One APIRouter per domain
 │   ├── assessment.py    account.py   dashboard.py
 │   ├── jadwal.py        journal.py   chat.py
-│   └── admin.py         admin_operations.py
+│   ├── admin.py         admin_operations.py
+│   └── iteration3.py    iteration4.py   # additive admin/student platforms
 ├── tests/               # isolated unittest contracts (stub core.db, real JWTs)
 └── core/                # Cross-cutting helpers
 ```
@@ -38,6 +39,21 @@ under [semantic-router-conventions.md](semantic-router-conventions.md) and
   - `admin_operations.py` uses a single `admin_access = require_role("admin")` for schedules,
     hotlines, attention signals, and analytics. Attention signals are `assessment`, `safety`, or
     `request` (`request` = a student tapped "kabari tim" in the crisis sheet).
+  - `iteration3.py` exports `admin_router` (`/admin/*`, `admin`-only: academic scopes, counseling
+    queue/appointments, notifications, report audits) and `student_router` (`/counseling/requests`,
+    authenticated). `iteration4.py` exports `admin_router` (instrument authoring
+    `/admin/assessment-instruments/*`, `/admin/analytics/comparison`,
+    `/admin/counseling/calendar/multi`) and `assessment_router`
+    (`/assessment/instrument/active`, `/assessment/instrument/submit`).
+  - Instrument authoring is draft → validate → publish: standard DASS-21 content is locked (edit via
+    a derived custom instrument instead), publish re-runs `validate_dass21_definition` plus DB
+    checks, and published versions are immutable (DB triggers). Derived instruments do not inherit
+    DASS-21 norms (`norms_enabled=false`).
+  - `POST /assessment/instrument/submit` (`mahasiswa`-only) takes `instrument_version_id` +
+    `(question_id, option_id)` pairs only, resolves scores server-side through `core/dass21.py`,
+    writes `assessments` + `assessment_category_results`, and on elevated categories logs an
+    `assessment` guardrail signal and calls `notify_dass21_admins()`. No client-supplied score is
+    ever stored.
 - `GET /accounts/konselor` returns the student-visible counselor directory via `list_konselor()`
   (public fields only: id, nama, role) — students cannot read other `users` rows under RLS.
 - Validate path/query input with FastAPI types, not manual parsing: `user_id: UUID`,
@@ -63,8 +79,9 @@ under [semantic-router-conventions.md](semantic-router-conventions.md) and
 
 ## `/health` is the contract
 
-`main.py`'s `/health` maps `CB-01..CB-14` and `ADMIN-01..ADMIN-04` to endpoints. Add/rename an
-endpoint → update the manifest.
+`main.py`'s `/health` maps `CB-01..CB-14` and `ADMIN-01..ADMIN-04` to the original contract
+endpoints. Add/rename one of those → update the manifest. The additive iteration3/iteration4
+routers are not part of that manifest.
 
 ## Run
 

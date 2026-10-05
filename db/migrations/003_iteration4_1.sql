@@ -185,7 +185,7 @@ begin
 end;
 $$;
 
-grant execute on function notify_dass21_admins(uuid) to sanctuary_app;
+grant execute on function notify_dass21_admins(uuid) to sajiwa_app;
 
 insert into schema_migrations(version) values ('003_iteration4_1') on conflict(version) do nothing;
 commit;

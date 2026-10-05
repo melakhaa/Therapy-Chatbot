@@ -20,8 +20,11 @@ services:
       timeout: 5s
       retries: 10
 
-  # Runs db/migrations/*.sql in order after the db is healthy (idempotent, tracked in
-  # schema_migrations). Fresh volumes get them after db/init; existing volumes catch up here.
+  # Runs db/migrations/*.sql in order after the db is healthy. Fresh volumes get them after
+  # db/init; existing volumes catch up here. schema_migrations is read, not just written, so
+  # a file that already ran is skipped instead of relying on every statement inside it being
+  # re-runnable — reseeding guards such as "refusing to overwrite existing content" are
+  # meant to fire once, and re-running them turned a finished migration into an error.
   migrate:
     image: pgvector/pgvector:pg17
     container_name: sajiwa-migrate
@@ -33,7 +36,28 @@ services:
       PGPASSWORD: sajiwa
     volumes:
       - ./db/migrations:/migrations:ro
-    entrypoint: ["sh", "-c", "for f in /migrations/*.sql; do echo \"applying $$f\"; psql -v ON_ERROR_STOP=1 -h db -U sajiwa -d sajiwa -f \"$$f\"; done"]
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        PSQL="psql -h db -U sajiwa -d sajiwa -v ON_ERROR_STOP=1"
+        for f in /migrations/*.sql; do
+          v=$$(basename "$$f" .sql)
+          # Each migration records its own filename stem, so that is the key to look up.
+          # stderr is dropped because on a fresh database schema_migrations does not exist
+          # yet, which just means "not applied"; a connection problem lands here too and
+          # then fails loudly on the apply below rather than being skipped silently.
+          if $$PSQL -tAc "select 1 from schema_migrations where version='$$v'" 2>/dev/null | grep -q 1; then
+            echo "skip $$v (already applied)"
+          else
+            echo "applying $$v"
+            # set -e stops here on a real failure instead of running later migrations
+            # against a half-migrated schema and burying the first error in the log.
+            $$PSQL -f "$$f"
+          fi
+        done
+        echo "migrations up to date"
 
   pgadmin:
     image: dpage/pgadmin4
