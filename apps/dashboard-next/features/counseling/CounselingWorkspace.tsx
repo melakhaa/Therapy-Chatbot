@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { ApiError } from '@/lib/api/client';
-import { Badge, Button, Drawer, EmptyState, ErrorState, Icon, InlineAlert, Input, PageShell, Skeleton } from '@/components/ui';
+import { Badge, Button, Drawer, EmptyState, ErrorState, handleTabListKeyDown, Icon, InlineAlert, Input, PageShell, Skeleton } from '@/components/ui';
 import { assignCounselingRequest, createBlockedPeriod, deleteBlockedPeriod, getCounselingCalendar, getCounselingRequests, getCounselors, updateAppointment } from './api';
 import { activeAvailability, addDays, deriveSessionStatus, filterAppointments, hasObviousConflict, jakartaDateKey, JAKARTA_TIME_ZONE, localSchedulePayload, normalizeRequests, weekRange, type SessionDisplayStatus } from './model';
 import type { Appointment, AppointmentStatus, BlockedPeriod, CalendarResponse, Counselor, CounselingRequest, RequestResponse } from './types';
@@ -98,8 +98,8 @@ export function CounselingWorkspace() {
         <ScheduleMetric icon="alert" value={calendarError ? '—' : calendar?.blocked_periods.length ?? '—'} label={copy.metrics.exceptions} />
       </section>
 
-      <div className="workspace-tabs" role="tablist" aria-label={copy.tabs.label}>
-        {(['calendar', 'requests', 'availability', 'exceptions'] as Tab[]).map((key) => <button key={key} role="tab" aria-selected={tab === key} aria-controls={`counseling-${key}`} id={`counseling-tab-${key}`} onClick={() => setTab(key)}>{copy.tabs[key]}</button>)}
+      <div className="workspace-tabs" role="tablist" aria-label={copy.tabs.label} onKeyDown={handleTabListKeyDown}>
+        {(['calendar', 'requests', 'availability', 'exceptions'] as Tab[]).map((key) => <button key={key} role="tab" aria-selected={tab === key} tabIndex={tab === key ? 0 : -1} aria-controls={`counseling-${key}`} id={`counseling-tab-${key}`} onClick={() => setTab(key)}>{copy.tabs[key]}</button>)}
       </div>
 
       <section id={`counseling-${tab}`} role="tabpanel" aria-labelledby={`counseling-tab-${tab}`} className="counseling-workspace">

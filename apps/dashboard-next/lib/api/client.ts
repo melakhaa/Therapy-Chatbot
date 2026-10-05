@@ -1,4 +1,6 @@
 import { readSession } from '@/lib/auth/session';
+import { isPreviewMode } from '@/lib/previewMode';
+import { previewRequest } from '@/lib/previewData';
 
 export const AUTH_EXPIRED_EVENT = 'sajiwa:auth-expired';
 
@@ -22,6 +24,7 @@ function apiBaseUrl(): string {
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  if (isPreviewMode()) return previewRequest<T>(path, options);
   const { auth = true, body, headers: suppliedHeaders, ...requestInit } = options;
   const headers = new Headers(suppliedHeaders);
   let requestBody = body as BodyInit | null | undefined;

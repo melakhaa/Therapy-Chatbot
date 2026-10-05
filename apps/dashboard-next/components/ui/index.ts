@@ -6,3 +6,4 @@ export * from './Feedback';
 export * from './Icon';
 export * from './Input';
 export * from './PageShell';
+export * from './tabs';

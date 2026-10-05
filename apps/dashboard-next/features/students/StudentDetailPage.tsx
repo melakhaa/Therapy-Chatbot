@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useLanguage } from '@/components/providers/LanguageProvider';
-import { Badge, Button, Drawer, EmptyState, ErrorState, InlineAlert, PageShell, Skeleton } from '@/components/ui';
+import { Badge, Button, Drawer, EmptyState, ErrorState, handleTabListKeyDown, InlineAlert, PageShell, Skeleton } from '@/components/ui';
 import { getAcademicStructure } from '@/features/monitoring/api';
 import { getStudent, getStudentAssessments, getStudentBookings } from './api';
 import { isStudentProfile, paginateRange, safeAssessmentSummary, studentInitials } from './model';
 import { StudentEditPanel } from './StudentEditPanel';
-import { AssessmentSnapshot, BookingSnapshot, Definition, ProfileCard, formatBooking, formatDate, severityLabel, severityTone } from './StudentQuickView';
+import { AssessmentSnapshot, BookingSnapshot, Definition, ProfileCard, SupportSnapshot, formatBooking, formatDate, severityLabel, severityTone } from './StudentQuickView';
 import type { AcademicStructure, StudentAssessmentPage, StudentBookingPage, StudentRow, StudentWorkspaceTab } from './types';
 
 const HISTORY_PAGE_SIZE = 20;
@@ -67,7 +67,7 @@ function StudentDetailWorkspace({ studentId }: { studentId: string }) {
   return <PageShell title={student.nama} actions={<div className="page-actions"><Button variant="secondary" onClick={() => setEditing(true)}>{text.students.edit.action}</Button><Button variant="secondary" icon="refresh" onClick={refresh}>{text.students.refresh}</Button></div>}>
     <div className="student-detail-stack">
       <section className="detail-identity"><span className="avatar student-avatar">{studentInitials(student.nama)}</span><div><Badge tone="success">{text.students.studentRole}</Badge><h2>{student.nama}</h2><p>{student.nim ?? text.students.unavailable} · {student.email}</p></div></section>
-      <div className="detail-tabs" role="tablist" aria-label={text.students.detailTitle}>{tabs.map((value) => <button key={value} type="button" role="tab" aria-selected={tab === value} aria-controls={`student-panel-${value}`} id={`student-tab-${value}`} className={tab === value ? 'active' : ''} onClick={() => setTab(value)}>{text.students.tabs[value]}</button>)}</div>
+      <div className="detail-tabs" role="tablist" aria-label={text.students.detailTitle} onKeyDown={handleTabListKeyDown}>{tabs.map((value) => <button key={value} type="button" role="tab" aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} aria-controls={`student-panel-${value}`} id={`student-tab-${value}`} className={tab === value ? 'active' : ''} onClick={() => setTab(value)}>{text.students.tabs[value]}</button>)}</div>
       <section id={`student-panel-${tab}`} role="tabpanel" aria-labelledby={`student-tab-${tab}`}>
         {tab === 'overview' && <StudentOverview student={student} assessments={assessments} bookings={bookings} assessmentLoading={assessmentLoading} bookingLoading={bookingLoading} assessmentError={assessmentError} bookingError={bookingError} locale={locale} />}
         {tab === 'assessments' && <AssessmentHistory data={assessments} loading={assessmentLoading} error={assessmentError} locale={locale} pagination={assessmentPagination} onPrevious={() => { setAssessmentLoading(true); setAssessmentError(false); setAssessmentPage((value) => Math.max(1, value - 1)); }} onNext={() => { setAssessmentLoading(true); setAssessmentError(false); setAssessmentPage((value) => Math.min(assessmentPagination.pageCount, value + 1)); }} />}
@@ -86,7 +86,7 @@ function StudentOverview({ student, assessments, bookings, assessmentLoading, bo
     <ProfileCard title={text.students.sections.academic}><dl><Definition label={text.students.fields.faculty} value={student.faculty_name ?? text.students.unavailable} /><Definition label={text.students.fields.unit} value={student.academic_unit_name ?? text.students.unavailable} /></dl></ProfileCard>
     <ProfileCard title={text.students.sections.latestAssessment}>{assessmentLoading && !assessments ? <Skeleton lines={3} /> : assessmentError ? <InlineAlert tone="warning">{text.students.errors.assessments}</InlineAlert> : assessments?.assessments[0] ? <AssessmentSnapshot assessment={assessments.assessments[0]} /> : <p className="section-empty">{text.students.empty.assessments}</p>}</ProfileCard>
     <ProfileCard title={text.students.sections.latestCounseling}>{bookingLoading && !bookings ? <Skeleton lines={3} /> : bookingError ? <InlineAlert tone="warning">{text.students.errors.counseling}</InlineAlert> : bookings?.bookings[0] ? <BookingSnapshot booking={bookings.bookings[0]} locale={locale} /> : <p className="section-empty">{text.students.empty.counseling}</p>}</ProfileCard>
-    <ProfileCard title={text.students.sections.support}><p className="section-empty">{text.students.unsupported.support}</p></ProfileCard>
+    <ProfileCard title={text.students.sections.support}><SupportSnapshot student={student} /></ProfileCard>
   </div>;
 }
 

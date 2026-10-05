@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { ApiError, AUTH_EXPIRED_EVENT } from '@/lib/api/client';
 import { getCurrentUser, login as loginRequest, type LoginRequest } from '@/lib/api/auth';
 import { clearSession, isAdminRole, readSession, writeSession, type AuthenticatedUser } from '@/lib/auth/session';
+import { isPreviewMode, PREVIEW_ADMIN } from '@/lib/previewMode';
 
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'unauthorized' | 'expired' | 'unavailable';
 interface AuthContextValue { status: AuthStatus; user: AuthenticatedUser | null; login: (payload: LoginRequest) => Promise<void>; logout: () => void; refresh: () => Promise<void> }
@@ -14,6 +15,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
 
   const refresh = useCallback(async () => {
+    if (isPreviewMode()) { setUser(PREVIEW_ADMIN); setStatus('authenticated'); return; }
     const session = readSession();
     if (!session) { setUser(null); setStatus('unauthenticated'); return; }
     setStatus('loading');
@@ -40,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (payload: LoginRequest) => {
+    if (isPreviewMode()) { clearSession(); setUser(PREVIEW_ADMIN); setStatus('authenticated'); return; }
     const response = await loginRequest(payload);
     if (!isAdminRole(response.user.role)) { clearSession(); setUser(response.user); setStatus('unauthorized'); return; }
     writeSession({ accessToken: response.access_token, user: response.user });

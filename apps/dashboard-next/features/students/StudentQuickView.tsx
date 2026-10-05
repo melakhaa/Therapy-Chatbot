@@ -40,7 +40,7 @@ export function StudentQuickView({ studentId, academic, onClose, onDirectoryRefr
       <div className="quick-actions"><Button variant="secondary" onClick={() => setEditing(true)}>{text.students.edit.action}</Button></div>
       <ProfileCard title={text.students.sections.account}><Definition label={text.students.fields.registered} value={formatDate(student.created_at, locale)} /><Definition label={text.students.fields.lastLogin} value={text.students.unsupported.lastLogin} /></ProfileCard>
       <ProfileCard title={text.students.sections.academic}><Definition label={text.students.fields.faculty} value={student.faculty_name ?? text.students.unavailable} /><Definition label={text.students.fields.unit} value={student.academic_unit_name ?? text.students.unavailable} /></ProfileCard>
-      <ProfileCard title={text.students.sections.support}><p className="section-empty">{text.students.unsupported.support}</p></ProfileCard>
+      <ProfileCard title={text.students.sections.support}><SupportSnapshot student={student} /></ProfileCard>
       <ProfileCard title={text.students.sections.latestAssessment}>{assessmentError ? <InlineAlert tone="warning">{text.students.errors.assessments}</InlineAlert> : assessments?.assessments[0] ? <AssessmentSnapshot assessment={assessments.assessments[0]} /> : <p className="section-empty">{text.students.empty.assessments}</p>}</ProfileCard>
       <ProfileCard title={text.students.sections.latestCounseling}>{bookingError ? <InlineAlert tone="warning">{text.students.errors.counseling}</InlineAlert> : bookings?.bookings[0] ? <BookingSnapshot booking={bookings.bookings[0]} locale={locale} /> : <p className="section-empty">{text.students.empty.counseling}</p>}</ProfileCard>
     </div>}
@@ -49,6 +49,14 @@ export function StudentQuickView({ studentId, academic, onClose, onDirectoryRefr
 
 export function ProfileCard({ title, children }: { title: string; children: React.ReactNode }) { return <section className="profile-card"><h3>{title}</h3><div className="profile-card-body">{children}</div></section>; }
 export function Definition({ label, value }: { label: string; value: string }) { return <div className="definition-row"><dt>{label}</dt><dd>{value}</dd></div>; }
+export function SupportSnapshot({ student }: { student: StudentRow }) {
+  const { language, text } = useLanguage();
+  if (!student.support_condition && !student.support_disability) return <p className="section-empty">{text.students.unsupported.support}</p>;
+  const labels = language === 'id'
+    ? { condition: 'Kondisi dilaporkan', disability: 'Disabilitas', none: 'Tidak ada', present: 'Ada', unknown: 'Belum diketahui', prefer_not_to_say: 'Memilih tidak menjawab' }
+    : { condition: 'Reported condition', disability: 'Disability', none: 'None', present: 'Present', unknown: 'Unknown', prefer_not_to_say: 'Prefer not to say' };
+  return <dl><Definition label={labels.condition} value={labels[student.support_condition ?? 'unknown']} /><Definition label={labels.disability} value={labels[student.support_disability ?? 'unknown']} /></dl>;
+}
 export function AssessmentSnapshot({ assessment }: { assessment: StudentAssessmentPage['assessments'][number] }) {
   const { text } = useLanguage(); const parts = safeAssessmentSummary(assessment);
   return <div className="snapshot"><div className="snapshot-heading"><strong>{assessment.instrument_type}</strong><Badge tone={severityTone(assessment.severity)}>{severityLabel(assessment.severity, text.overview.priority)}</Badge></div>{parts.length > 0 && <div className="dimension-list">{parts.map((part) => <span key={part.category}>{text.overview.categories[part.category as keyof typeof text.overview.categories]}: {part.scaledScore ?? '—'} · {severityLabel(part.severity, text.overview.priority)}</span>)}</div>}</div>;

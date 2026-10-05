@@ -1,6 +1,8 @@
 import type { AssessmentCategoryResult } from '@/features/overview/types';
 import type { AcademicStructure } from '@/features/monitoring/types';
 
+export type SupportProfileState = 'none' | 'present' | 'unknown' | 'prefer_not_to_say';
+
 export interface StudentRow {
   user_id: string;
   nama: string;
@@ -13,6 +15,8 @@ export interface StudentRow {
   academic_unit_id: string | null;
   academic_unit_name: string | null;
   unit_type: 'department' | 'study_program' | null;
+  support_condition?: SupportProfileState;
+  support_disability?: SupportProfileState;
 }
 
 export interface StudentDirectoryResponse {

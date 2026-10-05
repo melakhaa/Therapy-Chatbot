@@ -1,2 +1,2 @@
-import { MigrationPlaceholder } from '@/components/feedback/MigrationPlaceholder';
-export default function Page() { return <MigrationPlaceholder title="Pengaturan" />; }
+import { SettingsPage } from '@/features/settings/SettingsPage';
+export default function Page() { return <SettingsPage />; }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/components/providers/LanguageProvider';
-import { Badge, Button, DropdownMenu, EmptyState, ErrorState, Icon, InlineAlert, PageShell, Skeleton } from '@/components/ui';
+import { Badge, Button, DropdownMenu, EmptyState, ErrorState, handleTabListKeyDown, Icon, InlineAlert, PageShell, Skeleton } from '@/components/ui';
 import { markAttentionReviewed } from '@/features/overview/api';
 import { getAcademicStructure, getMonitoringSources, type MonitoringSources } from '@/features/monitoring/api';
 import {
@@ -98,7 +98,7 @@ export function MonitoringPage() {
 
   return <PageShell title={text.monitoring.title} actions={<Button variant="secondary" icon="refresh" onClick={refresh}>{text.monitoring.refresh}</Button>}>
     <div className="monitoring-stack">
-      <div className="case-tabs" role="tablist" aria-label={text.monitoring.title}>{(['all', 'assessment', 'safety', 'request'] as CaseType[]).map((type) => <button key={type} role="tab" aria-selected={filters.type === type} className={filters.type === type ? 'active' : ''} onClick={() => updateFilter('type', type)}>{text.monitoring.tabs[type]}</button>)}</div>
+      <div className="case-tabs" role="tablist" aria-label={text.monitoring.title} onKeyDown={handleTabListKeyDown}>{(['all', 'assessment', 'safety', 'request'] as CaseType[]).map((type) => <button key={type} role="tab" aria-selected={filters.type === type} tabIndex={filters.type === type ? 0 : -1} className={filters.type === type ? 'active' : ''} onClick={() => updateFilter('type', type)}>{text.monitoring.tabs[type]}</button>)}</div>
 
       <section className="monitoring-filters" aria-label={text.monitoring.filters.search}>
         <label className="filter-field filter-search"><span>{text.monitoring.filters.search}</span><div className="filter-input"><Icon name="search" size={18} /><input value={filters.search} onChange={(event) => updateFilter('search', event.target.value)} placeholder={text.monitoring.filters.searchPlaceholder} /></div></label>
