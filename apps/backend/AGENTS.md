@@ -1,14 +1,20 @@
 # Backend — local rules
 
 FastAPI app + AI services. Run all commands from this directory — imports are top-level
-(`from auth import ...`), not a package. Setup, tests, and gotchas:
-[root development doc](../../docs/development-conventions.md).
+(`from auth import ...`), not a package.
+
+```bash
+venv/bin/uvicorn main:app --reload               # API :8000
+venv/bin/python scripts/seed_dev_users.py        # dev accounts (once, DB up)
+venv/bin/python -m unittest discover -s tests -v # API tests, no DB/AI
+venv/bin/python scripts/api_smoke.py             # end-to-end check (full stack up)
+```
+
+Setup, tests, and gotchas: [root development doc](../../docs/development-conventions.md).
 
 - Venv `venv/` (Python 3.12 required; semantic-router has no 3.13+ wheels).
-- Schema changes: add `db/migrations/NNN_*.sql` (additive; record the filename stem in
-  `schema_migrations`); the one-shot `migrate` service applies the unapplied ones on
-  `docker compose up` and skips the rest, so a file never has to be re-runnable. Editing the `db/init/*.sql` baseline needs
-  `docker compose down -v && docker compose up -d` (wipes local data).
+- Schema changes: `db/migrations/NNN_*.sql` (additive, recorded in `schema_migrations`) —
+  workflow and init/migration split: [db/AGENTS.md](../../db/AGENTS.md).
 - Iteration 3/4 admin APIs: `routes/iteration3.py` (counseling, academic scopes, notifications),
   `routes/iteration4.py` (versioned instruments, comparison analytics, multi-counselor calendar).
   DASS-21 scoring rules live in `core/dass21.py` — change only with an approved clinical source.
