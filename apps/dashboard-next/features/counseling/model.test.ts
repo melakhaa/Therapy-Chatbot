@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { activeAvailability, deriveSessionStatus, hasObviousConflict, jakartaDateKey, localSchedulePayload, normalizeRequests, weekRange } from './model.ts';
-import type { Appointment, AvailabilityRule, BlockedPeriod } from './types.ts';
+import { activeAvailability, affectedAppointments, deriveSessionStatus, hasObviousConflict, isEffectiveException, jakartaDateKey, localExceptionPayload, localSchedulePayload, normalizeRequests, resourceAvailability, resourceConflictIds, weekRange } from './model.ts';
+import type { Appointment, AvailabilityRule, BlockedPeriod, CounselingResource, ResourceBlock } from './types.ts';
 
 const appointment: Appointment = { appointment_id: 'a1', counseling_request_id: 'r1', student_id: 's1', student_name: 'Student', nim: null, counselor_id: 'c1', counselor_name: 'Counselor', starts_at: '2026-10-05T02:00:00.000Z', ends_at: '2026-10-05T03:00:00.000Z', status: 'confirmed' };
 
@@ -17,7 +17,7 @@ test('builds Monday-to-Sunday calendar ranges', () => {
 });
 
 test('creates timezone-aware Jakarta mutation payloads', () => {
-  assert.deepEqual(localSchedulePayload('c1', '2026-10-05', '09:00', '10:00'), { counselor_id: 'c1', starts_at: '2026-10-05T02:00:00.000Z', ends_at: '2026-10-05T03:00:00.000Z' });
+  assert.deepEqual(localSchedulePayload('c1', '2026-10-05', '09:00', '10:00', 'room-a'), { counselor_id: 'c1', starts_at: '2026-10-05T02:00:00.000Z', ends_at: '2026-10-05T03:00:00.000Z', resource_id: 'room-a' });
   assert.equal(localSchedulePayload('c1', '2026-10-05', '10:00', '09:00'), null);
 });
 
@@ -45,4 +45,21 @@ test('filters availability by active state and stable counselor ID', () => {
 
 test('uses the Jakarta calendar date boundary', () => {
   assert.equal(jakartaDateKey(new Date('2026-10-02T18:30:00Z')), '2026-10-03');
+});
+
+test('normalizes full-day exceptions and exposes affected sessions without mutating them', () => {
+  const payload = localExceptionPayload('c1', '2026-10-05', '', '', true)!;
+  assert.deepEqual(payload, { counselor_id: 'c1', starts_at: '2026-10-04T17:00:00.000Z', ends_at: '2026-10-05T17:00:00.000Z' });
+  assert.deepEqual(affectedAppointments(payload, [appointment]).map((item) => item.appointment_id), ['a1']);
+  assert.equal(isEffectiveException({ blocked_period_id: 'p1', counselor_id: 'c1', counselor_name: 'Counselor', starts_at: payload.starts_at, ends_at: payload.ends_at, reason: null, source: 'counselor', review_status: 'pending' }), false);
+});
+
+test('derives resource availability only from complete loaded authority', () => {
+  const resource: CounselingResource = { resource_id: 'room-a', name: 'Room A', resource_type: 'physical', capacity: 1, location_or_url: null, active: true };
+  const booked = { ...appointment, resource_id: 'room-a' };
+  assert.equal(resourceAvailability(resource, [booked], [], appointment.starts_at, appointment.ends_at, false).state, 'unknown');
+  assert.equal(resourceAvailability(resource, [booked], [], appointment.starts_at, appointment.ends_at, true).state, 'capacity_full');
+  const block: ResourceBlock = { resource_block_id: 'rb1', resource_id: 'room-a', starts_at: appointment.starts_at, ends_at: appointment.ends_at, reason: null };
+  assert.equal(resourceAvailability(resource, [], [block], appointment.starts_at, appointment.ends_at, true).state, 'blocked');
+  assert.deepEqual([...resourceConflictIds([booked, { ...booked, appointment_id: 'a2', counselor_id: 'c2', student_id: 's2' }], [resource])].sort(), ['a1', 'a2']);
 });

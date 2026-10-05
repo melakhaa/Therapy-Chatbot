@@ -75,3 +75,20 @@ Run the full migration and API suite against a real PostgreSQL instance. In addi
 - Public or mobile hotline responses must exclude administrator-only verification audit metadata unless a separate product requirement explicitly authorizes it.
 
 Backend ownership should return a runtime validation record containing the applied migration version, role used, API test results, and any contract differences discovered. Contract differences should be reconciled before deployment rather than hidden with frontend mock data.
+
+## Counseling resources and counselor exceptions
+
+### Implemented contract
+
+- The admin resource inventory comes from `GET /admin/counseling/resources`; production labels and IDs are never hardcoded.
+- Appointment assignment and rescheduling send the selected `resource_id` through the existing request-assignment and appointment-patch contracts. The backend remains authoritative for active state, resource blocks, overlap, and capacity.
+- Admin-created counselor exceptions use `POST /admin/counseling/blocked-periods`; removal uses the existing delete endpoint. The UI checks the loaded appointment window first, presents affected sessions, and never cancels or reassigns them automatically.
+- Local preview provides deterministic physical and virtual resources, appointment linkage, a resource block, an approved admin exception, and a pending counselor-submitted example.
+
+### Backend still required
+
+- `GET /admin/counseling/calendar/multi` must return appointment `resource_id` (and preferably display name/type), resource blocks for the requested interval, and an explicit indication that the returned resource view is complete. Until then production can select a real resource and rely on save-time validation, but it cannot claim authoritative live availability or restore the resource label after calendar reload.
+- A read endpoint for `counseling_resource_blocks` is required for time-aware blocked-state presentation. Capacity and conflict decisions must continue to be made transactionally by the backend.
+- Counselor-submitted exceptions need persisted source and review status (`pending`, `approved`, `rejected`), reviewer identity, optional review note, timestamps, and authenticated list/approve/reject operations. Production does not issue approval calls until that contract exists.
+- If exception types such as leave or external meeting must be reportable, add a constrained persisted type field. The current admin form stores only the supported time range and free-text reason.
+- Exception creation should continue returning `409` when active appointments are affected. A future conflict response may include safe appointment identifiers and counts so admins can review them without relying solely on the loaded calendar window.

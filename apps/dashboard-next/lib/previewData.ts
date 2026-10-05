@@ -2,7 +2,7 @@ import type { ApiRequestOptions } from './api/client';
 import type { StudentAssessment, StudentRow, SupportProfileState } from '../features/students/types';
 import type { AcademicUnit, Faculty } from '../features/monitoring/types';
 import type { AttentionSignal } from '../features/overview/types';
-import type { Appointment, AvailabilityRule, BlockedPeriod, Counselor, CounselingRequest } from '../features/counseling/types';
+import type { Appointment, AvailabilityRule, BlockedPeriod, Counselor, CounselingRequest, CounselingResource, ResourceBlock } from '../features/counseling/types';
 import type { HotlineRecord, HotlineStatus } from '../features/hotline/types';
 import type { Instrument, InstrumentDetail, InstrumentStatus, QuestionDraft } from '../features/instruments/types';
 
@@ -71,13 +71,26 @@ let availability: AvailabilityRule[] = [
   { availability_rule_id: 'preview-rule-03', counselor_id: counselors[1].user_id, day_of_week: 1, start_time: '10:00:00', end_time: '14:00:00', timezone: 'Asia/Jakarta', effective_from: day(-20), effective_to: null, active: true },
 ];
 
-let appointments: Appointment[] = [
-  { appointment_id: 'preview-appointment-01', counseling_request_id: null, student_id: students[2].user_id, student_name: students[2].nama, nim: students[2].nim, counselor_id: counselors[0].user_id, counselor_name: counselors[0].nama, starts_at: at(0, 9), ends_at: at(0, 10), status: 'completed' },
-  { appointment_id: 'preview-appointment-02', counseling_request_id: null, student_id: students[1].user_id, student_name: students[1].nama, nim: students[1].nim, counselor_id: counselors[1].user_id, counselor_name: counselors[1].nama, starts_at: at(0, 13), ends_at: at(0, 14), status: 'confirmed' },
-  { appointment_id: 'preview-appointment-03', counseling_request_id: null, student_id: students[3].user_id, student_name: students[3].nama, nim: students[3].nim, counselor_id: counselors[0].user_id, counselor_name: counselors[0].nama, starts_at: at(2, 10), ends_at: at(2, 11), status: 'rescheduled' },
+const counselingResources: CounselingResource[] = [
+  { resource_id: 'preview-resource-a', name: 'Ruang A', resource_type: 'physical', capacity: 1, location_or_url: 'Gedung Layanan, Lt. 1', active: true },
+  { resource_id: 'preview-resource-b', name: 'Ruang B', resource_type: 'physical', capacity: 1, location_or_url: 'Gedung Layanan, Lt. 1', active: true },
+  { resource_id: 'preview-resource-virtual', name: 'Virtual Room', resource_type: 'virtual', capacity: 2, location_or_url: 'Tautan dibuat saat sesi', active: true },
 ];
 
-let blocks: BlockedPeriod[] = [{ blocked_period_id: 'preview-block-01', counselor_id: counselors[0].user_id, counselor_name: counselors[0].nama, starts_at: at(1, 14), ends_at: at(1, 16), reason: 'Pengecualian jadwal sintetis' }];
+const resourceBlocks: ResourceBlock[] = [
+  { resource_block_id: 'preview-resource-block-01', resource_id: counselingResources[0].resource_id, starts_at: at(1, 14), ends_at: at(1, 16), reason: 'Pemeliharaan ruang sintetis' },
+];
+
+let appointments: Appointment[] = [
+  { appointment_id: 'preview-appointment-01', counseling_request_id: null, student_id: students[2].user_id, student_name: students[2].nama, nim: students[2].nim, counselor_id: counselors[0].user_id, counselor_name: counselors[0].nama, starts_at: at(0, 9), ends_at: at(0, 10), status: 'confirmed', resource_id: 'preview-resource-a', resource_name: 'Ruang A' },
+  { appointment_id: 'preview-appointment-02', counseling_request_id: null, student_id: students[1].user_id, student_name: students[1].nama, nim: students[1].nim, counselor_id: counselors[1].user_id, counselor_name: counselors[1].nama, starts_at: at(0, 13), ends_at: at(0, 14), status: 'confirmed', resource_id: 'preview-resource-virtual', resource_name: 'Virtual Room' },
+  { appointment_id: 'preview-appointment-03', counseling_request_id: null, student_id: students[3].user_id, student_name: students[3].nama, nim: students[3].nim, counselor_id: counselors[0].user_id, counselor_name: counselors[0].nama, starts_at: at(2, 10), ends_at: at(2, 11), status: 'rescheduled', resource_id: 'preview-resource-b', resource_name: 'Ruang B' },
+];
+
+let blocks: BlockedPeriod[] = [
+  { blocked_period_id: 'preview-block-01', counselor_id: counselors[0].user_id, counselor_name: counselors[0].nama, starts_at: at(1, 14), ends_at: at(1, 16), reason: 'Cuti pribadi sintetis', source: 'admin', review_status: 'approved' },
+  { blocked_period_id: 'preview-block-pending', counselor_id: counselors[1].user_id, counselor_name: counselors[1].nama, starts_at: at(3, 9), ends_at: at(3, 12), reason: 'Rapat eksternal sintetis', source: 'counselor', review_status: 'pending' },
+];
 
 const answerOptions = () => [{ position: 0, label: 'Tidak pernah', score: 0 }, { position: 1, label: 'Kadang-kadang', score: 1 }, { position: 2, label: 'Cukup sering', score: 2 }, { position: 3, label: 'Sangat sering', score: 3 }];
 const standardQuestions: QuestionDraft[] = Array.from({ length: 21 }, (_, index) => ({ item_key: `DASS21-${String(index + 1).padStart(2, '0')}`, category: ['stress', 'anxiety', 'depression'][index % 3], position: index + 1, wording: `Pernyataan standar DASS-21 ${index + 1} (preview konfigurasi)`, active: true, options: answerOptions() }));
@@ -163,16 +176,18 @@ export async function previewRequest<T>(path: string, options: ApiRequestOptions
     else { const counselorId = url.searchParams.get('counselor_id'); const rows = availability.filter((row) => !counselorId || row.counselor_id === counselorId); result = { availability: rows, total: rows.length }; }
   } else if (/^\/admin\/counseling\/availability\//.test(url.pathname) && method === 'DELETE') {
     const id = decodeURIComponent(url.pathname.split('/').at(-1)!); availability = availability.map((row) => row.availability_rule_id === id ? { ...row, active: false } : row); result = { message: 'Preview availability deactivated' };
+  } else if (url.pathname === '/admin/counseling/resources') {
+    result = { resources: counselingResources, total: counselingResources.length };
   } else if (url.pathname === '/admin/counseling/requests') {
     const rows = requests.filter((row) => row.status === (url.searchParams.get('status') ?? 'requested')); const pageNumber = Number(url.searchParams.get('page') ?? 1); const pageSize = Number(url.searchParams.get('page_size') ?? 100); result = { requests: page(rows, pageNumber, pageSize), total: rows.length, page: pageNumber, page_size: pageSize };
   } else if (/^\/admin\/counseling\/requests\/[^/]+\/assign$/.test(url.pathname) && method === 'POST') {
-    const id = decodeURIComponent(url.pathname.split('/')[4]); const request = requests.find((row) => row.counseling_request_id === id)!; const counselor = counselors.find((row) => row.user_id === body.counselor_id)!; const appointment: Appointment = { appointment_id: `preview-appointment-${Date.now()}`, counseling_request_id: id, student_id: request.student_id, student_name: request.nama, nim: request.nim, counselor_id: counselor.user_id, counselor_name: counselor.nama, starts_at: body.starts_at as string, ends_at: body.ends_at as string, status: 'confirmed' }; appointments.push(appointment); requests = requests.map((row) => row.counseling_request_id === id ? { ...row, status: 'confirmed' } : row); result = { appointment };
+    const id = decodeURIComponent(url.pathname.split('/')[4]); const request = requests.find((row) => row.counseling_request_id === id)!; const counselor = counselors.find((row) => row.user_id === body.counselor_id)!; const resource = counselingResources.find((row) => row.resource_id === body.resource_id); const appointment: Appointment = { appointment_id: `preview-appointment-${Date.now()}`, counseling_request_id: id, student_id: request.student_id, student_name: request.nama, nim: request.nim, counselor_id: counselor.user_id, counselor_name: counselor.nama, starts_at: body.starts_at as string, ends_at: body.ends_at as string, status: 'confirmed', resource_id: (body.resource_id as string | null | undefined) ?? null, resource_name: resource?.name ?? null }; appointments.push(appointment); requests = requests.map((row) => row.counseling_request_id === id ? { ...row, status: 'confirmed' } : row); result = { appointment };
   } else if (url.pathname === '/admin/counseling/calendar/multi') {
-    const from = url.searchParams.get('date_from') ?? day(-7); const to = url.searchParams.get('date_to') ?? day(7); const counselorId = url.searchParams.get('counselor_id'); const inRange = (value: string) => key(new Date(value)) >= from && key(new Date(value)) <= to; result = { counselors, appointments: appointments.filter((row) => inRange(row.starts_at) && (!counselorId || row.counselor_id === counselorId)), availability: availability.filter((row) => !counselorId || row.counselor_id === counselorId), blocked_periods: blocks.filter((row) => inRange(row.starts_at) && (!counselorId || row.counselor_id === counselorId)) };
+    const from = url.searchParams.get('date_from') ?? day(-7); const to = url.searchParams.get('date_to') ?? day(7); const counselorId = url.searchParams.get('counselor_id'); const inRange = (value: string) => key(new Date(value)) >= from && key(new Date(value)) <= to; result = { counselors, appointments: appointments.filter((row) => inRange(row.starts_at) && (!counselorId || row.counselor_id === counselorId)), availability: availability.filter((row) => !counselorId || row.counselor_id === counselorId), blocked_periods: blocks.filter((row) => inRange(row.starts_at) && (!counselorId || row.counselor_id === counselorId)), resource_blocks: resourceBlocks.filter((row) => inRange(row.starts_at)), resource_authority_complete: true };
   } else if (/^\/admin\/counseling\/appointments\//.test(url.pathname) && method === 'PATCH') {
-    const id = decodeURIComponent(url.pathname.split('/').at(-1)!); appointments = appointments.map((row) => row.appointment_id === id ? { ...row, ...body } : row); result = { appointment: appointments.find((row) => row.appointment_id === id) };
+    const id = decodeURIComponent(url.pathname.split('/').at(-1)!); const resource = counselingResources.find((row) => row.resource_id === body.resource_id); appointments = appointments.map((row) => row.appointment_id === id ? { ...row, ...body, resource_name: body.resource_id === undefined ? row.resource_name : resource?.name ?? null } as Appointment : row); result = { appointment: appointments.find((row) => row.appointment_id === id) };
   } else if (url.pathname === '/admin/counseling/blocked-periods' && method === 'POST') {
-    const counselor = counselors.find((row) => row.user_id === body.counselor_id); blocks.push({ blocked_period_id: `preview-block-${Date.now()}`, counselor_id: body.counselor_id as string, counselor_name: counselor?.nama ?? 'Preview Counselor', starts_at: body.starts_at as string, ends_at: body.ends_at as string, reason: (body.reason as string | undefined) ?? null }); result = { message: 'Preview exception created' };
+    const counselor = counselors.find((row) => row.user_id === body.counselor_id); blocks.push({ blocked_period_id: `preview-block-${Date.now()}`, counselor_id: body.counselor_id as string, counselor_name: counselor?.nama ?? 'Preview Counselor', starts_at: body.starts_at as string, ends_at: body.ends_at as string, reason: (body.reason as string | undefined) ?? null, source: 'admin', review_status: 'approved' }); result = { message: 'Preview exception created' };
   } else if (/^\/admin\/counseling\/blocked-periods\//.test(url.pathname) && method === 'DELETE') {
     const id = decodeURIComponent(url.pathname.split('/').at(-1)!); blocks = blocks.filter((row) => row.blocked_period_id !== id); result = { message: 'Preview exception removed' };
   } else if (url.pathname === '/admin/schedules') {
@@ -206,5 +221,5 @@ export async function previewRequest<T>(path: string, options: ApiRequestOptions
 }
 
 export function previewDatasetSummary() {
-  return { students: students.length, faculties: faculties.length, units: units.length, counselors: counselors.length, instruments: instruments.length, hotlines: hotlines.length };
+  return { students: students.length, faculties: faculties.length, units: units.length, counselors: counselors.length, resources: counselingResources.length, instruments: instruments.length, hotlines: hotlines.length };
 }

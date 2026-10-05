@@ -10,6 +10,8 @@ import { createAvailability, deactivateAvailability, getAvailability, getCounsel
 import { addScheduleWindow, buildSchedulePlan, counselorInitials, filterCounselors, normalizeCounselors, normalizeSchedule, removeScheduleWindow, scheduleSignature, upcomingAppointments, validateSchedule, WEEKDAY_ORDER, windowsForDay, type ScheduleValidation } from './model';
 import type { Appointment, AvailabilityRule, CalendarResponse, Counselor, CounselorStatusFilter, ScheduleWindow } from './types';
 import type { Messages } from '@/lib/i18n/messages';
+import { ExceptionDrawer } from '@/features/counseling/ExceptionDrawer';
+import { deleteBlockedPeriod } from '@/features/counseling/api';
 
 const PAGE_SIZE = 20;
 type Copy = Messages['counselors'];
@@ -86,6 +88,7 @@ function CounselorProfileDrawer({ counselorId, counselor, directoryReady, availa
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState('');
   const [confirmStatus, setConfirmStatus] = useState(false);
+  const [exceptionOpen, setExceptionOpen] = useState(false);
 
   useEffect(() => {
     if (!counselorId) return;
@@ -133,18 +136,18 @@ function CounselorProfileDrawer({ counselorId, counselor, directoryReady, availa
   const footer = counselor && editor === 'profile' ? <div className="drawer-actions"><Button variant="secondary" onClick={closeEditor}>{text.common.cancel}</Button><Button loading={saving} onClick={() => { void saveProfile(); }}>{copy.actions.saveProfile}</Button></div>
     : counselor && editor === 'schedule' ? <div className="drawer-actions"><Button variant="secondary" onClick={closeEditor}>{text.common.cancel}</Button><Button loading={saving} onClick={() => { void saveSchedule(); }}>{copy.actions.saveRoutine}</Button></div> : undefined;
 
-  return <Drawer open={!!counselorId} onOpenChange={(open) => { if (!open) requestClose(); }} title={counselor?.nama ?? copy.sections.profile} description={counselor?.email ?? copy.drawer.loading} closeLabel={text.common.close} className="counselor-profile-drawer" footer={footer}>
+  return <><Drawer open={!!counselorId} onOpenChange={(open) => { if (!open) requestClose(); }} title={counselor?.nama ?? copy.sections.profile} description={counselor?.email ?? copy.drawer.loading} closeLabel={text.common.close} className="counselor-profile-drawer" footer={footer}>
     {!directoryReady ? <div className="drawer-skeleton"><Skeleton lines={9} /></div> : !counselor ? <ErrorState title={text.errors.notFound} message={copy.errors.notFound} /> : editor === 'profile' ? <ProfileEditor copy={copy} title={title} specialization={specialization} setTitle={setTitle} setSpecialization={setSpecialization} error={actionError} /> : editor === 'schedule' ? <ScheduleEditor copy={copy} windows={scheduleDraft} setWindows={setScheduleDraft} validation={validation} setValidation={setValidation} warning={copy.editor.saveWarning} error={actionError} /> : <div className="counselor-profile-content">
       <section className="counselor-identity"><span className="avatar counselor-avatar">{counselorInitials(counselor.nama)}</span><div><Badge tone={counselor.active ? 'success' : 'neutral'}>{counselor.active ? copy.status.active : copy.status.inactive}</Badge><h3>{counselor.nama}</h3><p>{counselor.email ?? copy.unavailable}</p></div></section>
       {actionError && <InlineAlert tone="danger">{actionError}</InlineAlert>}
-      <div className="quick-actions counselor-actions"><Button variant="secondary" onClick={startProfileEdit}>{copy.actions.editProfile}</Button><Button variant="secondary" disabled={availabilityLoading || availabilityError} onClick={startScheduleEdit}>{copy.actions.editRoutine}</Button><Button variant={counselor.active ? 'danger' : 'primary'} loading={saving} onClick={() => setConfirmStatus(true)}>{counselor.active ? copy.actions.deactivate : copy.actions.activate}</Button></div>
+      <div className="quick-actions counselor-actions"><Button variant="secondary" onClick={startProfileEdit}>{copy.actions.editProfile}</Button><Button variant="secondary" disabled={availabilityLoading || availabilityError} onClick={startScheduleEdit}>{copy.actions.editRoutine}</Button><Button variant="secondary" onClick={() => setExceptionOpen(true)}>{text.counseling.actions.addException}</Button><Button variant={counselor.active ? 'danger' : 'primary'} loading={saving} onClick={() => setConfirmStatus(true)}>{counselor.active ? copy.actions.deactivate : copy.actions.activate}</Button></div>
       <ProfileSection title={copy.sections.profile}><dl><Definition label={copy.fields.name} value={counselor.nama} /><Definition label={copy.fields.email} value={counselor.email ?? copy.unavailable} /><Definition label={copy.fields.title} value={counselor.title ?? copy.unavailable} /><Definition label={copy.fields.specialization} value={counselor.specialization ?? copy.unavailable} /><Definition label={copy.fields.status} value={counselor.active ? copy.status.active : copy.status.inactive} /></dl><p className="section-note">{copy.drawer.profileNote}</p></ProfileSection>
       <ProfileSection title={copy.sections.routine}>{availabilityLoading ? <Skeleton lines={5} /> : availabilityError ? <InlineAlert tone="warning">{copy.errors.availability}</InlineAlert> : originalSchedule.length === 0 ? <p className="section-empty">{copy.empty.routine}</p> : <RoutineSchedule windows={originalSchedule} copy={copy} locale={locale} />}</ProfileSection>
-      <ProfileSection title={copy.sections.exceptions}>{operationsLoading ? <Skeleton lines={3} /> : operationsError ? <InlineAlert tone="warning">{copy.errors.operations}</InlineAlert> : !operations?.blocked_periods.length ? <p className="section-empty">{copy.empty.exceptions}</p> : <ExceptionList blocks={operations.blocked_periods} locale={locale} copy={copy} />}<p className="section-note"><Link href="/counseling">{copy.drawer.exceptionLink}</Link></p></ProfileSection>
+      <ProfileSection title={copy.sections.exceptions}>{operationsLoading ? <Skeleton lines={3} /> : operationsError ? <InlineAlert tone="warning">{copy.errors.operations}</InlineAlert> : !operations?.blocked_periods.length ? <p className="section-empty">{copy.empty.exceptions}</p> : <ExceptionList blocks={operations.blocked_periods} locale={locale} copy={copy} onDeleted={reloadOperations} />}<p className="section-note"><Link href="/counseling">{copy.drawer.exceptionLink}</Link></p></ProfileSection>
       <ProfileSection title={copy.sections.upcoming}>{operationsLoading ? <Skeleton lines={4} /> : operationsError ? <InlineAlert tone="warning">{copy.errors.operations}</InlineAlert> : upcoming.length === 0 ? <p className="section-empty">{copy.empty.upcoming}</p> : <UpcomingList appointments={upcoming} locale={locale} labels={text.counseling.status.backend} />}<p className="section-note">{copy.drawer.rangeNote}</p></ProfileSection>
     </div>}
     <ConfirmationDialog open={confirmStatus} onOpenChange={setConfirmStatus} title={counselor?.active ? copy.actions.deactivate : copy.actions.activate} consequence={<><p>{copy.drawer.activeWarning}</p><p>{counselor?.active ? allUpcoming.length > 0 ? copy.drawer.deactivateWithAppointments.replace('{count}', String(allUpcoming.length)) : copy.drawer.deactivateWithoutAppointments : copy.drawer.activateConfirm}</p></>} confirmLabel={counselor?.active ? copy.actions.deactivate : copy.actions.activate} danger={!!counselor?.active} onConfirm={() => { void toggleStatus(); }} />
-  </Drawer>;
+  </Drawer>{counselor && <ExceptionDrawer key={`${exceptionOpen}-${counselor.user_id}`} open={exceptionOpen} counselors={[counselor]} appointments={operations?.appointments ?? []} initialCounselorId={counselor.user_id} copy={text.counseling} locale={locale} onClose={() => setExceptionOpen(false)} onSaved={() => { setExceptionOpen(false); reloadOperations(); }} />}</>;
 }
 
 function ProfileEditor({ copy, title, specialization, setTitle, setSpecialization, error }: { copy: Copy; title: string; specialization: string; setTitle: (value: string) => void; setSpecialization: (value: string) => void; error: string }) {
@@ -165,8 +168,12 @@ function RoutineSchedule({ windows, copy, locale }: { windows: ScheduleWindow[];
   return <div className="routine-week">{WEEKDAY_ORDER.map((day) => { const rows = windowsForDay(windows, day); return <div className="routine-day" key={day}><strong>{copy.weekdays[day]}</strong><div>{rows.length === 0 ? <span>{copy.unavailable}</span> : rows.map((window) => <span key={window.key}><b>{window.startTime}–{window.endTime}</b><small>{formatEffective(window, locale, copy)}</small></span>)}</div></div>; })}</div>;
 }
 
-function ExceptionList({ blocks, locale, copy }: { blocks: CalendarResponse['blocked_periods']; locale: string; copy: Copy }) {
-  return <ul className="profile-list">{blocks.slice(0, 5).map((block) => <li key={block.blocked_period_id}><strong>{formatDate(block.starts_at, locale)} · {formatTimeRange(block.starts_at, block.ends_at, locale)}</strong><span>{block.reason ?? copy.unavailable}</span></li>)}</ul>;
+function ExceptionList({ blocks, locale, copy, onDeleted }: { blocks: CalendarResponse['blocked_periods']; locale: string; copy: Copy; onDeleted: () => void }) {
+  const { text } = useLanguage();
+  const [deleting, setDeleting] = useState('');
+  const [error, setError] = useState(false);
+  const remove = async (id: string) => { if (!window.confirm(text.counseling.exceptions.confirmDelete)) return; setDeleting(id); setError(false); try { await deleteBlockedPeriod(id); onDeleted(); } catch { setError(true); } finally { setDeleting(''); } };
+  return <>{error && <InlineAlert tone="danger">{text.counseling.errors.mutation}</InlineAlert>}<ul className="profile-list">{blocks.slice(0, 5).map((block) => <li key={block.blocked_period_id}><strong>{formatDate(block.starts_at, locale)} · {isFullDayBlock(block.starts_at, block.ends_at) ? text.counseling.exceptions.fullDay : formatTimeRange(block.starts_at, block.ends_at, locale)}</strong>{block.review_status && <Badge tone={block.review_status === 'approved' ? 'success' : block.review_status === 'rejected' ? 'danger' : 'warning'}>{text.counseling.exceptions[block.review_status]}</Badge>}<span>{block.reason ?? copy.unavailable}</span>{block.source !== 'counselor' && <Button variant="ghost" loading={deleting === block.blocked_period_id} onClick={() => { void remove(block.blocked_period_id); }}>{text.counseling.actions.removeException}</Button>}</li>)}</ul></>;
 }
 
 function UpcomingList({ appointments, locale, labels }: { appointments: Appointment[]; locale: string; labels: Record<Appointment['status'], string> }) {
@@ -175,4 +182,10 @@ function UpcomingList({ appointments, locale, labels }: { appointments: Appointm
 
 function formatDate(value: string, locale: string): string { return new Intl.DateTimeFormat(locale, { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value)); }
 function formatTimeRange(start: string, end: string, locale: string): string { const formatter = new Intl.DateTimeFormat(locale, { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false }); return `${formatter.format(new Date(start))}–${formatter.format(new Date(end))}`; }
+function isFullDayBlock(start: string, end: string): boolean {
+  const time = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  return time.format(startDate) === '00:00' && time.format(endDate) === '00:00' && endDate.getTime() - startDate.getTime() === 86_400_000;
+}
 function formatEffective(window: ScheduleWindow, locale: string, copy: Copy): string { if (!window.effectiveFrom && !window.effectiveTo) return copy.editor.noEnd; const format = (value: string) => value ? new Intl.DateTimeFormat(locale, { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${value}T00:00:00Z`)) : copy.editor.noEnd; return `${format(window.effectiveFrom)} – ${format(window.effectiveTo)}`; }

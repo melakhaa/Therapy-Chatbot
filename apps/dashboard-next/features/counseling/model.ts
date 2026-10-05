@@ -1,4 +1,4 @@
-import type { Appointment, AppointmentPayload, AppointmentStatus, AvailabilityRule, BlockedPeriod, CounselingRequest } from './types';
+import type { Appointment, AppointmentPayload, AppointmentStatus, AvailabilityRule, BlockedPeriod, CounselingRequest, CounselingResource, ResourceBlock } from './types';
 
 export const JAKARTA_TIME_ZONE = 'Asia/Jakarta';
 export type SessionDisplayStatus = 'scheduled' | 'ongoing' | 'completed' | 'cancelled' | 'no_show';
@@ -35,12 +35,20 @@ export function deriveSessionStatus(appointment: Appointment, now: Date): Sessio
   return 'scheduled';
 }
 
-export function localSchedulePayload(counselorId: string, date: string, startTime: string, endTime: string): AppointmentPayload | null {
+export function localSchedulePayload(counselorId: string, date: string, startTime: string, endTime: string, resourceId = ''): AppointmentPayload | null {
   if (!counselorId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) return null;
   const startsAt = new Date(`${date}T${startTime}:00+07:00`);
   const endsAt = new Date(`${date}T${endTime}:00+07:00`);
   if (!Number.isFinite(startsAt.getTime()) || endsAt <= startsAt) return null;
-  return { counselor_id: counselorId, starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString() };
+  return { counselor_id: counselorId, starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(), resource_id: resourceId || null };
+}
+
+export function localExceptionPayload(counselorId: string, date: string, startTime: string, endTime: string, fullDay: boolean): AppointmentPayload | null {
+  if (fullDay) {
+    if (!counselorId || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+    return { counselor_id: counselorId, starts_at: new Date(`${date}T00:00:00+07:00`).toISOString(), ends_at: new Date(`${addDays(date, 1)}T00:00:00+07:00`).toISOString() };
+  }
+  return localSchedulePayload(counselorId, date, startTime, endTime);
 }
 
 export function overlaps(startA: string, endA: string, startB: string, endB: string): boolean {
@@ -52,8 +60,47 @@ export function hasObviousConflict(payload: AppointmentPayload, appointments: Ap
     || blocks.some((item) => item.counselor_id === payload.counselor_id && overlaps(payload.starts_at, payload.ends_at, item.starts_at, item.ends_at));
 }
 
-export function filterAppointments(appointments: Appointment[], counselorId: string, status: '' | AppointmentStatus): Appointment[] {
-  return appointments.filter((item) => (!counselorId || item.counselor_id === counselorId) && (!status || item.status === status));
+export function filterAppointments(appointments: Appointment[], counselorId: string, status: '' | AppointmentStatus, resourceId = ''): Appointment[] {
+  return appointments.filter((item) => (!counselorId || item.counselor_id === counselorId) && (!status || item.status === status) && (!resourceId || item.resource_id === resourceId));
+}
+
+export type ResourceAvailabilityState = 'available' | 'occupied' | 'blocked' | 'inactive' | 'capacity_full' | 'unknown';
+
+export interface ResourceAvailability {
+  state: ResourceAvailabilityState;
+  used: number;
+  capacity: number;
+  nextInterval: { starts_at: string; ends_at: string } | null;
+}
+
+export function resourceAvailability(resource: CounselingResource, appointments: Appointment[], blocks: ResourceBlock[], startsAt: string, endsAt: string, authorityComplete: boolean, excludeAppointmentId?: string): ResourceAvailability {
+  if (!resource.active) return { state: 'inactive', used: 0, capacity: resource.capacity, nextInterval: null };
+  if (!authorityComplete) return { state: 'unknown', used: 0, capacity: resource.capacity, nextInterval: null };
+  const block = blocks.find((item) => item.resource_id === resource.resource_id && overlaps(startsAt, endsAt, item.starts_at, item.ends_at));
+  if (block) return { state: 'blocked', used: 0, capacity: resource.capacity, nextInterval: block };
+  const matches = appointments.filter((item) => item.appointment_id !== excludeAppointmentId && item.resource_id === resource.resource_id && ['confirmed', 'rescheduled'].includes(item.status) && overlaps(startsAt, endsAt, item.starts_at, item.ends_at));
+  const next = appointments.filter((item) => item.resource_id === resource.resource_id && ['confirmed', 'rescheduled'].includes(item.status) && Date.parse(item.ends_at) > Date.parse(startsAt)).sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))[0] ?? null;
+  return { state: matches.length >= resource.capacity ? 'capacity_full' : matches.length ? 'occupied' : 'available', used: matches.length, capacity: resource.capacity, nextInterval: next && { starts_at: next.starts_at, ends_at: next.ends_at } };
+}
+
+export function affectedAppointments(payload: AppointmentPayload, appointments: Appointment[]): Appointment[] {
+  return appointments.filter((item) => item.counselor_id === payload.counselor_id && ['confirmed', 'rescheduled'].includes(item.status) && overlaps(payload.starts_at, payload.ends_at, item.starts_at, item.ends_at));
+}
+
+export function isEffectiveException(item: BlockedPeriod): boolean {
+  return item.review_status !== 'pending' && item.review_status !== 'rejected';
+}
+
+export function resourceConflictIds(appointments: Appointment[], resources: CounselingResource[]): Set<string> {
+  const conflicts = new Set<string>();
+  for (const resource of resources) {
+    const rows = appointments.filter((item) => item.resource_id === resource.resource_id && ['confirmed', 'rescheduled'].includes(item.status));
+    for (const item of rows) {
+      const concurrent = rows.filter((other) => overlaps(item.starts_at, item.ends_at, other.starts_at, other.ends_at));
+      if (concurrent.length > resource.capacity) concurrent.forEach((row) => conflicts.add(row.appointment_id));
+    }
+  }
+  return conflicts;
 }
 
 export function normalizeRequests(response: { requests: CounselingRequest[] }): CounselingRequest[] {

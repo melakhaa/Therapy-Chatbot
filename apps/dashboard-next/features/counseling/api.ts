@@ -1,5 +1,5 @@
 import { apiRequest } from '@/lib/api/client';
-import type { Appointment, AppointmentPayload, BlockedPeriodPayload, CalendarResponse, CounselorsResponse, RequestResponse } from './types';
+import type { Appointment, AppointmentPayload, BlockedPeriodPayload, CalendarResponse, CounselorsResponse, RequestResponse, ResourcesResponse } from './types';
 
 export function getCounselingCalendar(dateFrom: string, dateTo: string, counselorId?: string, signal?: AbortSignal): Promise<CalendarResponse> {
   const query = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
@@ -14,6 +14,10 @@ export function getCounselingRequests(page: number, pageSize: number, signal?: A
 
 export function getCounselors(signal?: AbortSignal): Promise<CounselorsResponse> {
   return apiRequest('/admin/counselors', { signal });
+}
+
+export function getCounselingResources(signal?: AbortSignal): Promise<ResourcesResponse> {
+  return apiRequest('/admin/counseling/resources', { signal });
 }
 
 export function assignCounselingRequest(requestId: string, body: AppointmentPayload): Promise<{ appointment: Appointment }> {

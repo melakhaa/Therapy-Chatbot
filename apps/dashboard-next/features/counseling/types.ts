@@ -20,6 +20,27 @@ export interface Appointment {
   starts_at: string;
   ends_at: string;
   status: AppointmentStatus;
+  resource_id?: string | null;
+  resource_name?: string | null;
+}
+
+export type CounselingResourceType = 'physical' | 'virtual';
+
+export interface CounselingResource {
+  resource_id: string;
+  name: string;
+  resource_type: CounselingResourceType;
+  capacity: number;
+  location_or_url: string | null;
+  active: boolean;
+}
+
+export interface ResourceBlock {
+  resource_block_id: string;
+  resource_id: string;
+  starts_at: string;
+  ends_at: string;
+  reason: string | null;
 }
 
 export interface AvailabilityRule {
@@ -41,6 +62,8 @@ export interface BlockedPeriod {
   starts_at: string;
   ends_at: string;
   reason: string | null;
+  source?: 'admin' | 'counselor';
+  review_status?: 'pending' | 'approved' | 'rejected';
 }
 
 export interface CalendarResponse {
@@ -48,6 +71,8 @@ export interface CalendarResponse {
   appointments: Appointment[];
   availability: AvailabilityRule[];
   blocked_periods: BlockedPeriod[];
+  resource_blocks?: ResourceBlock[];
+  resource_authority_complete?: boolean;
 }
 
 export interface CounselingRequest {
@@ -69,5 +94,6 @@ export interface RequestResponse {
 }
 
 export interface CounselorsResponse { counselors: Counselor[]; total: number }
-export interface AppointmentPayload { counselor_id: string; starts_at: string; ends_at: string }
+export interface ResourcesResponse { resources: CounselingResource[]; total: number }
+export interface AppointmentPayload { counselor_id: string; starts_at: string; ends_at: string; resource_id?: string | null }
 export interface BlockedPeriodPayload extends AppointmentPayload { reason?: string }
