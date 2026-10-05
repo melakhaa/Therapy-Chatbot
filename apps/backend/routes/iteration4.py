@@ -26,7 +26,7 @@ class AnswerOptionDraft(BaseModel):
 
 class QuestionDraft(BaseModel):
     item_key: str = Field(min_length=1, max_length=60, pattern=r"^[A-Za-z0-9_-]+$")
-    category: Literal["depression", "anxiety", "stress"]
+    category: str = Field(min_length=1, max_length=60, pattern=r"^[a-z][a-z0-9_-]*$")
     position: int = Field(ge=1, le=100)
     wording: str = Field(min_length=1, max_length=2000)
     active: bool = True
@@ -35,6 +35,7 @@ class QuestionDraft(BaseModel):
 
 class DraftDefinition(BaseModel):
     questions: List[QuestionDraft] = Field(default_factory=list, max_length=100)
+    expected_revision: Optional[int] = Field(default=None, ge=1)
 
 
 class DerivedInstrumentRequest(BaseModel):
@@ -65,7 +66,7 @@ def _version_detail(version_id: str, admin_id: str):
     versions = query(
         "select v.instrument_version_id,v.instrument_id,i.code,i.name,i.language,i.instrument_kind,i.norms_enabled,i.provenance,"
         "i.derived_from_instrument_id,v.version_number,v.status,"
-        "v.expected_question_count,v.authoritative_config,v.scoring_config,v.created_at,v.updated_at,"
+        "v.expected_question_count,v.authoritative_config,v.scoring_config,v.definition_revision,v.created_at,v.updated_at,"
         "v.published_at,cu.nama created_by_name,uu.nama updated_by_name,pu.nama published_by_name "
         "from assessment_instrument_versions v join assessment_instruments i on i.instrument_id=v.instrument_id "
         "left join users cu on cu.user_id=v.created_by left join users uu on uu.user_id=v.updated_by "
@@ -83,7 +84,17 @@ def _version_detail(version_id: str, admin_id: str):
         "where q.instrument_version_id=%s group by q.assessment_question_id order by q.position",
         (version_id,), user_id=admin_id,
     )
-    return {"version": versions[0], "questions": questions}
+    dimensions = query(
+        "select dimension_id,code,name,description,position,multiplier,interpretation_bands "
+        "from assessment_dimensions where instrument_version_id=%s order by position",
+        (version_id,), user_id=admin_id,
+    )
+    reviews = query(
+        "select review_id,definition_revision,status,submitted_at,reviewer_counselor_id,decided_at,decision_comment "
+        "from assessment_version_reviews where instrument_version_id=%s order by submitted_at desc",
+        (version_id,), user_id=admin_id,
+    )
+    return {"version": versions[0], "questions": questions, "dimensions": dimensions, "reviews": reviews}
 
 
 @admin_router.get("/assessment-instruments")
@@ -194,7 +205,7 @@ def save_instrument_draft(version_id: UUID, body: DraftDefinition, admin=Depends
             raise HTTPException(422, f"Urutan pilihan untuk {question.item_key} harus unik")
     with db(admin.id) as conn:
         version = conn.execute(
-            "select v.status,i.instrument_kind from assessment_instrument_versions v "
+            "select v.status,v.definition_revision,i.instrument_kind from assessment_instrument_versions v "
             "join assessment_instruments i on i.instrument_id=v.instrument_id "
             "where v.instrument_version_id=%s for update of v",
             (str(version_id),),
@@ -205,12 +216,14 @@ def save_instrument_draft(version_id: UUID, body: DraftDefinition, admin=Depends
             raise HTTPException(409, "Versi yang sudah dipublikasikan tidak dapat diubah")
         if version["instrument_kind"] == "standard":
             raise HTTPException(409, "Konten instrumen standar dikunci; buat instrumen kustom/derived untuk perubahan")
+        if body.expected_revision is not None and version["definition_revision"] != body.expected_revision:
+            raise HTTPException(409, "Draft telah berubah; muat ulang sebelum menyimpan")
         conn.execute("delete from assessment_questions where instrument_version_id=%s", (str(version_id),))
         for question in sorted(body.questions, key=lambda item: item.position):
             created = conn.execute(
-                "insert into assessment_questions(instrument_version_id,item_key,category,position,wording,active) "
-                "values(%s,%s,%s,%s,%s,%s) returning assessment_question_id",
-                (str(version_id), question.item_key, question.category, question.position, question.wording.strip(), question.active),
+                "insert into assessment_questions(instrument_version_id,item_key,category,dimension_id,position,wording,active) "
+                "values(%s,%s,%s,(select dimension_id from assessment_dimensions where instrument_version_id=%s and code=%s),%s,%s,%s) returning assessment_question_id",
+                (str(version_id), question.item_key, question.category, str(version_id), question.category, question.position, question.wording.strip(), question.active),
             ).fetchone()
             for option in sorted(question.options, key=lambda item: item.position):
                 conn.execute(
@@ -218,15 +231,15 @@ def save_instrument_draft(version_id: UUID, body: DraftDefinition, admin=Depends
                     (str(created["assessment_question_id"]), option.position, option.label.strip(), option.score),
                 )
         conn.execute(
-            "update assessment_instrument_versions set updated_by=%s,updated_at=now() where instrument_version_id=%s",
-            (admin.id, str(version_id)),
+            "update assessment_instrument_versions set updated_by=%s,updated_at=now(),definition_revision=definition_revision+1,expected_question_count=%s where instrument_version_id=%s",
+            (admin.id, len([question for question in body.questions if question.active]), str(version_id)),
         )
     return _version_detail(str(version_id), admin.id)
 
 
 def _publish_issues(conn, version_id: str) -> List[str]:
     version = conn.execute(
-        "select v.status,v.expected_question_count,v.authoritative_config,v.scoring_config,"
+        "select v.status,v.expected_question_count,v.authoritative_config,v.scoring_config,v.definition_revision,"
         "i.instrument_kind,i.norms_enabled from assessment_instrument_versions v "
         "join assessment_instruments i on i.instrument_id=v.instrument_id "
         "where v.instrument_version_id=%s for update of v",
@@ -246,7 +259,7 @@ def _publish_issues(conn, version_id: str) -> List[str]:
     ).fetchone()
     if counts["active_total"] != version["expected_question_count"]:
         issues.append(f"Jumlah item aktif harus {version['expected_question_count']}")
-    if any(counts[name] == 0 for name in ("depression", "anxiety", "stress")):
+    if version["instrument_kind"] == "standard" and any(counts[name] == 0 for name in ("depression", "anxiety", "stress")):
         issues.append("Ketiga kategori Depression, Anxiety, dan Stress wajib memiliki item")
     incomplete = conn.execute(
         "select count(*) total from assessment_questions q where q.instrument_version_id=%s and q.active "
@@ -255,8 +268,8 @@ def _publish_issues(conn, version_id: str) -> List[str]:
     ).fetchone()["total"]
     if incomplete:
         issues.append("Setiap item aktif wajib memiliki sedikitnya dua pilihan jawaban")
-    if not version["authoritative_config"] or version["scoring_config"] is None:
-        issues.append("Konfigurasi klinis otoritatif dan ambang penilaian belum disetujui")
+    if version["scoring_config"] is None:
+        issues.append("Konfigurasi penilaian belum tersedia")
     if version["instrument_kind"] == "standard":
         definition = conn.execute(
             "select q.position,q.category,array_agg(o.score order by o.score) option_scores "
@@ -269,8 +282,17 @@ def _publish_issues(conn, version_id: str) -> List[str]:
         issues.extend(validate_dass21_definition(definition))
         if not version["norms_enabled"]:
             issues.append("Norma DASS-21 belum diaktifkan untuk instrumen standar")
-    elif version["scoring_config"] and version["scoring_config"].get("model") == "DASS-21":
-        issues.append("Instrumen kustom tidak otomatis mewarisi norma DASS-21")
+    else:
+        if version["scoring_config"].get("model") == "DASS-21":
+            issues.append("Instrumen kustom tidak otomatis mewarisi norma DASS-21")
+        dimensions = conn.execute("select code from assessment_dimensions where instrument_version_id=%s", (version_id,)).fetchall()
+        if not dimensions:
+            issues.append("Instrumen kustom wajib memiliki sedikitnya satu dimensi")
+        if conn.execute("select 1 from assessment_questions q left join assessment_dimensions d on d.dimension_id=q.dimension_id where q.instrument_version_id=%s and q.active and d.dimension_id is null limit 1", (version_id,)).fetchone():
+            issues.append("Setiap pertanyaan aktif wajib terhubung ke dimensi")
+        approved = conn.execute("select 1 from assessment_version_reviews where instrument_version_id=%s and definition_revision=%s and status='approved' limit 1", (version_id, version["definition_revision"])).fetchone()
+        if not approved:
+            issues.append("Persetujuan konselor untuk revisi draft saat ini belum tersedia")
     return issues
 
 
@@ -468,6 +490,16 @@ def comparison_analytics(
         + base + f" group by {id_column},{label_column},a.severity order by scope_label,a.severity",
         parameters, user_id=admin.id,
     )
+    assessed_students = query(
+        f"select {id_column} scope_id,{label_column} scope_label,count(distinct a.user_id) unique_student_count "
+        + base + f" group by {id_column},{label_column} order by scope_label",
+        parameters, user_id=admin.id,
+    )
+    severity_trends = query(
+        f"select {id_column} scope_id,{label_column} scope_label,a.taken_at::date date,a.severity,count(*) count "
+        + base + f" group by {id_column},{label_column},a.taken_at::date,a.severity order by scope_label,date,a.severity",
+        parameters, user_id=admin.id,
+    )
     category = query(
         f"select {id_column} scope_id,{label_column} scope_label,r.category,a.taken_at::date date,"
         "avg(coalesce(r.scaled_score,r.raw_score)) score,count(*) submission_count "
@@ -506,7 +538,7 @@ def comparison_analytics(
         " group by 1,2,3 order by 2,3",
         parameters, user_id=admin.id,
     )
-    return {"mode": mode, "date_from": date_from, "date_to": date_to, "selected_scopes": selected_scopes, "assessment_trend": trends, "severity_distribution": severity, "category_trends": category, "category_severity_distribution": category_severity, "counseling_utilization": counseling, "attention_counts": attention}
+    return {"mode": mode, "date_from": date_from, "date_to": date_to, "selected_scopes": selected_scopes, "assessment_trend": trends, "unique_assessed_students": assessed_students, "severity_distribution": severity, "severity_trend": severity_trends, "category_trends": category, "category_severity_distribution": category_severity, "counseling_utilization": counseling, "attention_counts": attention}
 
 
 @admin_router.get("/counseling/calendar/multi")

@@ -122,6 +122,20 @@ class AdminOperationsTests(unittest.TestCase):
             for forbidden in ("password", "token", "journal", "message", "triggered_input"):
                 self.assertNotIn(forbidden, sql.lower())
 
+    def test_hotline_content_edit_invalidates_explicit_active_verification(self):
+        response = client.put(
+            f"/admin/hotlines/{ADMIN}",
+            headers=self.headers(),
+            json={"nama": "Updated Hotline", "verification_status": "active"},
+        )
+        self.assertEqual(response.status_code, 200)
+        sql, params, identity = self.calls[-1]
+        self.assertEqual(sql.count("%s"), len(params))
+        self.assertEqual(params[3], "verification_required")
+        self.assertEqual(params[4], "verification_required")
+        self.assertEqual(params[5], "verification_required")
+        self.assertEqual(identity, ADMIN)
+
     def test_analytics_returns_aggregates_only(self):
         response = client.get("/admin/analytics?date_from=2026-09-01&date_to=2026-09-30", headers=self.headers())
         self.assertEqual(response.status_code, 200)

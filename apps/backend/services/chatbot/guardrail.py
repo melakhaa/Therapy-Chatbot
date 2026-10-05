@@ -101,7 +101,7 @@ HARDCODED_HOTLINES = [
 
 def get_hotlines_from_db():
     try:
-        rows = query("select nama, nomor, deskripsi from hotline")
+        rows = query("select nama, nomor, deskripsi from hotline where verification_status='active'")
         if rows:
             return rows
     except Exception:
