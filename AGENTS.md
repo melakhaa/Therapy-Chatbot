@@ -13,7 +13,8 @@ provides the local LLM/embeddings.
 Therapy-Chatbot/
 ├── apps/
 │   ├── mobile/        Expo React Native app (expo-router) — student-facing
-│   ├── dashboard/     Expo Router web app (react-native-web) — counselor/admin
+│   ├── dashboard/     Expo Router web app (react-native-web) — counselor/admin (legacy, until cutover)
+│   ├── dashboard-next/ Next.js 16 App Router admin dashboard — replaces apps/dashboard at cutover
 │   └── backend/       FastAPI (Python 3.12) API + routes/ + services/ + tests/
 ├── packages/
 │   ├── api-client/    @prototype/api-client — fetch wrappers + cross-platform storage
@@ -23,25 +24,22 @@ Therapy-Chatbot/
 ├── docs/              Per-stack convention docs (linked below)
 ├── docker-compose.yml PostgreSQL 17 + pgvector + pgAdmin
 ├── package.json       Root workspace
-└── AGENTS.md          This file (each app also has a local AGENTS.md)
+└── AGENTS.md          This file (each app/package/db folder also has a local AGENTS.md)
 ```
+
+Each folder with its own `AGENTS.md` carries the rules and commands for working inside it;
+this file stays project-wide. Open the local one when working there — it links the relevant
+`docs/` conventions.
 
 ## Commands
 
 ```bash
-npm install                                             # all workspaces (run from root)
-docker compose up -d                                    # PostgreSQL 17 + pgvector + pgAdmin (applies db/init + db/migrations)
-
-cd apps/backend
-venv/bin/uvicorn main:app --reload                      # API :8000 (always run from apps/backend)
-venv/bin/python scripts/seed_dev_users.py               # dev accounts (once, DB up)
-venv/bin/python -m unittest discover -s tests -v        # API tests, no DB/AI
-venv/bin/python scripts/api_smoke.py                    # end-to-end check (full stack up)
-
-cd apps/mobile    && npx expo start                     # student app
-cd apps/dashboard && npx expo start --web               # counselor dashboard
-cd apps/dashboard && npm run lint                       # only configured linter
+npm install          # all workspaces (run from root)
+docker compose up -d # PostgreSQL 17 + pgvector + pgAdmin (applies db/init + db/migrations)
 ```
+
+App/package commands live in their own `AGENTS.md` (`apps/backend`, `apps/mobile`,
+`apps/dashboard`, `packages/*`, `db/`).
 
 ## Read when relevant
 
@@ -51,6 +49,7 @@ cd apps/dashboard && npm run lint                       # only configured linter
 - PostgreSQL, RLS, schema, pgvector → [docs/postgresql-conventions.md](docs/postgresql-conventions.md)
 - AI: semantic-router / LangChain / Ollama → [docs/semantic-router-conventions.md](docs/semantic-router-conventions.md), [docs/langchain-conventions.md](docs/langchain-conventions.md), [docs/ollama-conventions.md](docs/ollama-conventions.md)
 - TypeScript / React / React Native / Expo / routing / UI → [docs/typescript-conventions.md](docs/typescript-conventions.md), [docs/react-conventions.md](docs/react-conventions.md), [docs/react-native-conventions.md](docs/react-native-conventions.md), [docs/expo-conventions.md](docs/expo-conventions.md), [docs/expo-router-conventions.md](docs/expo-router-conventions.md), [docs/react-navigation-conventions.md](docs/react-navigation-conventions.md), [docs/react-native-ui-conventions.md](docs/react-native-ui-conventions.md)
+- Next.js admin dashboard (`apps/dashboard-next`) → [docs/nextjs-conventions.md](docs/nextjs-conventions.md); specs in [docs/dashboard-next-m0-architecture.md](docs/dashboard-next-m0-architecture.md) and following milestones
 - npm workspaces / shared packages → [docs/npm-workspaces-conventions.md](docs/npm-workspaces-conventions.md)
 - Docker / local infra → [docs/docker-conventions.md](docs/docker-conventions.md)
 - Git, commits, PRs → [docs/git-conventions.md](docs/git-conventions.md) — Conventional Commits, no AI co-author trailers.
