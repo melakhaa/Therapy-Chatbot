@@ -2,7 +2,13 @@ from dataclasses import dataclass
 
 from semantic_router import SemanticRouter
 from semantic_router.encoders import OllamaEncoder
-from services.chatbot.guardrail import guardrail_route, HARDCODED_RESPONSE, is_crisis
+from services.chatbot.guardrail import (
+    guardrail_route,
+    HARDCODED_RESPONSE,
+    is_crisis,
+    strip_profanity,
+    PROFANITY_REPLY,
+)
 from services.chatbot.conversational import conversational_route, build_messages as conversational_messages
 from services.chatbot.history import load_history
 from services.chatbot.llm import llm
@@ -57,15 +63,22 @@ def chat_stream(
         yield HARDCODED_RESPONSE
         return
 
+    # After the crisis gate: strip ID/JV curses so the model never mirrors them back
+    # (measured — see guardrail.PROFANITY). Pure-curse input gets the fixed reply.
+    message = strip_profanity(user_message)
+    if not message:
+        yield PROFANITY_REPLY
+        return
+
     history = load_history(session_id, user_id)
 
     if route == "rag":
-        messages = rag_messages(user_message, history)
+        messages = rag_messages(message, history)
         if messages is None:
             yield NO_CONTEXT_REPLY
             return
     else:
-        messages = conversational_messages(user_message, history)
+        messages = conversational_messages(message, history)
 
     for chunk in llm.stream(messages):
         if chunk.content:
