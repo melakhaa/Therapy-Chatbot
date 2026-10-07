@@ -4,16 +4,17 @@ import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BottomNav, BOTTOM_CLEARANCE, FadeIn, useToast } from '../components/ui';
+import { BottomNav, BOTTOM_CLEARANCE, FadeIn, useToast, clockTime } from '../components/ui';
 import { Companion } from '../components/chat';
 import { useAuth } from '@prototype/ui-shared';
 import type { Expression } from '@prototype/utils';
 import {
-  apiSaveJournal, apiUpdateJournal, apiGetJournals, apiGetBookingSaya, apiGetKonselor,
+  apiSaveJournal, apiUpdateJournal, apiGetJournals,
 } from '@prototype/api-client';
 import { MOODS, Mood, moodOf, MOOD_COMPANION, todayPrompt } from '../constants/moods';
 import { TRI, triRaised, triInset } from '../constants/palette';
 import { PressableScale } from '../components/ui';
+import { useUpcomingSession } from '../hooks/useUpcomingSession';
 
 // Home trials the role-based palette: navy = Sajiwa/chat, sage = journal, amber = counseling, coral = crisis
 
@@ -23,7 +24,6 @@ const CHECKIN_PREFIX = 'Check-in cepat:';
 // Switching mood within this window is a correction (update); later it's a real change (new entry)
 const CORRECTION_MS = 30 * 60 * 1000;
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-const hm = (t?: string) => (t ?? '').substring(0, 5);
 
 // What Sajiwa asks, and how it looks, depends on the time of day
 const moment = () => {
@@ -35,8 +35,6 @@ const moment = () => {
   return { greet: 'Selamat malam', ask: 'Belum tidur? Aku temani sebentar.', face: 'mengantuk' as Expression };
 };
 
-type Booking = { status: string; jadwal_konsultasi?: { tanggal: string; waktu_mulai: string; konselor_id: string } };
-
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -44,8 +42,7 @@ export default function HomeScreen() {
   const now = useMemo(moment, []);
 
   const [journals, setJournals] = useState<any[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [counselors, setCounselors] = useState<Record<string, string>>({});
+  const { upcoming: next } = useUpcomingSession();
   const [savingMood, setSavingMood] = useState<Mood | null>(null);
   const [checkin, setCheckin] = useState<any | null>(null); // the entry saved by the quick check-in
   const [draft, setDraft] = useState('');
@@ -59,13 +56,6 @@ export default function HomeScreen() {
       console.warn('Failed to load journals for home:', err);
       toast.show('Data jurnal belum bisa dimuat. Periksa koneksimu.', 'error');
     }
-    // Secondary blocks: fail quietly, they simply don't render
-    Promise.all([apiGetBookingSaya(), apiGetKonselor()])
-      .then(([b, k]) => {
-        setBookings(b.bookings as Booking[]);
-        setCounselors(Object.fromEntries(k.users.map((u: any) => [u.user_id, u.nama])));
-      })
-      .catch(() => {});
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -159,10 +149,6 @@ export default function HomeScreen() {
     return { days, streak, insight };
   }, [journals]);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const next = bookings
-    .filter((b) => (b.status === 'menunggu' || b.status === 'dikonfirmasi') && (b.jadwal_konsultasi?.tanggal ?? '') >= todayStr)
-    .sort((a, b) => `${a.jadwal_konsultasi!.tanggal}${a.jadwal_konsultasi!.waktu_mulai}`.localeCompare(`${b.jadwal_konsultasi!.tanggal}${b.jadwal_konsultasi!.waktu_mulai}`))[0];
 
   const firstName = user?.nama?.split(' ')[0];
   const initials = (user?.nama || 'S').split(' ').slice(0, 2).map((w: string) => w[0]?.toUpperCase()).join('');
@@ -384,7 +370,7 @@ export default function HomeScreen() {
         </FadeIn>
 
         {/* ── Next counseling session (amber), only when there is one ── */}
-        {next?.jadwal_konsultasi && (
+        {next && (
           <FadeIn>
               <PressableScale
                 onPress={() => router.push('/schedule')}
@@ -392,16 +378,16 @@ export default function HomeScreen() {
                 style={({ pressed }) => [s.session, { boxShadow: pressed ? triInset(0.7) : triRaised(0.8) }]}
               >
                 <View style={[s.sessionDate, { backgroundColor: TRI.amberFill }]}>
-                  <Text style={s.sessionDay}>{new Date(next.jadwal_konsultasi.tanggal).getDate()}</Text>
+                  <Text style={s.sessionDay}>{new Date(next.start).getDate()}</Text>
                   <Text style={s.sessionMonth}>
-                    {new Date(next.jadwal_konsultasi.tanggal).toLocaleDateString('id-ID', { month: 'short' })}
+                    {new Date(next.start).toLocaleDateString('id-ID', { month: 'short' })}
                   </Text>
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={[s.sessionKicker, { color: TRI.amber }]}>Sesi konseling berikutnya</Text>
-                  <Text style={s.sessionName} numberOfLines={1}>{counselors[next.jadwal_konsultasi.konselor_id] ?? 'Konselor kampus'}</Text>
+                  <Text style={s.sessionName} numberOfLines={1}>{next.counselor ?? 'Konselor kampus'}</Text>
                   <Text style={s.sessionMeta}>
-                    {DAY_LONG[new Date(next.jadwal_konsultasi.tanggal).getDay()]}, {hm(next.jadwal_konsultasi.waktu_mulai)} ·{' '}
+                    {DAY_LONG[new Date(next.start).getDay()]}, {clockTime(next.start)} ·{' '}
                     {next.status === 'dikonfirmasi' ? 'dikonfirmasi' : 'menunggu konfirmasi'}
                   </Text>
                 </View>
