@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { apiFetch, apiGetJournals, apiGetBookingSaya, apiGetKonselor } from '@prototype/api-client';
+import { apiFetch, apiGetJournals } from '@prototype/api-client';
 
 import {
   BottomNav, BOTTOM_CLEARANCE, FadeIn, NeuView, Button, ScreenHeader, useToast,
@@ -12,15 +12,10 @@ import {
 import { Companion } from '../components/chat';
 import { useTheme, useAuth, Neu, Spacing } from '@prototype/ui-shared';
 import { moodOf } from '../constants/moods';
-import { PressableScale } from '../components/ui';
-
-type Booking = {
-  status: string;
-  jadwal_konsultasi?: { tanggal: string; waktu_mulai: string; waktu_selesai: string; konselor_id: string };
-};
+import { PressableScale, clockTime } from '../components/ui';
+import { useUpcomingSession } from '../hooks/useUpcomingSession';
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-const hm = (t?: string) => (t ?? '').substring(0, 5);
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -31,8 +26,7 @@ export default function ProfileScreen() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [joinedAt, setJoinedAt] = useState<string | null>(null);
   const [journals, setJournals] = useState<any[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [counselors, setCounselors] = useState<Record<string, string>>({});
+  const { upcoming: nextSession } = useUpcomingSession();
 
   useEffect(() => {
     async function load() {
@@ -47,13 +41,6 @@ export default function ProfileScreen() {
         console.error('Failed to load profile stats:', err);
         toast.show('Ringkasan aktivitas belum bisa dimuat.', 'error');
       }
-      // Counseling info is optional: never fail the whole profile over it
-      Promise.all([apiGetBookingSaya(), apiGetKonselor()])
-        .then(([b, k]) => {
-          setBookings(b.bookings as Booking[]);
-          setCounselors(Object.fromEntries(k.users.map((u: any) => [u.user_id, u.nama])));
-        })
-        .catch(() => {});
     }
     load();
   }, []);
@@ -74,10 +61,6 @@ export default function ProfileScreen() {
     return { streak, topMood: top ? moodOf(top[0]) : undefined };
   }, [journals]);
 
-  const today = new Date().toISOString().slice(0, 10);
-  const nextSession = bookings
-    .filter((b) => (b.status === 'menunggu' || b.status === 'dikonfirmasi') && (b.jadwal_konsultasi?.tanggal ?? '') >= today)
-    .sort((a, b) => `${a.jadwal_konsultasi!.tanggal}${a.jadwal_konsultasi!.waktu_mulai}`.localeCompare(`${b.jadwal_konsultasi!.tanggal}${b.jadwal_konsultasi!.waktu_mulai}`))[0];
 
   const confirmLogout = async () => {
     setShowLogoutModal(false);
@@ -148,7 +131,7 @@ export default function ProfileScreen() {
         </FadeIn>
 
         {/* ── Next counseling session (only when there is one) ── */}
-        {nextSession?.jadwal_konsultasi && (
+        {nextSession && (
           <FadeIn>
             <PressableScale
               onPress={() => router.push('/schedule')}
@@ -156,18 +139,18 @@ export default function ProfileScreen() {
               style={({ pressed }) => [s.session, { backgroundColor: colors.background, boxShadow: pressed ? Neu.inset : Neu.raised }]}
             >
               <View style={[s.sessionDate, { backgroundColor: colors.amberFill }]}>
-                <Text style={s.sessionDay}>{new Date(nextSession.jadwal_konsultasi.tanggal).getDate()}</Text>
+                <Text style={s.sessionDay}>{new Date(nextSession.start).getDate()}</Text>
                 <Text style={s.sessionMonth}>
-                  {new Date(nextSession.jadwal_konsultasi.tanggal).toLocaleDateString('id-ID', { month: 'short' })}
+                  {new Date(nextSession.start).toLocaleDateString('id-ID', { month: 'short' })}
                 </Text>
               </View>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={[s.sessionLabel, { color: colors.onSurfaceVariant }]}>Sesi konseling berikutnya</Text>
                 <Text style={[s.sessionName, { color: colors.onSurface }]} numberOfLines={1}>
-                  {counselors[nextSession.jadwal_konsultasi.konselor_id] ?? 'Konselor kampus'}
+                  {nextSession.counselor ?? 'Konselor kampus'}
                 </Text>
                 <Text style={[s.sessionMeta, { color: nextSession.status === 'dikonfirmasi' ? '#3B7A56' : colors.stressMid }]}>
-                  {hm(nextSession.jadwal_konsultasi.waktu_mulai)}–{hm(nextSession.jadwal_konsultasi.waktu_selesai)} ·{' '}
+                  {clockTime(nextSession.start)}–{clockTime(nextSession.end)} ·{' '}
                   {nextSession.status === 'dikonfirmasi' ? 'Dikonfirmasi' : 'Menunggu konfirmasi'}
                 </Text>
               </View>

@@ -56,3 +56,11 @@ npm run dashboard:test && npm run dashboard:build       # dashboard tests + buil
 - Docker / local infra → [docs/docker-conventions.md](docs/docker-conventions.md)
 - Git, commits, PRs → [docs/git-conventions.md](docs/git-conventions.md) — Conventional Commits, no AI co-author trailers.
 - Security: JWT, RBAC, encryption, secrets → [docs/security-conventions.md](docs/security-conventions.md)
+
+## Next.js dashboard conventions
+
+- The active admin dashboard is `apps/dashboard` (Next.js App Router), not Expo.
+- Read [docs/nextjs-conventions.md](docs/nextjs-conventions.md) and [apps/dashboard/AGENTS.md](apps/dashboard/AGENTS.md).
+- Historical migration specifications remain in `docs/dashboard-next-m*`.
+- Expo conventions apply to `apps/mobile` only.
+- Follow local `AGENTS.md` instructions under apps, packages, and db when relevant.

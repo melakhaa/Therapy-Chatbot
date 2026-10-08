@@ -15,6 +15,12 @@ const pad = (n: number) => String(n).padStart(2, '0');
 /** A local Date as 'YYYY-MM-DD' (local, not UTC: toISOString would shift it near midnight). */
 export const toYmd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
+/** "10:00" on the phone's clock for an instant the API sends as an ISO string. */
+export const clockTime = (iso: string) => {
+  const d = new Date(iso);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
 /** m is 0-based, as in Date. */
 export const ymdOf = (y: number, m: number, d: number) => `${y}-${pad(m + 1)}-${pad(d)}`;
 
