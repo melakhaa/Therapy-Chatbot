@@ -34,7 +34,7 @@ See [docker-conventions.md](docker-conventions.md) and [postgresql-conventions.m
 docker compose up -d                                          # database
 cd apps/backend   && venv/bin/uvicorn main:app --reload       # FastAPI :8000
 cd apps/mobile    && npx expo start                           # Expo (mobile)
-cd apps/dashboard && npx expo start --web                     # Expo web
+npm run dashboard:dev                                         # Next.js admin :3000
 ```
 
 Seed dev accounts once the DB is up (idempotent; the first admin can't be created via the API):
@@ -74,7 +74,7 @@ cd apps/backend && venv/bin/python scripts/api_smoke.py
 - Barrels (`index.ts`) at package and component-folder roots.
 - User-facing strings: Bahasa Indonesia.
 - Deliberate shortcuts are tagged with `ponytail:` comments naming the ceiling + upgrade path.
-- Lint (dashboard only): `npm run lint` → `expo lint` (`eslint-config-expo` flat config). No backend linter/formatter configured.
+- Dashboard gates: `npm run dashboard:typecheck`, `npm run dashboard:lint`, `npm run dashboard:test`, and `npm run dashboard:build`. No backend linter/formatter is configured.
 
 ## Gotchas
 

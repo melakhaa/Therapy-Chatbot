@@ -1,11 +1,34 @@
-# Dashboard — local rules
+# Dashboard - local rules
 
-Counselor/admin Expo web app (react-native-web, expo-router). **Legacy**: the Next.js
-replacement lives in `apps/dashboard-next` — new dashboard work goes there, not here
-([cutover plan](../../docs/dashboard-next-m11-cutover-plan.md)). Run from this directory:
-`npx expo start --web`; lint with `npm run lint` (the only configured linter in the repo).
-No test runner configured.
+`apps/dashboard` is the active Sajiwa Next.js 16 App Router dashboard, using
+workspace `@sajiwa/dashboard`. The Expo dashboard and temporary
+`apps/dashboard-next` migration workspace have been retired.
 
-Conventions: [expo](../../docs/expo-conventions.md), [expo-router](../../docs/expo-router-conventions.md),
-[react-navigation](../../docs/react-navigation-conventions.md), [UI/design system](../../docs/react-native-ui-conventions.md),
-[typescript](../../docs/typescript-conventions.md).
+## Commands
+
+Run from the repository root:
+
+```bash
+npm run dashboard:dev
+npm run dashboard:typecheck
+npm run dashboard:lint
+npm run dashboard:test
+npm run dashboard:build
+```
+
+## Architecture and security
+
+- Keep routes under `app/(admin)/` thin; place domain logic in `features/<domain>/`.
+- Use existing API-client layers and preserve authentication and authorization.
+- Keep user-facing strings in the central message catalog (Indonesian default, English secondary).
+- Preserve existing security headers and CSP; never expose secrets via `NEXT_PUBLIC_*`.
+- `NEXT_PUBLIC_API_URL` denotes the API origin; preview mode is for development only.
+- Do not reintroduce Expo dashboard files or the old `dashboard-next` workspace.
+
+## References
+
+- [Next.js conventions](../../docs/nextjs-conventions.md)
+- [TypeScript conventions](../../docs/typescript-conventions.md)
+- [React conventions](../../docs/react-conventions.md)
+- [Security conventions](../../docs/security-conventions.md)
+- [M11 cutover plan](../../docs/dashboard-next-m11-cutover-plan.md)

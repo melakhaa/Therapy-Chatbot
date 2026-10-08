@@ -15,6 +15,10 @@
 > baseline specification, not an aspirational roadmap. Items that are
 > advertised but not implemented are captured under
 > [Section 15 — Known Gaps & Limitations](#15-known-gaps--limitations).
+>
+> **Cutover note (M12):** Dashboard file paths and implementation observations in this baseline
+> describe the former Expo administrator dashboard and are retained as historical evidence. The
+> active administrator frontend is the Next.js application at `apps/dashboard`.
 
 ---
 

@@ -37,7 +37,7 @@
 ### Monorepo Structure
 
 - **`apps/mobile`**: Expo React Native application.
-- **`apps/dashboard`**: Expo Router web application (react-native-web).
+- **`apps/dashboard`**: Next.js administrator dashboard.
 - **`apps/backend`**: FastAPI (Python 3.12) services.
 - **`packages/api-client`**: Shared TypeScript SDK for API communication.
 - **`packages/ui-shared`**: Shared hooks, context, and Sajiwa Design System.
@@ -53,7 +53,7 @@
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) (v20 or higher)
+- [Node.js](https://nodejs.org/) (v24 LTS)
 - [Python](https://www.python.org/) (v3.12 — required, the AI stack has no 3.13/3.14 wheels)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Required for local PostgreSQL)
 - [Ollama](https://ollama.com/) (For local LLM + embeddings)
@@ -117,9 +117,11 @@ npx expo start
 
 ### Start Dashboard
 ```bash
-cd apps/dashboard
-npx expo start --web
+# From the repository root
+npm run dashboard:dev
 ```
+
+Set `NEXT_PUBLIC_API_URL` in `apps/dashboard/.env.local` to the FastAPI origin. For synthetic local development only, `NEXT_PUBLIC_PREVIEW_MODE=true` enables preview data when `NODE_ENV=development`.
 
 ## Project Structure
 
@@ -127,7 +129,7 @@ npx expo start --web
 Therapy-Chatbot/
 ├── apps/
 │   ├── mobile/           # Expo Mobile App
-│   ├── dashboard/        # Expo Router Web Dashboard
+│   ├── dashboard/        # Next.js Admin Dashboard
 │   └── backend/          # FastAPI Python Server (routes/, services/, tests/)
 ├── packages/
 │   ├── api-client/       # Shared Fetch Wrappers
@@ -144,6 +146,12 @@ Therapy-Chatbot/
 | Command | Description |
 |---------|-------------|
 | `npm install` | Install all workspace dependencies |
+| `npm run dashboard:dev` | Run the Next.js dashboard locally |
+| `npm run dashboard:typecheck` | Type-check the dashboard |
+| `npm run dashboard:lint` | Lint the dashboard |
+| `npm run dashboard:test` | Run dashboard tests |
+| `npm run dashboard:build` | Build the production dashboard |
+| `npm run dashboard:start` | Serve the production dashboard |
 | `docker compose up -d` | Start local PostgreSQL + pgAdmin |
 | `docker compose down` | Stop local services |
 | `docker compose down -v` | Stop and wipe local data (re-applies `db/init`) |

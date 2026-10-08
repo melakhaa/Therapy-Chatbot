@@ -1,12 +1,10 @@
 # Expo conventions
 
-Two apps, both TypeScript, both on **Expo SDK 54** with **expo-router**:
+The student application is TypeScript on **Expo SDK 54** with **expo-router**:
 
 - `apps/mobile` — Expo React Native 0.81, student app (`newArchEnabled: false`).
-- `apps/dashboard` — Expo rendered for web via `react-native-web` (`newArchEnabled: true`,
-  `web.output: "static"`). Expo web, run with `expo start --web`. **Legacy** — being replaced
-  by the Next.js dashboard in `apps/dashboard-next`, see
-  [nextjs-conventions.md](nextjs-conventions.md); maintenance fixes only.
+
+The administrator dashboard at `apps/dashboard` is Next.js and does not follow Expo bundling conventions.
 
 Core React Native rules live in [react-native-conventions.md](react-native-conventions.md); routing in
 [expo-router-conventions.md](expo-router-conventions.md).
@@ -21,17 +19,15 @@ Core React Native rules live in [react-native-conventions.md](react-native-conve
 | `expo-status-bar` | status bar |
 | `expo-linear-gradient`, `expo-blur` | visual effects |
 | `expo-symbols`, `@expo/vector-icons` | icons |
-| `expo-image` | images (dashboard) |
-| `expo-haptics` | haptics (dashboard) |
+| `expo-image` | images |
+| `expo-haptics` | haptics |
 | `expo-linking` | deep links |
-| `expo-constants`, `expo-system-ui`, `expo-web-browser` | runtime/config (dashboard) |
+| `expo-constants`, `expo-system-ui`, `expo-web-browser` | runtime/config |
 | `expo-asset` | asset loading (also installed at root) |
 
 ## `app.json` config
 
-- Plugins: `expo-router`, `expo-font` (mobile); `expo-router`, `expo-splash-screen` (dashboard).
-- Deep-link schemes: `alsahabat` (mobile), `dashboardweb` (dashboard).
-- Dashboard `experiments`: `typedRoutes: true`, `reactCompiler: true`.
+- Plugins and deep-link configuration are defined by `apps/mobile/app.json`.
 - Env is `EXPO_PUBLIC_*` only ([security-conventions.md](security-conventions.md)).
 
 ## Component conventions
@@ -41,10 +37,6 @@ Core React Native rules live in [react-native-conventions.md](react-native-conve
   `index.ts` barrel.
 - **Shared design system** from `@prototype/ui-shared` (`ThemeProvider`, `SajiwaColors`,
   typography) — style from the theme, do not hardcode hex values.
-- Dashboard keeps its own `components/` (`components/admin/`, `components/ui/AdminUI.tsx` +
-  `ProductPrimitives.tsx`), `constants/theme.ts` + `constants/adminTheme.ts`, and
-  `hooks/useAdminResource.ts` (loading/error/reload state + safe Bahasa Indonesia error messages for
-  every admin screen).
 - Font: Plus Jakarta Sans, loaded in the root layout via `useFonts`.
 - Components are `PascalCase.tsx`; hooks are `useX.ts`.
 
@@ -54,9 +46,6 @@ Core React Native rules live in [react-native-conventions.md](react-native-conve
   helpers, ...). Never call `fetch` directly in a screen.
 - Auth state via `useAuth()` from `@prototype/ui-shared`.
 - Chat logic lives in `apps/mobile/hooks/useChat.ts`.
-- Dashboard API calls are wrapped in `apps/dashboard/services/{adminData,adminProductData,operationsData}.ts`
-  and consumed via `useAdminResource`; row/page interfaces come from
-  `packages/api-client/src/{admin,admin-operations,iteration3,iteration4}*.ts`.
 
 ## Env
 
@@ -69,11 +58,10 @@ be `EXPO_PUBLIC_`.
 
 ```bash
 cd apps/mobile     && npx expo start   # a = Android, i = iOS, w = web
-cd apps/dashboard  && npx expo start --web   # expo web
 ```
 
 ## Monorepo gotcha
 
-Both apps' `metro.config.js` set `watchFolders = [workspaceRoot]`, `nodeModulesPaths` for root +
-app, and `disableHierarchicalLookup = true`. Keep this when touching bundler config so
+The mobile app's `metro.config.js` sets `watchFolders = [workspaceRoot]`, `nodeModulesPaths` for root +
+app, and `disableHierarchicalLookup = true`. Keep this when touching mobile bundler config so
 `@prototype/*` resolves. See [npm-workspaces-conventions.md](npm-workspaces-conventions.md).

@@ -1,5 +1,19 @@
 # M09 backend and database handoff
 
+## Final admin UX contract review
+
+The final frontend pass keeps production behavior on authenticated APIs and uses synthetic state only behind the existing development-only preview guard. The remaining screenshot workflows need backend support:
+
+- **Hotline metadata:** persist and return `service_type`, `operational_hours`, and `coverage`; material edits must continue to invalidate verification. These fields are demonstrated only in local preview.
+- **Administrator account:** add self-profile update, password change, two-factor authentication, and revoke-all-sessions contracts. Production remains read-only and supports current-session logout.
+- **Account creation:** provide authorized student and counselor creation workflows before add controls can be enabled.
+- **Counseling resources:** expose and runtime-verify resource lists, capacity, appointment-resource linkage, and conflict responses. Production never invents room assignments; preview shows Room A, Room B, and Virtual Room.
+- **Bulk delegation:** provide an atomic authorized assignment contract with explicit partial-failure semantics.
+- **Report files:** add an aggregate-only PDF/PPT/Excel renderer. The web report preview remains the only supported output.
+- **UNDIP import:** define an authenticated import job, validation report, and conflict policy.
+
+Existing production contracts retained here include attention review, counseling assignment and appointment updates, counselor profile and availability operations, academic structure mutations, instrument version operations, and hotline verification/deactivation.
+
 ## Scope and current validation state
 
 The M09 Next.js administrator UI integrates the documented B1 contracts for emergency contacts and academic structure. Type checking, linting, model tests, and production compilation can validate the frontend contract. End-to-end PostgreSQL behavior remains **runtime-unverified** because the frontend environment has no PostgreSQL or Docker runtime. No production data or simulated API success is used as a fallback.
@@ -61,3 +75,20 @@ Run the full migration and API suite against a real PostgreSQL instance. In addi
 - Public or mobile hotline responses must exclude administrator-only verification audit metadata unless a separate product requirement explicitly authorizes it.
 
 Backend ownership should return a runtime validation record containing the applied migration version, role used, API test results, and any contract differences discovered. Contract differences should be reconciled before deployment rather than hidden with frontend mock data.
+
+## Counseling resources and counselor exceptions
+
+### Implemented contract
+
+- The admin resource inventory comes from `GET /admin/counseling/resources`; production labels and IDs are never hardcoded.
+- Appointment assignment and rescheduling send the selected `resource_id` through the existing request-assignment and appointment-patch contracts. The backend remains authoritative for active state, resource blocks, overlap, and capacity.
+- Admin-created counselor exceptions use `POST /admin/counseling/blocked-periods`; removal uses the existing delete endpoint. The UI checks the loaded appointment window first, presents affected sessions, and never cancels or reassigns them automatically.
+- Local preview provides deterministic physical and virtual resources, appointment linkage, a resource block, an approved admin exception, and a pending counselor-submitted example.
+
+### Backend still required
+
+- `GET /admin/counseling/calendar/multi` must return appointment `resource_id` (and preferably display name/type), resource blocks for the requested interval, and an explicit indication that the returned resource view is complete. Until then production can select a real resource and rely on save-time validation, but it cannot claim authoritative live availability or restore the resource label after calendar reload.
+- A read endpoint for `counseling_resource_blocks` is required for time-aware blocked-state presentation. Capacity and conflict decisions must continue to be made transactionally by the backend.
+- Counselor-submitted exceptions need persisted source and review status (`pending`, `approved`, `rejected`), reviewer identity, optional review note, timestamps, and authenticated list/approve/reject operations. Production does not issue approval calls until that contract exists.
+- If exception types such as leave or external meeting must be reportable, add a constrained persisted type field. The current admin form stores only the supported time range and free-text reason.
+- Exception creation should continue returning `409` when active appointments are affected. A future conflict response may include safe appointment identifiers and counts so admins can review them without relying solely on the loaded calendar window.
