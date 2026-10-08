@@ -4,7 +4,11 @@ export type NotificationCategory='assessment'|'safety'|'counseling'|'schedule'|'
 export interface Faculty{faculty_id:string;code:string|null;name:string;active:boolean;source_url:string|null;unit_count:number;student_count:number}
 export interface AcademicUnit{academic_unit_id:string;faculty_id:string;faculty_name:string;code:string|null;name:string;unit_type:'department'|'study_program';degree_level:string|null;active:boolean;source_url:string|null;student_count:number}
 export interface AdminNotification{notification_id:string;category:NotificationCategory;title:string;context:string|null;entity_type:string|null;entity_id:string|null;target_path:string|null;read_at:string|null;created_at:string}
-export interface CounselingRequest{counseling_request_id:string;student_id:string;status:string;preferred_context:string|null;created_at:string;nama:string;nim:string|null;faculty_name:string|null;academic_unit_name:string|null}
+export interface CounselingRequest{counseling_request_id:string;student_id:string;status:string;preferred_context:string|null;created_at:string;nama:string;nim:string|null;faculty_name:string|null;academic_unit_name:string|null;preferred_counselor_id:string|null;preferred_counselor_name:string|null;preferred_starts_at:string|null;preferred_ends_at:string|null}
+/** A free session of one counselor, offered on the mobile calendar. */
+export interface CounselingSlot{starts_at:string;ends_at:string}
+/** A student's own request: the slot they picked and, once assigned, the appointment booked. */
+export interface MyCounselingRequest{counseling_request_id:string;status:'requested'|'confirmed'|'completed'|'cancelled'|'rescheduled'|'no_show';preferred_context:string|null;created_at:string;preferred_counselor_id:string|null;preferred_counselor_name:string|null;preferred_starts_at:string|null;preferred_ends_at:string|null;appointment_id:string|null;counselor_id:string|null;counselor_name:string|null;starts_at:string|null;ends_at:string|null;appointment_status:Appointment['status']|null}
 export interface AppointmentEvent{appointment_event_id:string;event_type:'assigned'|'confirmed'|'rescheduled'|'cancelled'|'completed'|'no_show';created_at:string}
 export interface AppointmentNote{admin_note_id:string;note_text:string;created_at:string;author_name:string|null}
 export interface Appointment{appointment_id:string;counseling_request_id:string|null;student_id:string;student_name?:string;nim?:string|null;faculty_name?:string|null;academic_unit_name?:string|null;request_origin?:string|null;counselor_id:string;counselor_name?:string;starts_at:string;ends_at:string;status:'confirmed'|'completed'|'cancelled'|'rescheduled'|'no_show';history?:AppointmentEvent[];admin_notes?:AppointmentNote[]}
@@ -24,7 +28,10 @@ export const apiGetNotifications=(category?:string,unread_only=false)=>apiFetch<
 export const apiMarkNotificationRead=(id:string)=>apiFetch('/admin/notifications/'+encodeURIComponent(id)+'/read',{method:'PATCH'});
 export const apiMarkAllNotificationsRead=()=>apiFetch('/admin/notifications/mark-all-read',{method:'POST'});
 export const apiGetCounselingRequests=(status?:string)=>apiFetch<{requests:CounselingRequest[];total:number}>('/admin/counseling/requests?'+qs({status}));
-export const apiCreateCounselingRequest=(preferred_context?:string)=>apiFetch('/counseling/requests',{method:'POST',body:JSON.stringify({preferred_context})});
+/** Ask for counseling; with a slot from apiGetCounselingSlots, the admin sees it as the student's pick. */
+export const apiCreateCounselingRequest=(body:{preferred_context?:string;preferred_counselor_id?:string;preferred_starts_at?:string;preferred_ends_at?:string})=>apiFetch<{request:MyCounselingRequest}>('/counseling/requests',{method:'POST',body:JSON.stringify(body)});
+export const apiGetCounselingSlots=(counselor_id:string,date_from:string,date_to:string)=>apiFetch<{slots:CounselingSlot[];session_minutes:number}>('/counseling/slots?'+qs({counselor_id,date_from,date_to}));
+export const apiGetMyCounselingRequests=()=>apiFetch<{requests:MyCounselingRequest[];total:number}>('/counseling/requests');
 export const apiAssignCounselingRequest=(id:string,body:{counselor_id:string;starts_at:string;ends_at:string})=>apiFetch<{appointment:Appointment}>('/admin/counseling/requests/'+encodeURIComponent(id)+'/assign',{method:'POST',body:JSON.stringify(body)});
 export const apiUpdateAppointment=(id:string,body:Partial<Pick<Appointment,'counselor_id'|'starts_at'|'ends_at'|'status'>>)=>apiFetch<{appointment:Appointment}>('/admin/counseling/appointments/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify(body)});
 export const apiGetCounselingCalendar=(date_from:string,date_to:string,counselor_id?:string,status?:string)=>apiFetch<{appointments:Appointment[];blocked_periods:BlockedPeriod[]}>('/admin/counseling/calendar?'+qs({date_from,date_to,counselor_id,status}));

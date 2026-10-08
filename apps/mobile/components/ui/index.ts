@@ -20,6 +20,6 @@ export * from './usePressScale';
 export * from './PressableScale';
 export * from './ConsentSheet';
 export * from './Calendar';
-export { conversationTime } from './calendarDates';
+export { conversationTime, clockTime } from './calendarDates';
 export * from './Fab';
 export * from './haptics';
