@@ -76,6 +76,18 @@ Run the full migration and API suite against a real PostgreSQL instance. In addi
 
 Backend ownership should return a runtime validation record containing the applied migration version, role used, API test results, and any contract differences discovered. Contract differences should be reconciled before deployment rather than hidden with frontend mock data.
 
+## Instrument lifecycle gaps from the admin refinement pass
+
+The frontend now presents version lifecycle and review lifecycle separately, uses the existing revision-bound review records, and only enables publish after the technical check and a current-revision approval. Production still needs small, explicit contracts for:
+
+- assigning an optional counselor to a review submission while retaining “any active counselor” as the default;
+- archiving and unarchiving an instrument definition without deleting versions, submissions, reviews, or audit history;
+- permanently deleting only an unpublished draft that has no submissions or historical references, with the server deciding eligibility;
+- updating instrument metadata, dimensions, multipliers, and interpretation bands on a draft version;
+- editing a new standard-instrument draft version. The current API can create a new DASS version, but deliberately rejects changes to standard draft content.
+
+Until these contracts exist, the administrator UI does not claim production persistence for those actions. Local preview includes a deterministic `Student Wellbeing Screening` v1/v2 review history to demonstrate pending review, requested changes, resubmission, current-revision approval, approval invalidation after edits, and the existing publish gate.
+
 ## Counseling resources and counselor exceptions
 
 ### Implemented contract
