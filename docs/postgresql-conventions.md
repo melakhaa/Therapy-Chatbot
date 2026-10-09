@@ -46,6 +46,8 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
 | `admin_notifications` | Server-generated admin inbox items (deduped by `dedupe_key`) |
 | `counselor_profiles`, `counselor_availability_rules`, `counselor_blocked_periods` | Counselor roster and scheduling |
 | `counseling_requests`, `counseling_appointments`, `counseling_appointment_events`, `counseling_admin_notes` | Counseling request → appointment workflow, event history, admin notes |
+| `counseling_resources`, `counseling_resource_blocks` | B1 rooms/equipment and their blocked periods |
+| `student_support_profiles` | Separately protected support profile (`none`/`present`/`unknown`/`prefer_not_to_say`) |
 | `report_export_audits` | Audit trail for report exports (scope, actor, timestamp) |
 
 ## Conventions

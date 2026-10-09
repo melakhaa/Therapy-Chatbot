@@ -9,10 +9,6 @@ The visual layer: **Sajiwa Design System** (Material-3-derived, neumorphic), sha
   convenience aliases (`card`, `border`, `textPrimary`, `textSecondary`, `divider`).
 - Wrap the app in `ThemeProvider` (done in `app/_layout.tsx`); read colors via the theme hook.
 - **Never hardcode hex values** in components — use `SajiwaColors.*`.
-- Dashboard has its own design tokens in `constants/adminTheme.ts` (light/dark `AdminTokens`,
-  teal/pastel), exposed as CSS variables by `components/admin/AdminExperience.tsx` via
-  `useAdminExperience()`; `constants/theme.ts` + `hooks/use-theme-color.ts` are the Expo starter
-  leftovers. Do not reintroduce hardcoded dashboard hex values.
 - Base background is `#E4E8EE` with feature accents `primary` (navy, chat), `sage` (journal),
   `amber` (counseling), and coral (crisis only); mobile `app.json` uses the same `#E4E8EE` for
   splash/adaptive icon backgrounds.
@@ -32,9 +28,7 @@ The visual layer: **Sajiwa Design System** (Material-3-derived, neumorphic), sha
 
 ## Icons & graphics
 
-- Icons: `@expo/vector-icons` / `expo-symbols` — prefer the app's existing icon usage.
-- Vector graphics: `react-native-svg`.
-- Charts: `react-native-chart-kit` (dashboard analytics).
+- Icons: `@expo/vector-icons` — prefer the app's existing icon usage.
 - Gradients/blur: `expo-linear-gradient`, `expo-blur`.
 
 ## Component rules

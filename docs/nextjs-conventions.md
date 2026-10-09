@@ -1,13 +1,8 @@
 # Next.js conventions
 
-The administrator dashboard migrates to **Next.js 16 (App Router)** in `apps/dashboard-next`
-(package `@sajiwa/dashboard-next`): React 19, TypeScript 5.9, Tailwind CSS 4, ESLint 9
-(`eslint-config-next`). The legacy Expo dashboard in `apps/dashboard` stays the comparison
-implementation until the reviewed cutover
-([M11 cutover plan](dashboard-next-m11-cutover-plan.md)).
-
-Product behavior per route is specified in the [dashboard-next milestones](dashboard-next-m0-architecture.md)
-(M0–M8); this file is the stack layer only.
+The admin dashboard is **Next.js 16 (App Router)** in `apps/dashboard` (workspace
+`@sajiwa/dashboard`): React 19, TypeScript 5.9, Tailwind CSS 4, ESLint 9 (`eslint-config-next`).
+No React Native or Expo here.
 
 ## Structure
 
@@ -24,18 +19,18 @@ types/               shared types
 
 ## Commands
 
-Run from the repo root with `--workspace @sajiwa/dashboard-next`, or locally:
+Run from the repo root:
 
 ```bash
-npm run dev           # next dev on :3000
-npm run typecheck     # tsc --noEmit --incremental false
-npm run lint          # eslint . (flat config)
-npm run test:foundation  # node --test with --experimental-strip-types
-npm run build         # production build (required gate)
+npm run dashboard:dev
+npm run dashboard:typecheck
+npm run dashboard:lint
+npm run dashboard:test
+npm run dashboard:build
 ```
 
 Tests are node's built-in runner on colocated `*.test.ts` — no test framework. Gates before
-done: `typecheck`, `lint`, `test:foundation`, `build`.
+done: `typecheck`, `lint`, `test`, `build`.
 
 ## Environment
 
@@ -50,9 +45,10 @@ done: `typecheck`, `lint`, `test:foundation`, `build`.
 `next.config.ts` sets CSP (plus Referrer-Policy, nosniff, DENY, Permissions-Policy, COOP)
 for every route — do not weaken headers to make a third-party script work.
 
-- Bearer token in per-tab `sessionStorage`, validated via `GET /auth/me` at startup;
-  any authenticated 401 clears the session centrally. The backend has no refresh-token or
-  HttpOnly-cookie flow; moving to cookies needs an approved BFF contract and CSRF handling.
+- Bearer token in per-tab `sessionStorage` (`sajiwa_admin_session`), revalidated via
+  `getCurrentUser()` at startup; any authenticated 401 fires `AUTH_EXPIRED_EVENT` and clears
+  the session centrally. The backend has no refresh-token or HttpOnly-cookie flow; moving to
+  cookies needs an approved BFF contract and CSRF handling.
 - Generic API errors only — no token logging, no credentials in URLs or analytics.
   Backend authorization and RLS remain the security authorities; the client guard is UX only.
   See [security-conventions.md](security-conventions.md).
@@ -66,7 +62,7 @@ for every route — do not weaken headers to make a third-party script work.
 - Accessibility is a gate, not a polish pass: labeled controls, native buttons, table
   headers, visible focus, text alongside status colors.
 
-## What is shared with the Expo apps
+## Shared with the Expo app
 
 API contracts and auth expectations are unchanged from the Expo dashboard
 ([fastapi-conventions.md](fastapi-conventions.md), [security-conventions.md](security-conventions.md)).

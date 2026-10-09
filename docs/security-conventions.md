@@ -32,13 +32,11 @@ authenticated students; `/assessment/instrument/submit` requires `mahasiswa`. Se
 
 ## Row Level Security
 
-- The backend connects as the non-superuser role `sajiwa_app`, and `core/db.py` sets the request
-  identity per transaction (`set_config('app.current_user_id', ..., true)`), so every query is
-  filtered by the caller's policies.
-- App-layer guards (`require_role`) and RLS are both required. RLS is the backstop if a query forgets
-  `where user_id = %s`; `require_role` is what returns a useful `403` to the client.
-- **Never point `DATABASE_URL` at `sajiwa`** — that role is a superuser and silently bypasses
-  every policy, making RLS cosmetic.
+App-layer guards (`require_role`) and RLS are both required: RLS is the backstop if a query forgets
+`where user_id = %s`; `require_role` is what returns a useful `403`. The backend connects as the
+non-superuser `sajiwa_app` and `core/db.py` sets identity per transaction — **never point
+`DATABASE_URL` at `sajiwa`**, which bypasses every policy. Details:
+[postgresql-conventions.md](postgresql-conventions.md).
 
 ## Encryption (Fernet / `cryptography`)
 

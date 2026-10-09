@@ -69,12 +69,8 @@ cd apps/backend && venv/bin/python scripts/api_smoke.py
 
 ## Repo-wide conventions
 
-- TypeScript for all JS ([typescript-conventions.md](typescript-conventions.md)); Python 3.12 for the backend ([python-conventions.md](python-conventions.md)).
-- Backend/DB identifiers `snake_case`; React components `PascalCase`; hooks `useX`.
-- Barrels (`index.ts`) at package and component-folder roots.
-- User-facing strings: Bahasa Indonesia.
 - Deliberate shortcuts are tagged with `ponytail:` comments naming the ceiling + upgrade path.
-- Dashboard gates: `npm run dashboard:typecheck`, `npm run dashboard:lint`, `npm run dashboard:test`, and `npm run dashboard:build`. No backend linter/formatter is configured.
+- Everything else: [project-conventions.md](project-conventions.md), [typescript-conventions.md](typescript-conventions.md), [python-conventions.md](python-conventions.md). No backend linter/formatter is configured.
 
 ## Gotchas
 

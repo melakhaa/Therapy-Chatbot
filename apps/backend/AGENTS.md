@@ -18,8 +18,9 @@ Setup, tests, and gotchas: [root development doc](../../docs/development-convent
 - Iteration 3/4 admin APIs: `routes/iteration3.py` (counseling, academic scopes, notifications),
   `routes/iteration4.py` (versioned instruments, comparison analytics, multi-counselor calendar).
   DASS-21 scoring rules live in `core/dass21.py` — change only with an approved clinical source.
+- B1 enablement (`routes/backend_enablement.py`, migration 004): [backend enablement](../../docs/backend-enablement.md).
 - No linter/formatter configured; match existing style.
 - Conventions: [python](../../docs/python-conventions.md), [fastapi](../../docs/fastapi-conventions.md),
   [pydantic](../../docs/pydantic-conventions.md), [postgresql](../../docs/postgresql-conventions.md).
-- Chat/AI services (`services/chatbot/`): [langchain](../../docs/langchain-conventions.md),
-  [ollama](../../docs/ollama-conventions.md), [semantic-router](../../docs/semantic-router-conventions.md).
+- Chat/AI services (`services/chatbot/`): [ollama](../../docs/ollama-conventions.md),
+  [semantic-router](../../docs/semantic-router-conventions.md).

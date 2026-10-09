@@ -26,8 +26,8 @@ apiFetch<T>(path, { method, body, auth = true, base })  // auth defaults true
   `apiSubmitInstrumentAssessment`, `apiGetComparisonAnalytics`,
   `apiGetMultiCounselorCalendar`, ...) and their row/page interfaces. `src/index.ts` re-exports
   every module.
-- Failed requests throw `ApiError` (an `Error` subclass carrying `status`); dashboard code maps the
-  status to a safe Bahasa Indonesia message in `apps/dashboard/hooks/useAdminResource.ts`.
+- Failed requests throw `ApiError` (an `Error` subclass carrying `status`); the dashboard client
+  maps the status to a safe Bahasa Indonesia message (`apps/dashboard/lib/api/client.ts`).
 
 `src/storage.ts` is the cross-platform token store: `localStorage` on web, `AsyncStorage` on
 native. Keys `sajiwa_token`, `sajiwa_user`. Use `getStoredUser` / `clearAuth`; the `*Sync`

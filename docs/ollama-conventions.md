@@ -1,7 +1,9 @@
-# Ollama & LLM conventions
+# Ollama & LangChain conventions
 
-All generation and embeddings run **locally via Ollama** through `langchain-ollama`
-(and the raw `ollama` client for ingestion). No hosted LLM provider.
+All generation and embeddings run **locally via Ollama**, reached through **LangChain as a thin
+LLM/message adapter** (`langchain-core` messages, `langchain-ollama` clients) plus the raw `ollama`
+client for ingestion. There are **no chains, agents, retrievers, or vector-store abstractions** —
+RAG retrieval is hand-written SQL against PostgreSQL + pgvector. No hosted LLM provider.
 
 ## Models
 
@@ -14,8 +16,11 @@ All generation and embeddings run **locally via Ollama** through `langchain-olla
 
 ## Generation
 
-One shared client, `services/chatbot/llm.py` — import it, never construct another
-`ChatOllama`:
+One shared client, `services/chatbot/llm.py` — import it, never construct another `ChatOllama`.
+Prompt building and generation are separate: `build_messages()` lives in `conversational.py`
+(persona) or `rag.py` (retrieved context, or `None` → `NO_CONTEXT_REPLY`), and `core.chat_stream`
+is the only caller that generates. `/chat` is that generator joined; `/chat/stream` forwards it as
+SSE — so the two endpoints cannot answer differently.
 
 ```python
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -26,61 +31,45 @@ for chunk in llm.stream(messages):      # what core.chat_stream does
     yield chunk.content
 ```
 
-Generation happens in exactly one place, `core.chat_stream`. `/chat` is that generator joined, and
-`/chat/stream` forwards it as SSE — so the two endpoints cannot answer differently. The prompt is
-built by `build_messages()` in `conversational.py` (persona) or `rag.py` (retrieved context, or
-`None` when retrieval found nothing → `NO_CONTEXT_REPLY`).
-
-Instructions always go in a `SystemMessage`, never a `HumanMessage` — shared roles are the easy
-prompt-injection path.
-
-`llm.py` pins `num_ctx` (history is prepended, so the prompt grows), `keep_alive`, and an httpx
-timeout, all overridable via `OLLAMA_NUM_CTX` / `OLLAMA_TEMPERATURE` / `OLLAMA_TIMEOUT`.
+- Use `llm.stream(...)`, not `invoke` — one token path, not two that can drift apart.
+- Instructions always go in a `SystemMessage`, never a `HumanMessage`: shared roles are the easy
+  prompt-injection path.
+- Do not introduce LCEL chains or LangGraph; keep calls direct and generation stateless per call.
+- `llm.py` pins `num_ctx`, `keep_alive`, and an httpx timeout, all overridable via
+  `OLLAMA_NUM_CTX` / `OLLAMA_TEMPERATURE` / `OLLAMA_TIMEOUT`. A fresh client silently loses them.
+- Never send guardrail (crisis) messages to the LLM — see
+  [semantic-router-conventions.md](semantic-router-conventions.md).
 
 ## Conversation memory
 
-The model is stateless: "memory" is the last `HISTORY_TURNS` rows re-read per request by
-`services/chatbot/history.py` (`load_history`) and prepended to the prompt, oldest first.
-Redis not needed — it is one indexed query.
+"Memory" is the last `HISTORY_TURNS` rows re-read per request by
+`services/chatbot/history.py` (`load_history`) and prepended oldest-first — never assembled by
+hand, no Redis needed. Two load-bearing rules there: `route_used is distinct from 'guardrail'`
+(crisis turns must never reach the LLM by the history path) and the `HISTORY_CHAR_CAP` bound that
+keeps the prompt under `num_ctx`.
 
-Two rules there, both load-bearing:
-
-- `route_used is distinct from 'guardrail'` — crisis turns must never reach the LLM (see the
-  non-negotiable below). Both rows of a crisis exchange carry that route.
-- `user_id` comes from the JWT, so RLS scopes the read; the amount of history is bounded by
-  `HISTORY_CHAR_CAP` to stay under `num_ctx`.
-
-## RAG ingestion
+## RAG ingestion & retrieval
 
 `apps/backend/scripts/embed.py` reads `apps/backend/docs/*.docx`, extracts paragraphs + tables,
-chunks at `size=500 / overlap=50`, embeds, and inserts into the `documents` table
-(`metadata.source`, `metadata.chunk`). Run from `apps/backend`:
+chunks at `size=500 / overlap=50`, embeds, and inserts into `documents` (`metadata.source`,
+`metadata.chunk`). Retrieval is `select * from match_documents(%s::vector, 0.3, k)` through
+`core/db.py` — see [postgresql-conventions.md](postgresql-conventions.md).
 
-```bash
-cd apps/backend && python scripts/embed.py
-```
-
-Retrieval is `select * from match_documents(%s::vector, 0.3, k)` through `core/db.py`
-— see [postgresql-conventions.md](postgresql-conventions.md).
-
-## Conventions
-
-- Pin model names; all call sites share `EMBED_MODEL` from `services/chatbot/rag.py`
-  (`core.py` routing, `rag.py` queries, `scripts/embed.py` ingestion).
+- Pin model names; all call sites share `EMBED_MODEL` from `services/chatbot/rag.py`.
 - `nomic-embed-text-v2-moe` requires task prefixes and does not add them itself: documents are
-  embedded as `"search_document: "` (`embed.py`), queries as `"search_query: "` (`rag.py`). The
-  `QUERY_PREFIX` / `DOCUMENT_PREFIX` constants in `rag.py` are the single source of truth — keep the
-  pair matched or similarity degrades silently.
-- Changing an embedding prefix invalidates every stored vector: re-embed the `documents` table
-  (`scripts/embed.py`) after any prefix or model change.
-- If Ollama isn't running the backend **fails to start**: `OllamaEncoder()` itself does not raise,
-  but `SemanticRouter(...)` embeds every route utterance at import, so the exception surfaces there
-  and nothing serves. That is deliberate — a zero-vector fallback would route every message to the
-  same route while looking healthy.
-- Never send guardrail (crisis) messages to the LLM; they are handled by fixed responses
-  (see [semantic-router-conventions.md](semantic-router-conventions.md)). `load_history`
-  enforces this for the memory path; the chat route enforces it for the current turn.
-- `ponytail:` comments mark known limits (e.g. no per-user rate limit on generation).
+  embedded as `"search_document: "`, queries as `"search_query: "`. The `QUERY_PREFIX` /
+  `DOCUMENT_PREFIX` constants in `rag.py` are the single source of truth — keep the pair matched
+  or similarity degrades silently. Changing either invalidates every stored vector: re-embed via
+  `scripts/embed.py`. `OllamaEmbeddings` is a module-level singleton in `rag.py`.
+
+## Failure mode
+
+If Ollama isn't running the backend **fails to start**: `SemanticRouter(...)` embeds every route
+utterance at import, so the exception surfaces there and nothing serves. That is deliberate — a
+zero-vector fallback would route everything to one route while looking healthy. See
+[semantic-router-conventions.md](semantic-router-conventions.md).
+
+`ponytail:` comments mark known limits (e.g. no per-user rate limit on generation).
 
 ## Run
 

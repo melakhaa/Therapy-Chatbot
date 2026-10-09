@@ -18,41 +18,31 @@ Core React Native rules live in [react-native-conventions.md](react-native-conve
 | `expo-splash-screen` | splash / `AnimatedSplashScreen` |
 | `expo-status-bar` | status bar |
 | `expo-linear-gradient`, `expo-blur` | visual effects |
-| `expo-symbols`, `@expo/vector-icons` | icons |
-| `expo-image` | images |
-| `expo-haptics` | haptics |
-| `expo-linking` | deep links |
-| `expo-constants`, `expo-system-ui`, `expo-web-browser` | runtime/config |
-| `expo-asset` | asset loading (also installed at root) |
+| `@expo/vector-icons` | icons |
+| `expo-haptics`, `expo-linking` | haptics, deep links |
 
 ## `app.json` config
 
 - Plugins and deep-link configuration are defined by `apps/mobile/app.json`.
 - Env is `EXPO_PUBLIC_*` only ([security-conventions.md](security-conventions.md)).
 
-## Component conventions
+## Components
 
-- **Local UI kit** in `apps/mobile/components/ui/` (`Button`, `Badge`, `Divider`, `FadeIn`,
-  `BottomNav`) and feature folders (`components/chat/`, `components/home/`), each with an
-  `index.ts` barrel.
-- **Shared design system** from `@prototype/ui-shared` (`ThemeProvider`, `SajiwaColors`,
-  typography) — style from the theme, do not hardcode hex values.
-- Font: Plus Jakarta Sans, loaded in the root layout via `useFonts`.
+- Local UI kit in `apps/mobile/components/ui/` plus feature folders under `components/<feature>/`,
+  each with an `index.ts` barrel; shared theme/typography from `@prototype/ui-shared` —
+  see [react-native-ui-conventions.md](react-native-ui-conventions.md).
 - Components are `PascalCase.tsx`; hooks are `useX.ts`.
 
 ## Data & state
 
-- All network calls go through `@prototype/api-client` (`apiFetch`, `apiLogin`, `apiChatStream`, admin
-  helpers, ...). Never call `fetch` directly in a screen.
-- Auth state via `useAuth()` from `@prototype/ui-shared`.
-- Chat logic lives in `apps/mobile/hooks/useChat.ts`.
+- All network calls go through `@prototype/api-client` — never `fetch` directly in a screen.
+- Auth via `useAuth()` from `@prototype/ui-shared`; chat logic in `apps/mobile/hooks/useChat.ts`.
 
 ## Env
 
-`apps/mobile/.env` holds `EXPO_PUBLIC_*` vars only. `API_BASE_URL` in `api-client` defaults to
-`http://localhost:8000` (Android emulator: `http://10.0.2.2:8000`) and can be overridden at build time
-with `EXPO_PUBLIC_API_URL`. See [security-conventions.md](security-conventions.md) for what must never
-be `EXPO_PUBLIC_`.
+`apps/mobile/.env` holds `EXPO_PUBLIC_*` only. `API_BASE_URL` in `api-client` defaults to
+`http://localhost:8000` (Android emulator: `http://10.0.2.2:8000`), overridable at build time with
+`EXPO_PUBLIC_API_URL`. Never expose backend secrets — [security-conventions.md](security-conventions.md).
 
 ## Run
 
