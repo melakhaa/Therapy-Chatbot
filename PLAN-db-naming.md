@@ -53,7 +53,7 @@ time` keep their types).
 | table | `booking_konsultasi` | `counseling_bookings` |
 | `users` | `nama` | `name` |
 | `hotlines` | `nama`, `nomor`, `deskripsi` | `name`, `phone`, `description` |
-| `counseling_slots` | `konselor_id`, `tanggal`, `waktu_mulai`, `waktu_selesai` | `counselor_id`, `date`, `start_time`, `end_time` |
+| `counseling_slots` | `jadwal_id`, `konselor_id`, `tanggal`, `waktu_mulai`, `waktu_selesai` | `counseling_slot_id`, `counselor_id`, `date`, `start_time`, `end_time` |
 | `counseling_bookings` | `booking_id`, `jadwal_id`, `user_id`, `catatan` | `counseling_booking_id`, `counseling_slot_id`, `student_id`, `notes` |
 | `counseling_appointments` | PK `appointment_id` | `counseling_appointment_id` (FK columns follow) |
 | `counseling_admin_notes` | PK `admin_note_id` | `counseling_admin_note_id` |
