@@ -44,9 +44,10 @@ for chunk in llm.stream(messages):      # what core.chat_stream does
 
 "Memory" is the last `HISTORY_TURNS` rows re-read per request by
 `services/chatbot/history.py` (`load_history`) and prepended oldest-first — never assembled by
-hand, no Redis needed. Two load-bearing rules there: `route_used is distinct from 'guardrail'`
-(crisis turns must never reach the LLM by the history path) and the `HISTORY_CHAR_CAP` bound that
-keeps the prompt under `num_ctx`.
+hand, no Redis needed. Three load-bearing rules there: `route_used is distinct from 'guardrail'`
+(crisis turns must never reach the LLM by the history path); a trailing unanswered user turn is
+dropped, so a killed stream's question is not sent twice when it is retried; and the
+`HISTORY_CHAR_CAP` bound keeps the prompt under `num_ctx`.
 
 ## RAG ingestion & retrieval
 

@@ -73,7 +73,8 @@ under [semantic-router-conventions.md](semantic-router-conventions.md) and
   message is saved before generation and the reply after it completes — a truncated answer never
   enters history, but the question survives an app kill.
 - `POST /chat` returns `{response, route, is_high_risk}` and persists the turn when a `session_id`
-  is supplied; `GET /chat/history?session_id=` returns the caller's own decrypted transcript.
+  is supplied; `GET /chat/history?session_id=` returns the caller's own decrypted transcript —
+  the newest 50 messages, oldest first.
   Both `/chat` and `/chat/stream` generate through `core.chat_stream`, so they cannot drift.
 - `POST /chat/report` backs the crisis sheet's "kabari tim" button: it writes an unread
   `guardrail_logs` row (`[LAPORAN PENGGUNA]` prefix) surfaced by the dashboard as a `request`
