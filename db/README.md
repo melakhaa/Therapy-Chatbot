@@ -26,18 +26,15 @@ JWT_SECRET=<python -c "import secrets; print(secrets.token_urlsafe(48))">
 ENCRYPTION_KEY=<python -c "import os,base64; print(base64.urlsafe_b64encode(os.urandom(32)).decode())">
 ```
 
-`sajiwa_app` is the canonical runtime role. Fresh initialization also creates
-`sanctuary_app` as a `NOLOGIN` compatibility role because immutable historical
-migrations 002 and 003 grant privileges to that name. `sajiwa_app` inherits
-those legacy grants; new application configuration and new migrations must not
-use `sanctuary_app`.
+`sajiwa_app` is the only runtime role; the backend connects as it (see the
+DATABASE_URL above) so RLS applies.
 
 ## Files
 
 | File | Contents |
 |------|----------|
 | `init/01_schema.sql` | tables, indexes, RLS policies, `match_documents()` |
-| `init/02_auth.sql` | canonical `sajiwa_app` role, legacy `sanctuary_app` compatibility bridge, auth grants, `password_hash`, `password_resets`, `auth_lookup()`, `set_password()` |
+| `init/02_auth.sql` | `sajiwa_app` runtime role + grants, `password_hash`, `password_resets`, `auth_lookup()`, `set_password()` |
 | `init/03_mobile_app.sql` | `list_konselor()` counselor directory (`SECURITY DEFINER`) for the student booking screen |
 | `migrations/*.sql` | additive changes after the baseline; applied by the one-shot `migrate` service on `docker compose up`, tracked in `schema_migrations` |
 | `test_rls.sql` | RLS isolation + auth self-check; rolls back, leaves no data |

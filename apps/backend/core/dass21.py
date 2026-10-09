@@ -1,4 +1,4 @@
-"""Authoritative DASS-21 scoring rules supplied for Sanctuary Iteration 4.1.
+"""Authoritative DASS-21 scoring rules supplied for Sajiwa Iteration 4.1.
 
 Question wording is deliberately not stored here. The project-supplied Indonesian
 wording must be loaded through a migration after the exact source text is provided.

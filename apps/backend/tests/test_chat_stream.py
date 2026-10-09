@@ -73,17 +73,31 @@ class ChatStreamTests(unittest.TestCase):
 
     def test_successful_turn_streams_tokens_and_terminates(self):
         persisted = []
-        with unittest.mock.patch.object(chat_route, "_persist_turn", lambda *a: persisted.append(a)):
+        with unittest.mock.patch.object(chat_route, "_persist_user_turn", lambda *a: persisted.append("user")), \
+             unittest.mock.patch.object(chat_route, "_persist_assistant_turn", lambda *a: persisted.append("assistant")):
             body = self._post().text
         self.assertIn('"token": "Aku "', body)
         self.assertTrue(body.endswith("data: [DONE]\n\n"), body[-60:])
-        self.assertEqual(len(persisted), 1)
+        # The question is saved before generation (a killed stream keeps it); the reply after.
+        self.assertEqual(persisted, ["user", "assistant"])
+
+    def test_failed_user_persist_still_streams(self):
+        def boom(*args):
+            raise RuntimeError("connection pool exhausted")
+
+        with unittest.mock.patch.object(chat_route, "_persist_user_turn", boom), \
+             unittest.mock.patch.object(chat_route, "_persist_assistant_turn", lambda *a: None):
+            with self.assertLogs(level="ERROR"):
+                body = self._post().text
+        self.assertIn('"token": "sini."', body)
+        self.assertTrue(body.endswith("data: [DONE]\n\n"), body[-60:])
 
     def test_failed_persist_still_terminates_the_stream(self):
         def boom(*args):
             raise RuntimeError("insert or update on table \"sessions\" violates foreign key constraint")
 
-        with unittest.mock.patch.object(chat_route, "_persist_turn", boom):
+        with unittest.mock.patch.object(chat_route, "_persist_user_turn", lambda *a: None), \
+             unittest.mock.patch.object(chat_route, "_persist_assistant_turn", boom):
             with self.assertLogs(level="ERROR"):
                 body = self._post().text
         # The answer the user already received must survive, and the stream must close
@@ -98,7 +112,8 @@ class ChatStreamTests(unittest.TestCase):
         def boom(*args):
             raise AssertionError("must not persist without a session_id")
 
-        with unittest.mock.patch.object(chat_route, "_persist_turn", boom):
+        with unittest.mock.patch.object(chat_route, "_persist_user_turn", boom), \
+             unittest.mock.patch.object(chat_route, "_persist_assistant_turn", boom):
             body = self._post(session_id=None).text
         self.assertTrue(body.endswith("data: [DONE]\n\n"), body[-60:])
 

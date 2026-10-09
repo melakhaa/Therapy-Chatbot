@@ -61,6 +61,15 @@ def stream_chat_response(request: ChatRequest, user=Depends(get_current_user)):
     route = route_result.name or "conversational"
     is_high_risk = route == "guardrail"
 
+    # The student's message is saved before generation, so an app kill mid-reply still keeps
+    # the question in history; the reply row is appended once the answer completes.
+    if request.session_id:
+        try:
+            with db(user.id) as conn:
+                _persist_user_turn(conn, request, user.id, route, is_high_risk)
+        except Exception:
+            logging.exception("user turn not persisted (session_id=%s)", request.session_id)
+
     def generate():
         # Metadata first, so the client can raise the crisis card without waiting for tokens.
         yield _sse({"route": route, "is_high_risk": is_high_risk})
@@ -85,7 +94,7 @@ def stream_chat_response(request: ChatRequest, user=Depends(get_current_user)):
         if request.session_id:
             try:
                 with db(user.id) as conn:
-                    _persist_turn(conn, request, user.id, route, response_text, is_high_risk)
+                    _persist_assistant_turn(conn, request, user.id, route, response_text)
             except Exception:
                 # The reply is already on the wire. Raising here aborts the chunked response
                 # before its terminating chunk, so the client reports
@@ -99,8 +108,11 @@ def stream_chat_response(request: ChatRequest, user=Depends(get_current_user)):
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
-def _persist_turn(conn, request: ChatRequest, user_id, route: str, response_text: str, is_high_risk: bool):
-    """One transaction: session row (idempotent), optional crisis log, then both turns."""
+def _persist_user_turn(conn, request: ChatRequest, user_id, route: str, is_high_risk: bool):
+    """Session row (idempotent), optional crisis log, and the student's message.
+
+    On /chat/stream this runs before generation, so a killed stream still keeps the question.
+    """
     # No title. It used to store the first 80 characters of the user's message in plaintext,
     # beside messages that are encrypted precisely so the database never holds what a
     # student wrote — anyone reading the table as the owner saw how every conversation
@@ -116,14 +128,25 @@ def _persist_turn(conn, request: ChatRequest, user_id, route: str, response_text
             "values (%s, %s, %s)",
             (request.session_id, user_id, encrypt_text(request.message)),
         )
-    conn.cursor().executemany(
+    conn.execute(
         "insert into messages (session_id, user_id, role, content, route_used) "
-        "values (%s, %s, %s, %s, %s)",
-        [
-            (request.session_id, user_id, "user", encrypt_text(request.message), route),
-            (request.session_id, user_id, "assistant", encrypt_text(response_text), route),
-        ],
+        "values (%s, %s, 'user', %s, %s)",
+        (request.session_id, user_id, encrypt_text(request.message), route),
     )
+
+
+def _persist_assistant_turn(conn, request: ChatRequest, user_id, route: str, response_text: str):
+    conn.execute(
+        "insert into messages (session_id, user_id, role, content, route_used) "
+        "values (%s, %s, 'assistant', %s, %s)",
+        (request.session_id, user_id, encrypt_text(response_text), route),
+    )
+
+
+def _persist_turn(conn, request: ChatRequest, user_id, route: str, response_text: str, is_high_risk: bool):
+    """Both rows in one transaction — the non-streaming /chat path stays atomic."""
+    _persist_user_turn(conn, request, user_id, route, is_high_risk)
+    _persist_assistant_turn(conn, request, user_id, route, response_text)
 
 
 class ReportRequest(BaseModel):
@@ -175,12 +198,16 @@ def chat_history(session_id: str, limit: int = 50, user=Depends(get_current_user
     """The caller's own transcript. RLS scopes it to `user.id`; never expose this to admins."""
     rows = query(
         "select role, content, route_used, created_at from messages "
-        "where session_id = %s order by created_at asc limit %s",
+        "where session_id = %s order by created_at desc, role limit %s",
         (session_id, min(max(limit, 1), 200)), user_id=user.id,
     )
 
+    # Fetched newest-first so a long conversation keeps its latest turns; flip back for the
+    # transcript the client renders. `role` breaks ties: both rows of a turn share one
+    # transaction timestamp, and 'assistant' sorts before 'user' newest-first — reversed, the
+    # user turn lands before its reply.
     messages = []
-    for row in rows:
+    for row in reversed(rows):
         try:
             text = decrypt_text(row["content"])
         except Exception:

@@ -5,19 +5,6 @@
 -- sajiwa_app. See db/README.md for the DATABASE_URL.
 create role sajiwa_app login password 'sajiwa_app' nosuperuser;
 
--- Historical migrations 002 and 003 grant privileges to the former runtime
--- role. Keep that immutable history executable without making the legacy role
--- a login identity; new application configuration must continue using
--- sajiwa_app.
-do $$
-begin
-  if not exists (select 1 from pg_roles where rolname = 'sanctuary_app') then
-    execute 'create role sanctuary_app nologin nosuperuser';
-  end if;
-end
-$$;
-grant sanctuary_app to sajiwa_app with inherit true;
-
 grant usage on schema public to sajiwa_app;
 grant select, insert, update, delete on all tables in schema public to sajiwa_app;
 grant usage, select on all sequences in schema public to sajiwa_app;
