@@ -161,15 +161,15 @@ Kamu tidak sendirian. Tolong segera hubungi:
 Apakah kamu aman sekarang?"""
 
 HARDCODED_HOTLINES = [
-    {"nama": "Into The Light Indonesia", "nomor": "119 ext 8"},
-    {"nama": "Yayasan Pulih", "nomor": "(021) 788-42580"},
-    {"nama": "IGD Rumah Sakit Terdekat", "nomor": "118"},
+    {"name": "Into The Light Indonesia", "phone": "119 ext 8"},
+    {"name": "Yayasan Pulih", "phone": "(021) 788-42580"},
+    {"name": "IGD Rumah Sakit Terdekat", "phone": "118"},
 ]
 
 
 def get_hotlines_from_db():
     try:
-        rows = query("select nama, nomor, deskripsi from hotline where verification_status='active'")
+        rows = query("select name, phone, description from hotlines where verification_status='active'")
         if rows:
             return rows
     except Exception:

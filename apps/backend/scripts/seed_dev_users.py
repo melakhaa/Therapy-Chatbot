@@ -28,13 +28,13 @@ USERS = [
 ]
 
 with psycopg.connect(DB, autocommit=True) as conn:
-    for email, password, nama, role in USERS:
+    for email, password, name, role in USERS:
         conn.execute(
-            "insert into users (user_id, email, nama, role, password_hash) "
+            "insert into users (user_id, email, name, role, password_hash) "
             "values (%s, %s, %s, %s, %s) "
             "on conflict (email) do update set "
-            "nama = excluded.nama, role = excluded.role, password_hash = excluded.password_hash",
-            (str(uuid.uuid4()), email, nama, role, bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()),
+            "name = excluded.name, role = excluded.role, password_hash = excluded.password_hash",
+            (str(uuid.uuid4()), email, name, role, bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()),
         )
         print(f"{role:10}  {email:26}  {password}")
 

@@ -82,11 +82,11 @@ check("GET /health", s == 200 and h.get("status") == "ok", (s, h))
 
 print("== auth ==")
 stu_email, stu_pw = f"stu{SFX}@example.com", "pass1234"
-s, r = call("POST", "/auth/register", {"email": stu_email, "password": stu_pw, "nama": "Stu"})
+s, r = call("POST", "/auth/register", {"email": stu_email, "password": stu_pw, "name": "Stu"})
 check("register", s == 201 and r["session"]["access_token"], (s, r))
 stu_id = r.get("user_id")
 
-s, r = call("POST", "/auth/register", {"email": stu_email, "password": stu_pw, "nama": "Stu"})
+s, r = call("POST", "/auth/register", {"email": stu_email, "password": stu_pw, "name": "Stu"})
 check("duplicate email rejected", s == 400, (s, r))
 
 s, r = call("POST", "/auth/login", {"email": stu_email, "password": stu_pw})
@@ -106,7 +106,7 @@ check("password_hash never returned", "password_hash" not in r, r.keys())
 print("== bootstrap admin (direct DB, no API exists for the first admin) ==")
 admin_email, admin_pw = f"adm{SFX}@example.com", "pass1234"
 admin_id = str(uuid.uuid4())
-sql("insert into users (user_id,email,nama,role,password_hash) values (%s,%s,%s,'admin',%s)",
+sql("insert into users (user_id,email,name,role,password_hash) values (%s,%s,%s,'admin',%s)",
     (admin_id, admin_email, "Admin", bcrypt.hashpw(admin_pw.encode(), bcrypt.gensalt()).decode()))
 s, r = call("POST", "/auth/login", {"email": admin_email, "password": admin_pw})
 check("admin login", s == 200 and r["user"]["role"] == "admin", (s, r))
@@ -114,7 +114,7 @@ admin_tok = r.get("access_token")
 
 print("== accounts (admin CRUD) ==")
 kon_email, kon_pw = f"kon{SFX}@example.com", "pass1234"
-s, r = call("POST", "/accounts", {"email": kon_email, "password": kon_pw, "nama": "Kon", "role": "konselor"}, admin_tok)
+s, r = call("POST", "/accounts", {"email": kon_email, "password": kon_pw, "name": "Kon", "role": "konselor"}, admin_tok)
 check("admin creates konselor", s == 201 and r["role"] == "konselor", (s, r))
 kon_id = r.get("user_id")
 
@@ -152,7 +152,7 @@ s, r = call("POST", "/assessment/submit", {"answers": [{"question_id": 0, "score
 check("assessment without token blocked", s in (401, 403), (s, r))
 
 print("== journals ==")
-s, r = call("POST", "/journal", {"content": "hari ini berat", "mood": "Anxious"}, stu_tok)
+s, r = call("POST", "/journal", {"content": "hari ini berat", "mood": "anxious"}, stu_tok)
 check("create journal", s == 201 and r["journal"]["content"] == "hari ini berat", (s, r))
 jid = r.get("journal", {}).get("journal_id")
 
@@ -162,41 +162,41 @@ check("list journals", s == 200 and len(r["journals"]) == 1, (s, r))
 s, r = call("GET", "/journal/today", token=stu_tok)
 check("today journal", s == 200 and r["journal"] is not None, (s, r))
 
-s, r = call("PATCH", f"/journal/{jid}", {"mood": "Calm"}, stu_tok)
-check("update journal", s == 200 and r["journal"]["mood"] == "Calm", (s, r))
+s, r = call("PATCH", f"/journal/{jid}", {"mood": "calm"}, stu_tok)
+check("update journal", s == 200 and r["journal"]["mood"] == "calm", (s, r))
 
 print("== jadwal + booking ==")
-s, r = call("POST", "/jadwal", {"tanggal": "2026-10-01", "waktu_mulai": "09:00", "waktu_selesai": "10:00"}, kon_tok)
-check("konselor creates slot", s == 201 and r["jadwal"]["status"] == "tersedia", (s, r))
-jadwal_id = r.get("jadwal", {}).get("jadwal_id")
+s, r = call("POST", "/jadwal", {"date": "2026-10-01", "start_time": "09:00", "end_time": "10:00"}, kon_tok)
+check("konselor creates slot", s == 201 and r["jadwal"]["status"] == "available", (s, r))
+counseling_slot_id = r.get("jadwal", {}).get("counseling_slot_id")
 
-s, r = call("POST", "/jadwal", {"tanggal": "2026-10-01", "waktu_mulai": "09:00", "waktu_selesai": "10:00"}, stu_tok)
+s, r = call("POST", "/jadwal", {"date": "2026-10-01", "start_time": "09:00", "end_time": "10:00"}, stu_tok)
 check("mahasiswa cannot create slot", s == 403, (s, r))
 
 s, r = call("GET", "/jadwal", token=stu_tok)
-check("mahasiswa sees available slot", s == 200 and any(j["jadwal_id"] == jadwal_id for j in r["jadwal"]), (s, r))
+check("mahasiswa sees available slot", s == 200 and any(j["counseling_slot_id"] == counseling_slot_id for j in r["jadwal"]), (s, r))
 
-s, r = call("POST", "/booking", {"jadwal_id": jadwal_id, "catatan": "butuh bantuan"}, stu_tok)
-check("book slot", s == 201 and r["booking"]["status"] == "menunggu", (s, r))
-booking_id = r.get("booking", {}).get("booking_id")
+s, r = call("POST", "/booking", {"counseling_slot_id": counseling_slot_id, "notes": "butuh bantuan"}, stu_tok)
+check("book slot", s == 201 and r["booking"]["status"] == "pending", (s, r))
+counseling_booking_id = r.get("booking", {}).get("counseling_booking_id")
 
-st = sql("select status from jadwal_konsultasi where jadwal_id = %s", (jadwal_id,))[0][0]
-check("trigger flipped slot to dipesan", st == "dipesan", st)
+st = sql("select status from counseling_slots where counseling_slot_id = %s", (counseling_slot_id,))[0][0]
+check("trigger flipped slot to dipesan", st == "booked", st)
 
-s, r = call("POST", "/booking", {"jadwal_id": jadwal_id}, stu_tok)
+s, r = call("POST", "/booking", {"counseling_slot_id": counseling_slot_id}, stu_tok)
 check("double booking rejected", s == 409, (s, r))
 
 s, r = call("GET", "/booking/saya", token=stu_tok)
 check("my bookings (nested jadwal shape)",
-      s == 200 and r["bookings"][0]["jadwal_konsultasi"]["tanggal"] is not None, (s, r))
+      s == 200 and r["bookings"][0]["counseling_slots"]["date"] is not None, (s, r))
 
 s, r = call("GET", "/booking/masuk", token=kon_tok)
 check("konselor sees incoming booking", s == 200 and len(r["bookings"]) == 1, (s, r))
 
-s, r = call("PATCH", f"/booking/{booking_id}", {"status": "dibatalkan"}, stu_tok)
+s, r = call("PATCH", f"/booking/{counseling_booking_id}", {"status": "cancelled"}, stu_tok)
 check("cancel booking", s == 200, (s, r))
-st = sql("select status from jadwal_konsultasi where jadwal_id = %s", (jadwal_id,))[0][0]
-check("trigger restored slot to tersedia", st == "tersedia", st)
+st = sql("select status from counseling_slots where counseling_slot_id = %s", (counseling_slot_id,))[0][0]
+check("trigger restored slot to tersedia", st == "available", st)
 
 print("== dashboard ==")
 s, r = call("GET", "/dashboard/data", token=kon_tok)
@@ -321,7 +321,7 @@ for msg in ("halo apa kabar", "aku capek banget sama tugas kuliah"):
 
 print("== RLS isolation between two students ==")
 other_email = f"stu2{SFX}@example.com"
-s, r = call("POST", "/auth/register", {"email": other_email, "password": stu_pw, "nama": "Stu2"})
+s, r = call("POST", "/auth/register", {"email": other_email, "password": stu_pw, "name": "Stu2"})
 other_tok = r["session"]["access_token"]
 s, r = call("GET", "/journal", token=other_tok)
 check("student B sees zero of A's journals", s == 200 and len(r["journals"]) == 0, (s, r))
@@ -334,8 +334,8 @@ s, r = call("GET", "/booking/saya", token=other_tok)
 check("student B sees zero of A's bookings", s == 200 and len(r["bookings"]) == 0, (s, r))
 
 print("== cleanup ==")
-sql("delete from booking_konsultasi where user_id in (select user_id from users where email like %s) "
-    "or jadwal_id in (select jadwal_id from jadwal_konsultasi where konselor_id in "
+sql("delete from counseling_bookings where student_id in (select user_id from users where email like %s) "
+    "or counseling_slot_id in (select counseling_slot_id from counseling_slots where counselor_id in "
     "(select user_id from users where email like %s))", (f"%{SFX}@example.com", f"%{SFX}@example.com"))
 sql("delete from users where email like %s", (f"%{SFX}@example.com",))
 left = sql("select count(*) from users where email like %s", (f"%{SFX}@example.com",))[0][0]
