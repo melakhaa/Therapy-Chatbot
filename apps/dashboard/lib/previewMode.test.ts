@@ -16,7 +16,7 @@ test('production ignores the preview flag', () => {
 test('preview identity is an obviously local administrator', () => {
   assert.deepEqual(PREVIEW_ADMIN, {
     user_id: 'preview-admin-local',
-    nama: 'Preview Administrator',
+    name: 'Preview Administrator',
     email: 'preview@sajiwa.local',
     role: 'admin',
   });

@@ -40,7 +40,7 @@ export function localSchedulePayload(counselorId: string, date: string, startTim
   const startsAt = new Date(`${date}T${startTime}:00+07:00`);
   const endsAt = new Date(`${date}T${endTime}:00+07:00`);
   if (!Number.isFinite(startsAt.getTime()) || endsAt <= startsAt) return null;
-  return { counselor_id: counselorId, starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(), resource_id: resourceId || null };
+  return { counselor_id: counselorId, starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(), counseling_resource_id: resourceId || null };
 }
 
 export function localExceptionPayload(counselorId: string, date: string, startTime: string, endTime: string, fullDay: boolean): AppointmentPayload | null {
@@ -56,12 +56,12 @@ export function overlaps(startA: string, endA: string, startB: string, endB: str
 }
 
 export function hasObviousConflict(payload: AppointmentPayload, appointments: Appointment[], blocks: BlockedPeriod[], excludeAppointmentId?: string, studentId?: string): boolean {
-  return appointments.some((item) => item.appointment_id !== excludeAppointmentId && (item.counselor_id === payload.counselor_id || (!!studentId && item.student_id === studentId)) && ['confirmed', 'rescheduled'].includes(item.status) && overlaps(payload.starts_at, payload.ends_at, item.starts_at, item.ends_at))
+  return appointments.some((item) => item.counseling_appointment_id !== excludeAppointmentId && (item.counselor_id === payload.counselor_id || (!!studentId && item.student_id === studentId)) && ['confirmed', 'rescheduled'].includes(item.status) && overlaps(payload.starts_at, payload.ends_at, item.starts_at, item.ends_at))
     || blocks.some((item) => item.counselor_id === payload.counselor_id && overlaps(payload.starts_at, payload.ends_at, item.starts_at, item.ends_at));
 }
 
 export function filterAppointments(appointments: Appointment[], counselorId: string, status: '' | AppointmentStatus, resourceId = ''): Appointment[] {
-  return appointments.filter((item) => (!counselorId || item.counselor_id === counselorId) && (!status || item.status === status) && (!resourceId || item.resource_id === resourceId));
+  return appointments.filter((item) => (!counselorId || item.counselor_id === counselorId) && (!status || item.status === status) && (!resourceId || item.counseling_resource_id === resourceId));
 }
 
 export type ResourceAvailabilityState = 'available' | 'occupied' | 'blocked' | 'inactive' | 'capacity_full' | 'unknown';
@@ -76,10 +76,10 @@ export interface ResourceAvailability {
 export function resourceAvailability(resource: CounselingResource, appointments: Appointment[], blocks: ResourceBlock[], startsAt: string, endsAt: string, authorityComplete: boolean, excludeAppointmentId?: string): ResourceAvailability {
   if (!resource.active) return { state: 'inactive', used: 0, capacity: resource.capacity, nextInterval: null };
   if (!authorityComplete) return { state: 'unknown', used: 0, capacity: resource.capacity, nextInterval: null };
-  const block = blocks.find((item) => item.resource_id === resource.resource_id && overlaps(startsAt, endsAt, item.starts_at, item.ends_at));
+  const block = blocks.find((item) => item.counseling_resource_id === resource.counseling_resource_id && overlaps(startsAt, endsAt, item.starts_at, item.ends_at));
   if (block) return { state: 'blocked', used: 0, capacity: resource.capacity, nextInterval: block };
-  const matches = appointments.filter((item) => item.appointment_id !== excludeAppointmentId && item.resource_id === resource.resource_id && ['confirmed', 'rescheduled'].includes(item.status) && overlaps(startsAt, endsAt, item.starts_at, item.ends_at));
-  const next = appointments.filter((item) => item.resource_id === resource.resource_id && ['confirmed', 'rescheduled'].includes(item.status) && Date.parse(item.ends_at) > Date.parse(startsAt)).sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))[0] ?? null;
+  const matches = appointments.filter((item) => item.counseling_appointment_id !== excludeAppointmentId && item.counseling_resource_id === resource.counseling_resource_id && ['confirmed', 'rescheduled'].includes(item.status) && overlaps(startsAt, endsAt, item.starts_at, item.ends_at));
+  const next = appointments.filter((item) => item.counseling_resource_id === resource.counseling_resource_id && ['confirmed', 'rescheduled'].includes(item.status) && Date.parse(item.ends_at) > Date.parse(startsAt)).sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))[0] ?? null;
   return { state: matches.length >= resource.capacity ? 'capacity_full' : matches.length ? 'occupied' : 'available', used: matches.length, capacity: resource.capacity, nextInterval: next && { starts_at: next.starts_at, ends_at: next.ends_at } };
 }
 
@@ -94,17 +94,17 @@ export function isEffectiveException(item: BlockedPeriod): boolean {
 export function resourceConflictIds(appointments: Appointment[], resources: CounselingResource[]): Set<string> {
   const conflicts = new Set<string>();
   for (const resource of resources) {
-    const rows = appointments.filter((item) => item.resource_id === resource.resource_id && ['confirmed', 'rescheduled'].includes(item.status));
+    const rows = appointments.filter((item) => item.counseling_resource_id === resource.counseling_resource_id && ['confirmed', 'rescheduled'].includes(item.status));
     for (const item of rows) {
       const concurrent = rows.filter((other) => overlaps(item.starts_at, item.ends_at, other.starts_at, other.ends_at));
-      if (concurrent.length > resource.capacity) concurrent.forEach((row) => conflicts.add(row.appointment_id));
+      if (concurrent.length > resource.capacity) concurrent.forEach((row) => conflicts.add(row.counseling_appointment_id));
     }
   }
   return conflicts;
 }
 
 export function normalizeRequests(response: { requests: CounselingRequest[] }): CounselingRequest[] {
-  return response.requests.map(({ counseling_request_id, student_id, status, created_at, nama, nim, faculty_name, academic_unit_name }) => ({ counseling_request_id, student_id, status, created_at, nama, nim, faculty_name, academic_unit_name }));
+  return response.requests.map(({ counseling_request_id, student_id, status, created_at, name, nim, faculty_name, academic_unit_name }) => ({ counseling_request_id, student_id, status, created_at, name, nim, faculty_name, academic_unit_name }));
 }
 
 export function activeAvailability(rules: AvailabilityRule[], counselorId = ''): AvailabilityRule[] {

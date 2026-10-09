@@ -8,7 +8,7 @@ export interface Instrument { instrument_id: string; code: string; name: string;
 export interface OptionDraft { assessment_answer_option_id?: string; position: number; label: string; score: number }
 export interface QuestionDraft { assessment_question_id?: string; item_key: string; category: Category; position: number; wording: string; active: boolean; options: OptionDraft[] }
 export interface InstrumentVersion extends InstrumentVersionSummary { instrument_id: string; code: string; name: string; language: string | null; instrument_kind: InstrumentKind; norms_enabled: boolean; provenance: Record<string, unknown>; derived_from_instrument_id: string | null; expected_question_count: number; definition_revision: number; scoring_config: Record<string, unknown> | null; created_at: string; created_by_name: string | null; updated_by_name: string | null; published_by_name: string | null }
-export interface InstrumentDetail { version: InstrumentVersion; questions: QuestionDraft[]; dimensions?: DimensionDraft[]; reviews?: Array<{review_id:string;definition_revision:number;status:'pending'|'revision_requested'|'approved'}> }
+export interface InstrumentDetail { version: InstrumentVersion; questions: QuestionDraft[]; dimensions?: DimensionDraft[]; reviews?: Array<{assessment_version_review_id:string;definition_revision:number;status:'pending'|'revision_requested'|'approved'}> }
 export interface DirectoryResponse { instruments: Instrument[]; total: number }
 export interface ValidationResponse { publishable: boolean; issues: string[] }
 export interface DirectoryItem { instrument: Instrument; version: InstrumentVersionSummary | null; questionCount: number | null; categories: Category[] }

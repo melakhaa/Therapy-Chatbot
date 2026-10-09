@@ -2,7 +2,7 @@ export type AppointmentStatus = 'confirmed' | 'completed' | 'cancelled' | 'resch
 
 export interface Counselor {
   user_id: string;
-  nama: string;
+  name: string;
   email?: string;
   title: string | null;
   specialization: string | null;
@@ -10,7 +10,7 @@ export interface Counselor {
 }
 
 export interface Appointment {
-  appointment_id: string;
+  counseling_appointment_id: string;
   counseling_request_id: string | null;
   student_id: string;
   student_name: string;
@@ -20,14 +20,14 @@ export interface Appointment {
   starts_at: string;
   ends_at: string;
   status: AppointmentStatus;
-  resource_id?: string | null;
+  counseling_resource_id?: string | null;
   resource_name?: string | null;
 }
 
 export type CounselingResourceType = 'physical' | 'virtual';
 
 export interface CounselingResource {
-  resource_id: string;
+  counseling_resource_id: string;
   name: string;
   resource_type: CounselingResourceType;
   capacity: number;
@@ -36,15 +36,15 @@ export interface CounselingResource {
 }
 
 export interface ResourceBlock {
-  resource_block_id: string;
-  resource_id: string;
+  counseling_resource_block_id: string;
+  counseling_resource_id: string;
   starts_at: string;
   ends_at: string;
   reason: string | null;
 }
 
 export interface AvailabilityRule {
-  availability_rule_id: string;
+  counselor_availability_rule_id: string;
   counselor_id: string;
   day_of_week: number;
   start_time: string;
@@ -56,7 +56,7 @@ export interface AvailabilityRule {
 }
 
 export interface BlockedPeriod {
-  blocked_period_id: string;
+  counselor_blocked_period_id: string;
   counselor_id: string;
   counselor_name: string;
   starts_at: string;
@@ -80,7 +80,7 @@ export interface CounselingRequest {
   student_id: string;
   status: 'requested' | AppointmentStatus;
   created_at: string;
-  nama: string;
+  name: string;
   nim: string | null;
   faculty_name: string | null;
   academic_unit_name: string | null;
@@ -95,5 +95,5 @@ export interface RequestResponse {
 
 export interface CounselorsResponse { counselors: Counselor[]; total: number }
 export interface ResourcesResponse { resources: CounselingResource[]; total: number }
-export interface AppointmentPayload { counselor_id: string; starts_at: string; ends_at: string; resource_id?: string | null }
+export interface AppointmentPayload { counselor_id: string; starts_at: string; ends_at: string; counseling_resource_id?: string | null }
 export interface BlockedPeriodPayload extends AppointmentPayload { reason?: string }

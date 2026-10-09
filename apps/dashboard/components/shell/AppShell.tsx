@@ -23,7 +23,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
 
 function SidebarFooter() {
   const { user } = useAuth(); const { text } = useLanguage();
-  return <div className="sidebar-footer"><span className="avatar" aria-hidden="true">{initials(user?.nama)}</span><span><strong>{user?.nama ?? text.common.administrator}</strong><small>{text.common.administrator}</small></span></div>;
+  return <div className="sidebar-footer"><span className="avatar" aria-hidden="true">{initials(user?.name)}</span><span><strong>{user?.name ?? text.common.administrator}</strong><small>{text.common.administrator}</small></span></div>;
 }
 
 function initials(name?: string) { return (name ?? 'AD').split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase(); }
@@ -44,7 +44,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="language-switch" role="group" aria-label={text.common.language}><button className={language === 'id' ? 'active' : ''} onClick={() => setLanguage('id')} aria-pressed={language === 'id'}>ID</button><button className={language === 'en' ? 'active' : ''} onClick={() => setLanguage('en')} aria-pressed={language === 'en'}>EN</button></div>
           <DropdownMenu label={text.common.theme} trigger={<><Icon name={mode === 'light' ? 'sun' : mode === 'dark' ? 'moon' : 'monitor'} /><span className="sr-only">{text.common.theme}</span></>} items={themeItems.map((item) => ({ label: item.label, icon: item.icon, onSelect: () => setMode(item.value) }))} />
           <IconButton label={text.common.notifications} icon="bell" disabled aria-disabled="true" />
-          <DropdownMenu label={text.common.account} trigger={<><span className="avatar avatar-small" aria-hidden="true">{initials(user?.nama)}</span><span className="profile-name">{user?.nama ?? text.common.administrator}</span><Icon name="down" size={16} /></>} items={[{ label: text.common.settings, icon: <Icon name="settings" />, onSelect: () => router.push('/settings') }, { label: text.common.logout, icon: <Icon name="logout" />, danger: true, onSelect: () => setLogoutDialog(true) }]} />
+          <DropdownMenu label={text.common.account} trigger={<><span className="avatar avatar-small" aria-hidden="true">{initials(user?.name)}</span><span className="profile-name">{user?.name ?? text.common.administrator}</span><Icon name="down" size={16} /></>} items={[{ label: text.common.settings, icon: <Icon name="settings" />, onSelect: () => router.push('/settings') }, { label: text.common.logout, icon: <Icon name="logout" />, danger: true, onSelect: () => setLogoutDialog(true) }]} />
         </div>
       </header>
       <div className="workspace-scroll">{children}</div>
