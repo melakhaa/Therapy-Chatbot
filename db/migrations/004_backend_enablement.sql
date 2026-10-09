@@ -1,21 +1,15 @@
 -- B1: additive backend enablement for custom instruments and operations.
 begin;
-select pg_advisory_xact_lock(hashtext('sanctuary_schema_migrations'));
+select pg_advisory_xact_lock(hashtext('sajiwa_schema_migrations'));
 
--- Preserve grants made by immutable Sanctuary-era migrations while keeping
--- sajiwa_app as the only canonical runtime identity. Existing compatibility
--- roles retain their login properties; newly created ones cannot log in.
+-- sajiwa_app must already exist (created by db/init/02_auth.sql on fresh volumes).
 do $$
 begin
-  if not exists (select 1 from pg_roles where rolname = 'sanctuary_app') then
-    execute 'create role sanctuary_app nologin nosuperuser';
-  end if;
   if not exists (select 1 from pg_roles where rolname = 'sajiwa_app') then
     raise exception 'Canonical runtime role sajiwa_app must exist before migration 004';
   end if;
 end
 $$;
-grant sanctuary_app to sajiwa_app with inherit true;
 
 alter table assessment_instrument_versions add column if not exists definition_revision integer not null default 1 check (definition_revision > 0);
 alter table assessment_questions drop constraint if exists assessment_questions_category_check;

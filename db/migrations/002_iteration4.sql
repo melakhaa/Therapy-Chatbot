@@ -1,7 +1,7 @@
 -- Iteration 4: additive, versioned assessment instruments.
 -- Existing assessment rows remain valid and retain their stored score/severity.
 begin;
-select pg_advisory_xact_lock(hashtext('sanctuary_schema_migrations'));
+select pg_advisory_xact_lock(hashtext('sajiwa_schema_migrations'));
 
 create table if not exists assessment_instruments (
   instrument_id uuid primary key default gen_random_uuid(),

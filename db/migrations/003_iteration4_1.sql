@@ -1,7 +1,7 @@
 -- Iteration 4.1: additive provenance, standard/custom identity, and the canonical
 -- owner-provided Indonesian DASS-21 Source A definition.
 begin;
-select pg_advisory_xact_lock(hashtext('sanctuary_schema_migrations'));
+select pg_advisory_xact_lock(hashtext('sajiwa_schema_migrations'));
 
 alter table assessment_instruments
   add column if not exists language varchar(40),

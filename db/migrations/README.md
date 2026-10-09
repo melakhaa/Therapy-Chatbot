@@ -34,4 +34,4 @@ psql $env:DATABASE_OWNER_URL -tAc "select version from schema_migrations order b
 
 `004_backend_enablement.sql` adds custom dimensions and revision-bound counselor review, sensitive student support profiles, counseling resources and blocks, optional appointment-resource links, and the hotline verification lifecycle. Apply it after `003_iteration4_1.sql`.
 
-`sajiwa_app` is the canonical runtime role. The `sanctuary_app` role is retained only as a `NOLOGIN` compatibility target for immutable historical grants in migrations 002 and 003; `sajiwa_app` inherits those grants. New migrations and runtime configuration must use `sajiwa_app`, never `sanctuary_app`.
+`sajiwa_app` is the canonical and only runtime role; every migration grants its new objects to it. A grant to a nonexistent role aborts the migration transaction, so `db/init/02_auth.sql` creates it first.
