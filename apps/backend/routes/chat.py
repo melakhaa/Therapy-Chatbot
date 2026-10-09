@@ -175,12 +175,16 @@ def chat_history(session_id: str, limit: int = 50, user=Depends(get_current_user
     """The caller's own transcript. RLS scopes it to `user.id`; never expose this to admins."""
     rows = query(
         "select role, content, route_used, created_at from messages "
-        "where session_id = %s order by created_at asc limit %s",
+        "where session_id = %s order by created_at desc, role limit %s",
         (session_id, min(max(limit, 1), 200)), user_id=user.id,
     )
 
+    # Fetched newest-first so a long conversation keeps its latest turns; flip back for the
+    # transcript the client renders. `role` breaks ties: both rows of a turn share one
+    # transaction timestamp, and 'assistant' sorts before 'user' newest-first — reversed, the
+    # user turn lands before its reply.
     messages = []
-    for row in rows:
+    for row in reversed(rows):
         try:
             text = decrypt_text(row["content"])
         except Exception:
