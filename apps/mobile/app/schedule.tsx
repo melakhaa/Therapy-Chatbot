@@ -48,7 +48,7 @@ export default function ScheduleScreen() {
       const cRes = await apiGetKonselor();
       const mapped = cRes.users.map((u: any) => ({
         id: u.user_id,
-        name: u.nama,
+        name: u.name,
         specialty: u.role === 'konselor' ? 'Konselor psikologi' : 'Layanan dukungan',
       }));
       setCounselors(mapped);
@@ -150,8 +150,8 @@ export default function ScheduleScreen() {
   );
 
   const STATUS = {
-    menunggu: { label: 'Menunggu konfirmasi', color: colors.stressMid, icon: 'time-outline' },
-    dikonfirmasi: { label: 'Dikonfirmasi', color: '#3B7A56', icon: 'checkmark-circle-outline' },
+    pending: { label: 'Menunggu konfirmasi', color: colors.stressMid, icon: 'time-outline' },
+    confirmed: { label: 'Dikonfirmasi', color: '#3B7A56', icon: 'checkmark-circle-outline' },
   } as const;
 
   return (

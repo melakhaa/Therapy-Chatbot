@@ -140,7 +140,7 @@ export default function HomeScreen() {
     const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
     const top = ranked[0];
     const tie = ranked[1] && ranked[1][1] === top?.[1]; // no single dominant mood: don't pretend there is
-    const heavy = days.filter((d) => d.mood === 'Anxious' || d.mood === 'Tired').map((d) => DAY_LONG[d.date.getDay()]);
+    const heavy = days.filter((d) => d.mood === 'anxious' || d.mood === 'tired').map((d) => DAY_LONG[d.date.getDay()]);
     let insight = 'Belum ada check-in minggu ini. Satu ketukan di atas sudah cukup untuk mulai.';
     if (top) {
       insight = tie ? 'Suasana hatimu cukup beragam minggu ini.' : `${moodOf(top[0])!.label} paling sering muncul.`;
@@ -150,8 +150,8 @@ export default function HomeScreen() {
   }, [journals]);
 
 
-  const firstName = user?.nama?.split(' ')[0];
-  const initials = (user?.nama || 'S').split(' ').slice(0, 2).map((w: string) => w[0]?.toUpperCase()).join('');
+  const firstName = user?.name?.split(' ')[0];
+  const initials = (user?.name || 'S').split(' ').slice(0, 2).map((w: string) => w[0]?.toUpperCase()).join('');
   const face: Expression = current?.mood ? MOOD_COMPANION[current.mood as Mood].face : now.face;
 
   // Only pages the bottom nav does not already reach, and that nothing else on this screen links to
@@ -388,7 +388,7 @@ export default function HomeScreen() {
                   <Text style={s.sessionName} numberOfLines={1}>{next.counselor ?? 'Konselor kampus'}</Text>
                   <Text style={s.sessionMeta}>
                     {DAY_LONG[new Date(next.start).getDay()]}, {clockTime(next.start)} ·{' '}
-                    {next.status === 'dikonfirmasi' ? 'dikonfirmasi' : 'menunggu konfirmasi'}
+                    {next.status === 'confirmed' ? 'confirmed' : 'menunggu konfirmasi'}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={TRI.muted} />

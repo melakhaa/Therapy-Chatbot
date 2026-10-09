@@ -20,9 +20,9 @@ import { PressableScale } from '../components/ui';
 import { Companion } from '../components/chat';
 
 type HotlineItem = {
-  nama: string;
-  nomor: string;
-  deskripsi?: string;
+  name: string;
+  phone: string;
+  description?: string;
 };
 
 export default function HotlineScreen() {
@@ -49,8 +49,8 @@ export default function HotlineScreen() {
   }, []);
 
   const filteredHotlines = hotlines.filter(h =>
-    h.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (h.deskripsi && h.deskripsi.toLowerCase().includes(searchQuery.toLowerCase()))
+    h.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (h.description && h.description.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   if (loading) {
@@ -117,19 +117,19 @@ export default function HotlineScreen() {
               {filteredHotlines.map((item, index) => (
                 <PressableScale
                   key={index}
-                  onPress={() => callNumber(item.nomor)}
+                  onPress={() => callNumber(item.phone)}
                   accessibilityRole="button"
-                  accessibilityLabel={`Telepon ${item.nama}, ${item.nomor}`}
+                  accessibilityLabel={`Telepon ${item.name}, ${item.phone}`}
                   style={({ pressed }) => [
                     s.card,
                     { backgroundColor: colors.background, boxShadow: pressed ? Neu.inset : Neu.raised },
                   ]}
                 >
                   <View style={s.infoColumn}>
-                    <Text style={[s.cardTitle, { color: colors.onSurface }]}>{item.nama}</Text>
-                    <Text style={[s.cardPhone, { color: colors.primary }]}>{item.nomor}</Text>
-                    {item.deskripsi ? (
-                      <Text style={[s.cardDesc, { color: colors.onSurfaceVariant }]}>{item.deskripsi}</Text>
+                    <Text style={[s.cardTitle, { color: colors.onSurface }]}>{item.name}</Text>
+                    <Text style={[s.cardPhone, { color: colors.primary }]}>{item.phone}</Text>
+                    {item.description ? (
+                      <Text style={[s.cardDesc, { color: colors.onSurfaceVariant }]}>{item.description}</Text>
                     ) : null}
                   </View>
                   <View style={[s.callBtn, { backgroundColor: colors.stressHigh }]}>

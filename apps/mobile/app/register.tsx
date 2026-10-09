@@ -23,7 +23,7 @@ export default function RegisterScreen() {
   const { colors } = useTheme();
   const toast = useToast();
 
-  const [nama, setNama] = useState('');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [nim, setNim] = useState('');
   const [password, setPassword] = useState('');
@@ -32,7 +32,7 @@ export default function RegisterScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const handleRegister = async () => {
-    if (!nama.trim() || !email.trim() || !password.trim()) {
+    if (!name.trim() || !email.trim() || !password.trim()) {
       setError('Nama, email, dan kata sandi wajib diisi.');
       return;
     }
@@ -48,7 +48,7 @@ export default function RegisterScreen() {
       await apiRegister({
         email: email.trim(),
         password,
-        nama: nama.trim(),
+        name: name.trim(),
         nim: nim.trim() || undefined,
         role: 'mahasiswa',
       });
@@ -97,8 +97,8 @@ export default function RegisterScreen() {
               placeholder="Nama lengkap kamu"
               autoComplete="name"
               textContentType="name"
-              value={nama}
-              onChangeText={setNama}
+              value={name}
+              onChangeText={setName}
               editable={!isLoading}
               leftIcon={<Ionicons name="person-outline" size={18} color={colors.onSurfaceVariant} />}
             />
