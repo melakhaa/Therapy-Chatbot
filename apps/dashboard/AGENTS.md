@@ -31,4 +31,3 @@ npm run dashboard:build
 - [TypeScript conventions](../../docs/typescript-conventions.md)
 - [React conventions](../../docs/react-conventions.md)
 - [Security conventions](../../docs/security-conventions.md)
-- [M11 cutover plan](../../docs/dashboard-next-m11-cutover-plan.md)

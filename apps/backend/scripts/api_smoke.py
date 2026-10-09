@@ -236,6 +236,21 @@ check("history is oldest-first",
       all(msgs[i]["created_at"] <= msgs[i + 1]["created_at"] for i in range(len(msgs) - 1)),
       [m["created_at"] for m in msgs])
 
+# A long conversation must reopen with its newest messages, not its first 50. Reuses an
+# encrypted content from above so every row decrypts; the route marks the insertion order.
+long_sid = f"chat-long-{SFX}"
+sql("insert into sessions (session_id, user_id) values (%s, %s) on conflict do nothing",
+    (long_sid, stu_id))
+sql("insert into messages (session_id, user_id, role, content, route_used, created_at) "
+    "select %s, %s, 'user', %s, 'r' || i, now() + (i || ' milliseconds')::interval "
+    "from generate_series(1, 60) as i",
+    (long_sid, stu_id, rows[0][0]))
+s, r = call("GET", f"/chat/history?session_id={long_sid}&limit=50", token=stu_tok)
+routed = [m["route"] for m in r.get("messages", [])]
+check("history keeps the newest 50, oldest-first",
+      s == 200 and routed == [f"r{i}" for i in range(11, 61)],
+      (s, routed[:3], routed[-3:]))
+
 s, r = call("GET", f"/chat/history?session_id=chat-{SFX}", token=None)
 check("history requires auth", s in (401, 403), (s, r))
 

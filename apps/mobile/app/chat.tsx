@@ -58,7 +58,7 @@ export default function ChatScreen() {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
   }, [messages, isTyping]);
 
-  const canSend = inputText.trim().length > 0;
+  const canSend = inputText.trim().length > 0 && sessionId !== null;
   const hasUserMessage = messages.some((m) => m.sender === 'user');
   const canStartNew = hasUserMessage && !isLoadingHistory;
 

@@ -138,7 +138,10 @@ export function useChat(initialSessionId?: string): UseChatReturn {
   useEffect(() => {
     const mountSeq = loadSeq.current;
     (async () => {
-      const id = initialSessionId ?? (await getChatSessionId()) ?? newSessionId();
+      // Storage can fail; fall back to a fresh id so chat still works instead of leaving
+      // sessionId null and silently swallowing every send.
+      const stored = await getChatSessionId().catch(() => null);
+      const id = initialSessionId ?? stored ?? newSessionId();
       // Unmounted (or switched) while storage was resolving.
       if (loadSeq.current !== mountSeq) return;
       loadSession(id);

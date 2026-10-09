@@ -530,7 +530,7 @@ def comparison_analytics(
     )
     attention = query(
         f"select {id_column} scope_id,{label_column} scope_label,"
-        "case when g.assessment_id is not null or g.triggered_input like '[ASSESSMENT]%' then 'assessment' else 'safety' end signal_type,count(*) count "
+        "case when g.assessment_id is not null or g.triggered_input like '[ASSESSMENT]%%' then 'assessment' else 'safety' end signal_type,count(*) count "
         "from guardrail_logs g left join users u on u.user_id=g.user_id "
         "left join student_academic_profiles sap on sap.user_id=u.user_id "
         "left join faculties f on f.faculty_id=sap.faculty_id left join academic_units au on au.academic_unit_id=sap.academic_unit_id "

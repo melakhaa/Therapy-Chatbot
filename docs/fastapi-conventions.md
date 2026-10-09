@@ -12,7 +12,8 @@ apps/backend/
 │   ├── assessment.py    account.py   dashboard.py
 │   ├── jadwal.py        journal.py   chat.py
 │   ├── admin.py         admin_operations.py
-│   └── iteration3.py    iteration4.py   # additive admin/student platforms
+│   ├── iteration3.py    iteration4.py     # additive admin/student platforms
+│   └── backend_enablement.py              # B1 admin + counselor routers
 ├── tests/               # isolated unittest contracts (stub core.db, real JWTs)
 └── core/                # Cross-cutting helpers
 ```
@@ -68,10 +69,12 @@ under [semantic-router-conventions.md](semantic-router-conventions.md) and
 - Responses: plain dicts, `snake_case` keys; insert endpoints return the created row or
   `{entity, message}`. Always cast IDs with `str(user.id)`.
 - Streaming endpoint `POST /chat/stream` is real SSE: a metadata frame (`{route, is_high_risk}`)
-  first, then `{"token": ...}` frames as the model emits them, then `data: [DONE]`. The turn is
-  persisted only after the stream completes, so a truncated answer never enters history.
+  first, then `{"token": ...}` frames as the model emits them, then `data: [DONE]`. The user
+  message is saved before generation and the reply after it completes — a truncated answer never
+  enters history, but the question survives an app kill.
 - `POST /chat` returns `{response, route, is_high_risk}` and persists the turn when a `session_id`
-  is supplied; `GET /chat/history?session_id=` returns the caller's own decrypted transcript.
+  is supplied; `GET /chat/history?session_id=` returns the caller's own decrypted transcript —
+  the newest 50 messages, oldest first.
   Both `/chat` and `/chat/stream` generate through `core.chat_stream`, so they cannot drift.
 - `POST /chat/report` backs the crisis sheet's "kabari tim" button: it writes an unread
   `guardrail_logs` row (`[LAPORAN PENGGUNA]` prefix) surfaced by the dashboard as a `request`
@@ -85,12 +88,6 @@ routers are not part of that manifest.
 
 ## Run
 
-```bash
-cd apps/backend
-python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-```
-
-Run from `apps/backend` (imports are top-level, e.g. `from auth import ...`). Swagger at
+Setup and run commands: [development-conventions.md](development-conventions.md). Run from
+`apps/backend` (imports are top-level, e.g. `from auth import ...`). Swagger at
 `http://localhost:8000/docs`. Env vars: [security-conventions.md](security-conventions.md).

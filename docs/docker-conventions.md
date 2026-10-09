@@ -29,24 +29,17 @@ docker compose down -v        # stop and wipe the volume
 ## Init scripts
 
 `db/init/*.sql` is mounted read-only at `/docker-entrypoint-initdb.d` and executed **once**, in
-filename order, only when the `pgdata` volume is empty:
-
-- `01_schema.sql` — tables, indexes, RLS, `match_documents()`
-- `02_auth.sql` — `sajiwa_app` role, password storage, reset table, `auth_lookup()`
-- `03_mobile_app.sql` — `list_konselor()`, the student-visible counselor directory
-
-To re-apply them after editing: `docker compose down -v && docker compose up -d`. This destroys all
-data, which is fine locally.
+filename order, only when the `pgdata` volume is empty (schema details:
+[postgresql-conventions.md](postgresql-conventions.md)). To re-apply after editing:
+`docker compose down -v && docker compose up -d` — destroys all data, fine locally.
 
 ## Migrations
 
 `db/migrations/*.sql` is the additive track for changes after the baseline. The one-shot `migrate`
-service runs them in filename order once the db is healthy, on every `docker compose up` — so both
-fresh and existing volumes end up complete. Each migration records its filename stem in
-`schema_migrations`, and the service reads that table to skip files it has already applied, so a
-repeat `up` is a no-op rather than a re-execution. A file that does fail stops the run, so the
-container's exit code means a real problem instead of a second pass hitting a reseeding guard.
-Add new DDL here, not by editing `01_schema.sql`.
+service runs them in filename order once the db is healthy on every `docker compose up`: each
+migration records its own filename stem in `schema_migrations` and the service skips versions
+already present — so repeat `up`s are no-ops and a failing file stops the run. Add new DDL here,
+not by editing `01_schema.sql`.
 
 ## Roles
 

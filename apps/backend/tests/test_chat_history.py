@@ -65,8 +65,8 @@ class PromptHistoryTests(unittest.TestCase):
 
     def test_unreadable_row_is_skipped_not_fatal(self):
         rows = [
-            {"role": "user", "content": encrypt_text("halo")},
             {"role": "assistant", "content": "not-a-fernet-token"},
+            {"role": "user", "content": encrypt_text("halo")},
         ]
         with self._rows(rows):
             out = history.load_history("s1", A)
@@ -82,6 +82,19 @@ class PromptHistoryTests(unittest.TestCase):
             out = history.load_history("s1", A)
         # The oversized oldest turn stops assembly; the newest turn is never dropped.
         self.assertEqual([m.content for m in out], [recent])
+
+    def test_trailing_unanswered_user_turn_is_dropped(self):
+        rows = [
+            {"role": "user", "content": encrypt_text("pertanyaan yang belum dijawab")},
+            {"role": "assistant", "content": encrypt_text("jawaban sebelumnya")},
+            {"role": "user", "content": encrypt_text("pertanyaan lama")},
+        ]
+        with self._rows(rows):
+            out = history.load_history("s1", A)
+        # A killed stream leaves the newest row unanswered; the retry re-adds it as the
+        # current HumanMessage, so it must not also be prepended here.
+        self.assertEqual([m.content for m in out], ["pertanyaan lama", "jawaban sebelumnya"])
+        self.assertIsInstance(out[0], history.HumanMessage)
 
 
 if __name__ == "__main__":

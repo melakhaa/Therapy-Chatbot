@@ -40,17 +40,22 @@ begin
   assert n = 1, 'auth_lookup broken for anonymous caller';
 
   select count(*) into n from hotline;
-  assert n = 3, format('hotline seed missing (%s rows)', n);
+  assert n = 0, format('anonymous saw %s unverified hotlines', n);
+
+  -- migration 004 hides unverified contacts from the public; the admin still sees the seed
+  perform set_config('app.current_user_id', '33333333-3333-3333-3333-333333333333', true);
+  select count(*) into n from hotline;
+  assert n >= 3, format('admin cannot see hotline seed (%s rows)', n);
 
   -- a student sees only their own row
   perform set_config('app.current_user_id', '11111111-1111-1111-1111-111111111111', true);
   select count(*) into n from users;
   assert n = 1, format('RLS leak: A saw %s users', n);
 
-  -- admin sees everyone
+  -- admin sees everyone (the three inserted rows, regardless of other local data)
   perform set_config('app.current_user_id', '33333333-3333-3333-3333-333333333333', true);
-  select count(*) into n from users;
-  assert n = 3, format('admin policy broken: saw %s users', n);
+  select count(*) into n from users where email like '%@test.local';
+  assert n = 3, format('admin policy broken: saw %s test users', n);
 
   -- journals are private to their owner
   perform set_config('app.current_user_id', '11111111-1111-1111-1111-111111111111', true);

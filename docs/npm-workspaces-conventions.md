@@ -17,7 +17,8 @@ apiFetch<T>(path, { method, body, auth = true, base })  // auth defaults true
 - Add one typed helper per backend endpoint (`apiChatStream`, `apiSubmitAssessment`, `apiSaveJournal`, ...).
 - Export request/response interfaces next to the helper.
 - Streaming endpoints use `apiChatStream`, which reads the SSE body with `expo/fetch` (React Native's
-  global `fetch` buffers the whole response; on web that module is just `globalThis.fetch`).
+  global `fetch` buffers the whole response; on web that module is just `globalThis.fetch`) and
+  throws if the stream ends without `[DONE]` — a bare close is a truncated reply.
 - `auth: false` for login/register/hotline/guardrail.
 - `apiLogin` persists token + user via `src/storage.ts`.
 - `src/admin.ts`, `src/admin-operations.ts`, `src/iteration3.ts`, and `src/iteration4.ts` hold the
@@ -26,8 +27,8 @@ apiFetch<T>(path, { method, body, auth = true, base })  // auth defaults true
   `apiSubmitInstrumentAssessment`, `apiGetComparisonAnalytics`,
   `apiGetMultiCounselorCalendar`, ...) and their row/page interfaces. `src/index.ts` re-exports
   every module.
-- Failed requests throw `ApiError` (an `Error` subclass carrying `status`); dashboard code maps the
-  status to a safe Bahasa Indonesia message in `apps/dashboard/hooks/useAdminResource.ts`.
+- Failed requests throw `ApiError` (an `Error` subclass carrying `status`); the dashboard client
+  maps the status to a safe Bahasa Indonesia message (`apps/dashboard/lib/api/client.ts`).
 
 `src/storage.ts` is the cross-platform token store: `localStorage` on web, `AsyncStorage` on
 native. Keys `sajiwa_token`, `sajiwa_user`. Use `getStoredUser` / `clearAuth`; the `*Sync`
