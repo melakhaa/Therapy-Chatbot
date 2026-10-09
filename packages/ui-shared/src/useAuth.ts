@@ -7,7 +7,7 @@ import { apiLogin, getStoredUser, clearAuth, type LoginPayload, type LoginRespon
 export interface AuthUser {
   user_id: string;
   email: string;
-  nama: string;
+  name: string;
   nim?: string;
   role: 'mahasiswa' | 'konselor' | 'admin' | 'pemangku_jabatan';
 }
