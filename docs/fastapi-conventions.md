@@ -69,8 +69,9 @@ under [semantic-router-conventions.md](semantic-router-conventions.md) and
 - Responses: plain dicts, `snake_case` keys; insert endpoints return the created row or
   `{entity, message}`. Always cast IDs with `str(user.id)`.
 - Streaming endpoint `POST /chat/stream` is real SSE: a metadata frame (`{route, is_high_risk}`)
-  first, then `{"token": ...}` frames as the model emits them, then `data: [DONE]`. The turn is
-  persisted only after the stream completes, so a truncated answer never enters history.
+  first, then `{"token": ...}` frames as the model emits them, then `data: [DONE]`. The user
+  message is saved before generation and the reply after it completes — a truncated answer never
+  enters history, but the question survives an app kill.
 - `POST /chat` returns `{response, route, is_high_risk}` and persists the turn when a `session_id`
   is supplied; `GET /chat/history?session_id=` returns the caller's own decrypted transcript.
   Both `/chat` and `/chat/stream` generate through `core.chat_stream`, so they cannot drift.

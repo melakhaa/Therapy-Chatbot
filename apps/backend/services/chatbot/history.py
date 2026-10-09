@@ -53,4 +53,9 @@ def load_history(session_id: str | None, user_id: str | None) -> list:
             break
         budget -= len(text)
         taken.append(HumanMessage(text) if row["role"] == "user" else AIMessage(text))
+    # A killed /chat/stream leaves the newest row as an unanswered user message; the retry
+    # re-adds it as the current HumanMessage, so drop it instead of sending it twice. Only when
+    # the newest stored row is that user turn — an unreadable newer reply must not trigger this.
+    if rows and rows[0]["role"] == "user" and taken and isinstance(taken[0], HumanMessage):
+        taken.pop(0)
     return list(reversed(taken))
