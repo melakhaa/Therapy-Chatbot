@@ -216,8 +216,9 @@ export async function apiChatStream(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  let sawDone = false;
 
-  for (;;) {
+  while (!sawDone) {
     const { done, value } = await reader.read();
     if (done) break;
 
@@ -231,7 +232,10 @@ export async function apiChatStream(
       const line = frame.split('\n').find((l) => l.startsWith('data:'));
       if (!line) continue;
       const raw = line.slice(5).trim();
-      if (raw === '[DONE]') return;
+      if (raw === '[DONE]') {
+        sawDone = true;
+        break;
+      }
       try {
         onEvent(JSON.parse(raw) as ChatStreamEvent);
       } catch {
@@ -239,6 +243,10 @@ export async function apiChatStream(
       }
     }
   }
+
+  // A completed stream always ends with [DONE]; a bare EOF means the connection dropped, so
+  // surface it instead of leaving a silently truncated reply on screen.
+  if (!sawDone) throw new ApiError(0, 'stream terputus');
 }
 
 /** Crisis sheet "Kabari tim Sajiwa": logs an unread safety signal for counselors. */
