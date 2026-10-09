@@ -1,19 +1,14 @@
 # TypeScript conventions
 
-All frontend/package code is **TypeScript 5.9**. Apps extend `expo/tsconfig.base` with `"strict": true`.
+All frontend/package code is **TypeScript 5.9** with `"strict": true`.
 
 ## Config
 
-```jsonc
-// apps/mobile/tsconfig.json and apps/dashboard/tsconfig.json
-{ "extends": "expo/tsconfig.base",
-  "compilerOptions": { "strict": true, "paths": { "@/*": ["./*"] } } }
-```
-
+- `apps/mobile/tsconfig.json` extends `expo/tsconfig.base`; `apps/dashboard/tsconfig.json` is
+  standalone Next.js config (`jsx: react-jsx`, `moduleResolution: bundler`).
 - `@/*` resolves relative to the app root (e.g. `@/components/themed-text`, `@/constants/theme`).
 - Shared packages have **no tsconfig and no build step**: `main` points at `src/index.ts`
   ([npm-workspaces-conventions.md](npm-workspaces-conventions.md)).
-- Dashboard `app.json` enables `experiments.typedRoutes` and `reactCompiler`.
 
 ## Conventions
 
@@ -26,4 +21,4 @@ All frontend/package code is **TypeScript 5.9**. Apps extend `expo/tsconfig.base
 - `import type { ... }` for type-only imports.
 - Files: components `PascalCase.tsx`, hooks/utilities `camelCase.ts`, barrels `index.ts`.
 - Avoid `enum`; use string-literal unions to match Pydantic `Literal`s on the backend.
-- Lint (dashboard): `eslint-config-expo` flat config, `npm run lint` (`expo lint`); ignores `dist/*`.
+- Dashboard lint: ESLint 9 flat config with `eslint-config-next`, run via `npm run dashboard:lint`.

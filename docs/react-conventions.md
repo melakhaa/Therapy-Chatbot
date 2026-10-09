@@ -20,7 +20,8 @@
 
 - Presentational components in `components/`; feature folders (`components/chat/`, `components/home/`)
   re-export via `index.ts`.
-- Screens own data-fetching (via `@prototype/api-client`) and pass props down.
+- Mobile screens own data-fetching (via `@prototype/api-client`); dashboard features fetch through
+  `apps/dashboard/lib/api/client.ts`. Pass props down.
 - Prefer composition/props over inheritance or render-prop gymnastics; no class components.
 
 Related: [react-native-conventions.md](react-native-conventions.md), [react-native-ui-conventions.md](react-native-ui-conventions.md).
