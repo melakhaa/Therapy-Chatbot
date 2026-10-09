@@ -12,7 +12,8 @@ apps/backend/
 │   ├── assessment.py    account.py   dashboard.py
 │   ├── jadwal.py        journal.py   chat.py
 │   ├── admin.py         admin_operations.py
-│   └── iteration3.py    iteration4.py   # additive admin/student platforms
+│   ├── iteration3.py    iteration4.py     # additive admin/student platforms
+│   └── backend_enablement.py              # B1 admin + counselor routers
 ├── tests/               # isolated unittest contracts (stub core.db, real JWTs)
 └── core/                # Cross-cutting helpers
 ```
@@ -85,12 +86,6 @@ routers are not part of that manifest.
 
 ## Run
 
-```bash
-cd apps/backend
-python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-```
-
-Run from `apps/backend` (imports are top-level, e.g. `from auth import ...`). Swagger at
+Setup and run commands: [development-conventions.md](development-conventions.md). Run from
+`apps/backend` (imports are top-level, e.g. `from auth import ...`). Swagger at
 `http://localhost:8000/docs`. Env vars: [security-conventions.md](security-conventions.md).

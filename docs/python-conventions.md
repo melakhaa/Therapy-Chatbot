@@ -51,10 +51,4 @@ import (`embed.py`, `test_rag_performance.py`) so direct `python scripts/x.py` i
 
 ## Run
 
-```bash
-cd apps/backend
-# Python 3.12 required — semantic-router has no 3.13/3.14 wheels
-uv venv --python 3.12 venv && source venv/bin/activate   # or: python3.12 -m venv venv
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-```
+Setup and run commands: [development-conventions.md](development-conventions.md).
