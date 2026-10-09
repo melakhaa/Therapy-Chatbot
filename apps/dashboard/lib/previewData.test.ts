@@ -9,7 +9,7 @@ test('preview dataset covers each dashboard domain', () => {
     units: 4,
     counselors: 3,
     resources: 3,
-    instruments: 3,
+    instruments: 4,
     hotlines: 3,
   });
 });
