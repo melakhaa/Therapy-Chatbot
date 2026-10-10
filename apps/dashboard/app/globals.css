@@ -329,6 +329,48 @@ button { color: inherit; }
   .review-summary{align-items:stretch;flex-direction:column}
 }
 
+/* Shared admin data-table contract: one semantic row owns its background and divider. */
+.operations-table-wrap,.table-wrap,.aggregate-tables { width:100%;overflow-x:auto;overscroll-behavior-inline:contain; }
+.operations-table,.data-table,.table-shell table,.aggregate-tables table {
+  width:100%;border-collapse:collapse;border-spacing:0;table-layout:auto;
+}
+.operations-table thead tr,.data-table thead tr,.table-shell thead tr,.aggregate-tables thead tr {
+  border-bottom:1px solid var(--color-border-strong);background:var(--color-surface-muted);
+}
+.operations-table tbody tr,.data-table tbody tr,.table-shell tbody tr,.aggregate-tables tbody tr {
+  border-bottom:1px solid var(--color-border);background:var(--color-surface);
+}
+.operations-table tbody tr:last-child,.data-table tbody tr:last-child,.table-shell tbody tr:last-child,.aggregate-tables tbody tr:last-child { border-bottom:0; }
+.operations-table th,.data-table th,.table-shell th,.aggregate-tables th {
+  min-width:max-content;padding:.65rem .75rem;border:0;vertical-align:bottom;text-align:left;
+  white-space:nowrap;overflow-wrap:normal;word-break:keep-all;hyphens:none;
+}
+.operations-table td,.data-table td,.table-shell td,.aggregate-tables td {
+  height:auto;padding:.7rem .75rem;border:0;vertical-align:top;line-height:1.42;
+  overflow-wrap:anywhere;word-break:normal;background:transparent;
+}
+.operations-table tbody tr:hover,.data-table tbody tr:hover,.table-shell tbody tr:hover { background:color-mix(in srgb,var(--color-accent-soft) 35%,var(--color-surface)); }
+.operations-table tbody tr.row-selected,.data-table tbody tr.row-selected,.table-shell tbody tr.row-selected { background:color-mix(in srgb,var(--color-accent-soft) 70%,var(--color-surface)); }
+.operations-table tbody tr.row-resource-conflict,.data-table tbody tr.row-resource-conflict,.table-shell tbody tr.row-resource-conflict { background:color-mix(in srgb,var(--color-danger-soft) 55%,var(--color-surface)); }
+.operations-table .badge,.data-table .badge,.table-shell .badge { white-space:nowrap;overflow-wrap:normal; }
+.operations-table .action-cell,.data-table .action-cell,.operations-table .action-column,.data-table .action-column { vertical-align:top!important;white-space:nowrap; }
+.operations-table .row-actions,.data-table .row-actions { flex-wrap:nowrap; }
+.hotline-table { min-width:68rem; }
+.academic-table { min-width:66rem; }
+.instrument-directory-table table { min-width:88rem; }
+.request-table { min-width:58rem; }
+.counseling-list { min-width:70rem; }
+.instrument-definition-form,.scoring-definition-editor fieldset { display:grid;gap:.65rem; }
+.instrument-definition-form label,.scoring-definition-editor label { display:grid;gap:.35rem;color:var(--color-text-muted);font-size:.75rem;font-weight:750; }
+.instrument-definition-form input,.instrument-definition-form textarea,.scoring-definition-editor input { width:100%;min-height:2.55rem;padding:.55rem .65rem;border:1px solid var(--color-border-strong);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text);font:inherit; }
+.instrument-definition-form textarea { min-height:5.5rem;resize:vertical; }
+.scoring-definition-editor { display:grid;gap:1rem; }
+.scoring-definition-editor fieldset { margin:0;padding:.8rem;border:1px solid var(--color-border);border-radius:var(--radius-md); }
+.scoring-definition-editor legend { padding:0 .35rem;font-weight:800; }
+.threshold-editor { display:grid;gap:.45rem; }
+.threshold-editor>div { display:grid;grid-template-columns:minmax(10rem,1fr) 7rem 7rem;gap:.45rem; }
+@media (max-width:48rem){.threshold-editor>div{grid-template-columns:1fr}}
+
 @page { size:A4 portrait;margin:14mm; }
 @media print {
   :root,[data-theme="dark"]{color-scheme:light;--color-background:#fff;--color-surface:#fff;--color-surface-muted:#f3f6f6;--color-text:#10213f;--color-text-muted:#526b85;--color-border:#ccd8d7;--shadow-surface:none}
