@@ -11,6 +11,7 @@ export interface InstrumentVersion extends InstrumentVersionSummary { instrument
 export type ReviewStatus = 'pending'|'revision_requested'|'approved';
 export interface InstrumentReview { review_id:string; definition_revision:number; status:ReviewStatus; submitted_at?:string|null; reviewer_counselor_id?:string|null; reviewer_name?:string|null; decided_at?:string|null; decision_comment?:string|null }
 export interface InstrumentDetail { version: InstrumentVersion; questions: QuestionDraft[]; dimensions?: DimensionDraft[]; reviews?: InstrumentReview[] }
+export interface InstrumentDefinitionDraft { name: string; description: string | null; language: string | null; provenance: Record<string, unknown>; dimensions: DimensionDraft[]; scoring_config: Record<string, unknown> | null }
 export interface DirectoryResponse { instruments: Instrument[]; total: number }
 export interface ValidationResponse { publishable: boolean; issues: string[] }
 export interface DirectoryItem { instrument: Instrument; version: InstrumentVersionSummary | null; questionCount: number | null; categories: Category[]; review: InstrumentReview|null }
