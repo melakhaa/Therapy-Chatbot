@@ -1,8 +1,8 @@
 # PLAN — database naming consistency
 
-Status: **C chosen (full-stack rename) — awaiting go on the rename map below**
-Scope: schema naming only. No behavior, no user-visible change. No renames execute until an
-option is picked.
+Status: **executed** — 005_naming plus per-layer adoption are merged into `rename-table`; the
+test plan in `PLAN-db-naming-testing.md` is fully green.
+Scope: schema naming only. No behavior, no user-visible change.
 
 ## Findings (live schema, 35 tables)
 
