@@ -17,7 +17,7 @@ class AssessmentRequest(BaseModel):
 
 - Request bodies are `BaseModel` classes named `<Thing>Request` (e.g. `ChatRequest`,
   `SaveJournalRequest`, `NotifyRiskRequest`).
-- Enumerations use `Literal[...]` — roles, instrument types, moods (`"Calm" | "Anxious" | "Focused" | "Tired"`),
+- Enumerations use `Literal[...]` — roles, instrument types, moods (`"calm" | "anxious" | "focused" | "tired"`),
   never free strings.
 - Optional fields default to `None`; fields with a fixed default carry it inline.
 - Nested input uses a small model per item (`AnswerItem`).

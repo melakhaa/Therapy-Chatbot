@@ -96,7 +96,7 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
 - Policies read it through `app_user_id()`; policies that need a role call
   `current_user_role()`, which is `SECURITY DEFINER` to avoid infinite recursion on `users`.
 - Anonymous requests have an empty setting, so `app_user_id()` is `NULL` and only `using (true)`
-  policies (public `hotline`, `documents` reads, `password_resets`) match.
+  policies (public `hotlines`, `documents` reads, `password_resets`) match.
 - Iteration3/4 tables follow the same model: instrument authoring is admin-managed, non-admin roles
   can read active instruments plus *published* versions/questions/options,
   `assessment_category_results` lets a student insert/select their own rows (`konselor`/`admin` can

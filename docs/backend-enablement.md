@@ -44,7 +44,7 @@ DB immutability triggers ([postgresql-conventions.md](postgresql-conventions.md)
 
 ## Hotlines
 
-Lifecycle states: `active`, `verification_required`, `inactive`. Editing `nama`/`nomor`/`deskripsi`
+Lifecycle states: `active`, `verification_required`, `inactive`. Editing `name`/`phone`/`description`
 invalidates verification; activation records verifier and time; `DELETE` soft-deactivates
 (`inactive`), never hard-deletes. Public guardrail responses select active contacts only, and a
 restrictive RLS policy enforces the same rule. Admin list: `GET /admin/hotlines`.
