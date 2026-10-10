@@ -9,7 +9,7 @@ test('preview dataset covers each dashboard domain', () => {
     units: 4,
     counselors: 3,
     resources: 3,
-    instruments: 3,
+    instruments: 4,
     hotlines: 3,
   });
 });
@@ -37,4 +37,17 @@ test('preview mutations stay in memory and return typed endpoint shapes', async 
   const rows = await previewRequest<{ signals: Array<{ guardrail_log_id: string; is_read: boolean }> }>('/admin/attention?page=1&page_size=100');
   assert.match(updated.message, /Preview/);
   assert.equal(rows.signals.find((row) => row.guardrail_log_id === 'preview-assessment-signal-01')?.is_read, true);
+});
+
+test('preview standard instruments create an editable next version without changing the published parent', async () => {
+  const created = await previewRequest<{ version: { instrument_version_id: string; version_number: number; status: string }; questions: Array<{ wording: string }>; dimensions: Array<{ multiplier: number }> }>('/admin/assessment-instruments/preview-instrument-dass21/drafts', { method: 'POST' });
+  const parent = await previewRequest<{ version: { status: string }; questions: Array<{ wording: string }> }>('/admin/assessment-instruments/versions/preview-dass-v1');
+  const wording = 'Edited DASS-21 preview question';
+  const saved = await previewRequest<typeof created>(`/admin/assessment-instruments/versions/${created.version.instrument_version_id}/draft`, { method: 'PUT', body: { questions: created.questions.map((question, index) => ({ ...question, wording: index === 0 ? wording : question.wording })), definition: { name: 'DASS-21 revised draft', language: 'id', provenance: { source_adaptation: 'Preview source' }, dimensions: created.dimensions.map((dimension) => ({ ...dimension, multiplier: 2.5 })), scoring_config: { strategy: 'dass21', standardization_multiplier: 2.5 } } } });
+  assert.equal(created.version.version_number, 2);
+  assert.equal(saved.version.status, 'draft');
+  assert.equal(saved.questions[0].wording, wording);
+  assert.equal(saved.dimensions[0].multiplier, 2.5);
+  assert.equal(parent.version.status, 'published');
+  assert.notEqual(parent.questions[0].wording, wording);
 });

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { ErrorState, InlineAlert, Skeleton } from '@/components/ui';
+import { Button, ErrorState, InlineAlert, Skeleton } from '@/components/ui';
 import { getAcademicStructure } from '@/features/monitoring/api';
 import type { AcademicStructure } from '@/features/monitoring/types';
 import { useLanguage } from '@/components/providers/LanguageProvider';
@@ -22,7 +22,7 @@ export function ReportPreview(){
   if(missing)return <main className="report-preview-shell"><ErrorState title={report.missingTitle} message={report.missingBody}/><Link className="button button-secondary" href="/analytics"><span>{report.back}</span></Link></main>;
   if(!config)return <main className="report-preview-shell"><Skeleton lines={8}/></main>;
   const selected=(section:ReportSection)=>config.sections.includes(section); const scope=scopeLabel(config,structure,data,copy.wholeUniversity); const generated=new Intl.DateTimeFormat(language==='id'?'id-ID':'en-US',{timeZone:'Asia/Jakarta',dateStyle:'long',timeStyle:'short'}).format(new Date(config.createdAt)); const statusLabels=text.counseling.status.backend;
-  return <main className="report-preview-shell"><nav className="report-preview-nav" aria-label={report.navLabel}><Link className="button button-secondary" href="/analytics"><span>{report.back}</span></Link><span>{report.previewNote}</span></nav>
+  return <main className="report-preview-shell"><nav className="report-preview-nav" aria-label={report.navLabel}><Link className="button button-secondary" href="/analytics"><span>{report.back}</span></Link><span>{report.previewNote}</span><Button className="report-print-action" onClick={()=>window.print()}>{language==='id'?'Cetak / Simpan PDF':'Print / Save as PDF'}</Button></nav>
     <article className="stakeholder-report">
       <header className="report-header"><div className="report-brand"><span>SA</span><div><strong>SAJIWA</strong><small>{report.organization}</small></div></div><div className="report-label">{report.label}</div><h1>{report.title}</h1><dl><div><dt>{report.period}</dt><dd>{formatDate(config.filters.dateFrom,language)}–{formatDate(config.filters.dateTo,language)}</dd></div><div><dt>{report.scope}</dt><dd>{scope}</dd></div><div><dt>{report.generated}</dt><dd>{generated} {report.timezone}</dd></div></dl></header>
       {loading?<div className="report-loading"><Skeleton lines={12}/></div>:error||!data?<ErrorState title={report.errorTitle} message={report.errorBody} retry={()=>{setLoading(true);setError(false);setRefresh((x)=>x+1)}} retryLabel={text.common.retry}/>:<>
