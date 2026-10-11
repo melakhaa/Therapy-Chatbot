@@ -12,12 +12,12 @@ router = APIRouter(prefix="/journal", tags=["Journal"])
 
 class SaveJournalRequest(BaseModel):
     content: str
-    mood: Optional[Literal["Calm", "Anxious", "Focused", "Tired"]] = None
+    mood: Optional[Literal["calm", "anxious", "focused", "tired"]] = None
 
 
 class UpdateJournalRequest(BaseModel):
     content: Optional[str] = None
-    mood: Optional[Literal["Calm", "Anxious", "Focused", "Tired"]] = None
+    mood: Optional[Literal["calm", "anxious", "focused", "tired"]] = None
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

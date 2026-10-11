@@ -24,7 +24,7 @@ test('stores, reads, and clears a per-tab session', () => {
   Object.defineProperty(globalThis, 'window', { configurable: true, value: { sessionStorage } });
   const session: StoredSession = {
     accessToken: 'test-token-never-logged',
-    user: { user_id: 'test-user', email: 'admin@example.test', nama: 'Admin Test', role: 'admin' },
+    user: { user_id: 'test-user', email: 'admin@example.test', name: 'Admin Test', role: 'admin' },
   };
 
   writeSession(session);

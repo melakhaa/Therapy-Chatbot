@@ -3,7 +3,7 @@ export type SajiwaRole = 'mahasiswa' | 'konselor' | 'admin' | 'pemangku_jabatan'
 export interface AuthenticatedUser {
   user_id: string;
   email: string;
-  nama: string;
+  name: string;
   nim?: string;
   role: SajiwaRole;
 }

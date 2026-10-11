@@ -44,7 +44,7 @@ DB immutability triggers ([postgresql-conventions.md](postgresql-conventions.md)
 
 ## Hotlines
 
-Lifecycle states: `active`, `verification_required`, `inactive`. Editing `nama`/`nomor`/`deskripsi`
+Lifecycle states: `active`, `verification_required`, `inactive`. Editing `name`/`phone`/`description`
 invalidates verification; activation records verifier and time; `DELETE` soft-deactivates
 (`inactive`), never hard-deletes. Public guardrail responses select active contacts only, and a
 restrictive RLS policy enforces the same rule. Admin list: `GET /admin/hotlines`.
@@ -61,7 +61,7 @@ follow-up aggregate stays deferred because the schema has no authoritative follo
   the web report preview remains the only supported output.
 - Administrator account security — no self-profile update, password change, 2FA, session history,
   or sign-out-all-devices contract (production is read-only plus current-session logout).
-- `GET /admin/counseling/calendar/multi` does not return appointment `resource_id` or resource
+- `GET /admin/counseling/calendar/multi` does not return appointment `counseling_resource_id` or resource
   blocks, and `counseling_resource_blocks` has no read endpoint — the UI selects resources and
   relies on save-time validation.
 - Hotline API exposes no `service_type`, `operational_hours`, or `coverage` fields (local preview

@@ -2,7 +2,7 @@ import type { AuthenticatedUser } from './auth/session';
 
 export const PREVIEW_ADMIN: AuthenticatedUser = {
   user_id: 'preview-admin-local',
-  nama: 'Preview Administrator',
+  name: 'Preview Administrator',
   email: 'preview@sajiwa.local',
   role: 'admin',
 };

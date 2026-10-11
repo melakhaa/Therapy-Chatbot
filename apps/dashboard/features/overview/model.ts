@@ -36,11 +36,11 @@ export function buildPriorityCases(sources: Pick<OverviewSources, 'attention' | 
       ? 500
       : 300 + Math.max(severityRank(backendSeverity), 0) * 20;
     return {
-      id: `attention:${signal.log_id}`,
+      id: `attention:${signal.guardrail_log_id}`,
       source: signal.signal_type,
-      sourceId: signal.log_id,
+      sourceId: signal.guardrail_log_id,
       studentId: signal.user_id,
-      studentName: signal.nama,
+      studentName: signal.name,
       nim: signal.nim,
       facultyName: null,
       academicUnitName: null,
@@ -56,7 +56,7 @@ export function buildPriorityCases(sources: Pick<OverviewSources, 'attention' | 
     source: 'request',
     sourceId: request.counseling_request_id,
     studentId: request.student_id,
-    studentName: request.nama,
+    studentName: request.name,
     nim: request.nim,
     facultyName: request.faculty_name,
     academicUnitName: request.academic_unit_name,
@@ -99,7 +99,7 @@ export function deriveMetrics(sources: OverviewSources): OverviewMetrics {
     awaitingFollowUp: unreadSignals + sources.requests.total,
     pendingCounseling: sources.requests.total,
     sessionsToday: sources.calendar.appointments.filter((item) => item.status !== 'cancelled' && item.status !== 'no_show').length,
-    availableSlots: sources.schedules.schedules.filter((item) => item.status === 'tersedia' && !item.booking_id).length,
+    availableSlots: sources.schedules.schedules.filter((item) => item.status === 'available' && !item.counseling_booking_id).length,
   };
 }
 

@@ -25,11 +25,11 @@ export function reconcileStudentUnit(facultyId: string, unitId: string, units: A
 }
 
 export function validateIdentityDraft(draft: IdentityDraft, original: StudentRow): { payload: IdentityPayload | null; error: 'name' | 'nim' | null } {
-  const nama = draft.nama.trim();
+  const name = draft.name.trim();
   const nim = draft.nim.trim();
-  if (!nama) return { payload: null, error: 'name' };
+  if (!name) return { payload: null, error: 'name' };
   if (original.nim && !nim) return { payload: null, error: 'nim' };
-  const payload: IdentityPayload = { nama };
+  const payload: IdentityPayload = { name };
   if (nim) payload.nim = nim;
   return { payload, error: null };
 }
@@ -54,5 +54,5 @@ export function paginateRange(page: number, pageSize: number, total: number): { 
 }
 
 export function bookingDateTime(booking: StudentBooking): string {
-  return `${booking.tanggal}T${booking.waktu_mulai}`;
+  return `${booking.date}T${booking.start_time}`;
 }

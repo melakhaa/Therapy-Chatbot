@@ -70,6 +70,18 @@ refactor(backend): extract severity thresholds
 feat(api)!: require service key for account admin routes
 ```
 
+## Atomic commits
+
+- One logical change per commit — usually one feature or layer, not one file. A schema rename,
+  its backend adoption, and each frontend adoption are separate commits.
+- A commit never exists to repair an earlier commit on the same branch: fold the correction
+  into the commit it belongs to (`git commit --fixup <sha>` + `git rebase --autosquash`) before
+  the PR.
+- The scope in the message must match what the commit touches (`refactor(mobile): ...` touches
+  `apps/mobile` only); rename collateral stays with the layer that caused it.
+- Feature branches may be force-pushed with `--force-with-lease` after a history cleanup;
+  `main` is never rewritten.
+
 ## Enforcement (dependency-free hook)
 
 `.githooks/commit-msg` validates messages; `.githooks/commit-msg.test.sh` is its self-check.

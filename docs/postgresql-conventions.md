@@ -10,7 +10,7 @@ container lifecycle is in [docker-conventions.md](docker-conventions.md).
 - **`db/init/02_auth.sql`** — `sajiwa_app` role, `password_hash`, `password_resets`,
   `auth_lookup()`, `set_password()`.
 - **`db/init/03_mobile_app.sql`** — `list_konselor()`: a `SECURITY DEFINER` counselor directory
-  (id, nama, role) for students, who cannot read other `users` rows under RLS.
+  (id, name, role) for students, who cannot read other `users` rows under RLS.
 - **`db/migrations/*.sql`** — additive changes after the baseline, applied in order by the one-shot
   `migrate` service on every `docker compose up` and recorded in `schema_migrations`.
 - Applied by `docker compose up`: `db/init` once on an empty volume, then migrations. To change the
@@ -37,10 +37,10 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
 | `messages` | Encrypted chat turns (`route_used`); belongs to a `sessions` row |
 | `sessions` | Chat session owner, title, lifetime; `messages.session_id` is client-generated but pinned to `(session_id, user_id)` by FK |
 | `documents` | RAG chunks: `content`, `embedding vector(768)`, `metadata` |
-| `hotline` | Crisis contact list |
+| `hotlines` | Crisis contact list |
 | `journals` | Private student journal entries |
-| `jadwal_konsultasi` | Counselor availability slots |
-| `booking_konsultasi` | Student bookings |
+| `counseling_slots` | Counselor availability slots |
+| `counseling_bookings` | Student bookings |
 | `password_resets` | OTP reset codes (bcrypt hash, 15 min expiry) |
 | `faculties`, `academic_units`, `student_academic_profiles` | Academic scope for filtered analytics/reports |
 | `admin_notifications` | Server-generated admin inbox items (deduped by `dedupe_key`) |
@@ -53,11 +53,15 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
 ## Conventions
 
 - `snake_case` for every table and column.
-- Primary keys: surrogate UUIDs with table-prefixed names (`assessment_id`, `journal_id`,
-  `booking_id`, `log_id`, `user_id`, `message_id`), `default gen_random_uuid()`.
+- Primary keys: surrogate UUIDs named `<singular_table>_id` (`journal_id`,
+  `counseling_booking_id`, `guardrail_log_id`, `user_id`, `message_id`), `default gen_random_uuid()`.
+  FKs to `users` are role-named (`student_id`, `counselor_id`) or `*_user_id` for named actors;
+  row-lifecycle audit keeps `created_by` / `updated_by` / `published_by` / `verified_by`.
 - Timestamps: `timestamptz default now()`; mutable rows use `updated_at` maintained by a
   `set_updated_at()` trigger.
-- Enumerated columns use `check` constraints, e.g. `role in (...)`, `severity in (...)`.
+- Enumerated columns use `check` constraints with lowercase English values
+  (`available`/`booked`/`pending`/`calm`, …) — `users.role` values stay Indonesian product
+  vocabulary (`mahasiswa`, `konselor`, `pemangku_jabatan`).
   Roles `mahasiswa | konselor | admin | pemangku_jabatan`; legacy `assessments.severity` is
   `minimal | mild | moderate | severe`, while `assessment_category_results.severity` adds
   `normal` and `extremely_severe` (DASS-21 bands).
@@ -66,7 +70,7 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
 - Rows owned by a session pin both ids: `messages(session_id, user_id)` references
   `sessions(session_id, user_id)`. A client-supplied `session_id` is therefore safe to group on —
   it cannot attach a row to another student's session.
-- Booking side effects (`jadwal` → `dipesan` / back to `tersedia`) are `SECURITY DEFINER` triggers,
+- Booking side effects (`counseling_slots` → `booked` / back to `available`) are `SECURITY DEFINER` triggers,
   because the student who books cannot update the counselor's slot row directly.
 - Instrument definitions are versioned: instrument → version (`draft`/`published`/`archived`, one
   published via partial unique index) → questions → answer options. `reject_published_*` triggers
@@ -92,7 +96,7 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
 - Policies read it through `app_user_id()`; policies that need a role call
   `current_user_role()`, which is `SECURITY DEFINER` to avoid infinite recursion on `users`.
 - Anonymous requests have an empty setting, so `app_user_id()` is `NULL` and only `using (true)`
-  policies (public `hotline`, `documents` reads, `password_resets`) match.
+  policies (public `hotlines`, `documents` reads, `password_resets`) match.
 - Iteration3/4 tables follow the same model: instrument authoring is admin-managed, non-admin roles
   can read active instruments plus *published* versions/questions/options,
   `assessment_category_results` lets a student insert/select their own rows (`konselor`/`admin` can

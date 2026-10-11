@@ -9,7 +9,7 @@ import type { AcademicStructure, IdentityDraft, StudentRow } from './types';
 
 export function StudentEditPanel({ student, academic, onSaved }: { student: StudentRow; academic: AcademicStructure | null; onSaved: () => void }) {
   const { text } = useLanguage();
-  const [identity, setIdentity] = useState<IdentityDraft>({ nama: student.nama, nim: student.nim ?? '' });
+  const [identity, setIdentity] = useState<IdentityDraft>({ name: student.name, nim: student.nim ?? '' });
   const [facultyId, setFacultyId] = useState(student.faculty_id ?? '');
   const [unitId, setUnitId] = useState(student.academic_unit_id ?? '');
   const [identityError, setIdentityError] = useState<'name' | 'nim' | 'request' | null>(null);
@@ -44,7 +44,7 @@ export function StudentEditPanel({ student, academic, onSaved }: { student: Stud
       <div><h3>{text.students.edit.identityTitle}</h3><p>{text.students.edit.identityNote}</p></div>
       {identitySaved && <InlineAlert tone="success">{text.students.edit.saved}</InlineAlert>}
       {identityError === 'request' && <InlineAlert tone="danger">{text.students.errors.update}</InlineAlert>}
-      <Input label={text.students.fields.name} value={identity.nama} onChange={(event) => setIdentity((current) => ({ ...current, nama: event.target.value }))} error={identityError === 'name' ? text.students.edit.nameRequired : undefined} required />
+      <Input label={text.students.fields.name} value={identity.name} onChange={(event) => setIdentity((current) => ({ ...current, name: event.target.value }))} error={identityError === 'name' ? text.students.edit.nameRequired : undefined} required />
       <Input label={text.students.fields.nim} value={identity.nim} onChange={(event) => setIdentity((current) => ({ ...current, nim: event.target.value }))} error={identityError === 'nim' ? text.students.edit.nimCannotClear : undefined} />
       <div className="form-actions"><Button loading={identitySaving} type="submit">{text.students.edit.saveIdentity}</Button></div>
     </form>

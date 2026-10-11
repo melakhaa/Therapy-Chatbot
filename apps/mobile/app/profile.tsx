@@ -69,7 +69,7 @@ export default function ProfileScreen() {
     router.replace('/');
   };
 
-  const initials = (user?.nama || 'S').split(' ').slice(0, 2).map((w: string) => w[0]?.toUpperCase()).join('');
+  const initials = (user?.name || 'S').split(' ').slice(0, 2).map((w: string) => w[0]?.toUpperCase()).join('');
   const joinedLabel = joinedAt
     ? `Bergabung sejak ${new Date(joinedAt).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`
     : null;
@@ -97,7 +97,7 @@ export default function ProfileScreen() {
               <Text style={[s.avatarText, { color: colors.primary }]}>{initials}</Text>
             </View>
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={[s.name, { color: colors.onSurface }]} numberOfLines={2}>{user?.nama || 'Pengguna'}</Text>
+              <Text style={[s.name, { color: colors.onSurface }]} numberOfLines={2}>{user?.name || 'Pengguna'}</Text>
               <Text style={[s.meta, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
                 {user?.nim ? `NIM ${user.nim}` : user?.email || ''}
               </Text>
@@ -149,9 +149,9 @@ export default function ProfileScreen() {
                 <Text style={[s.sessionName, { color: colors.onSurface }]} numberOfLines={1}>
                   {nextSession.counselor ?? 'Konselor kampus'}
                 </Text>
-                <Text style={[s.sessionMeta, { color: nextSession.status === 'dikonfirmasi' ? '#3B7A56' : colors.stressMid }]}>
+                <Text style={[s.sessionMeta, { color: nextSession.status === 'confirmed' ? '#3B7A56' : colors.stressMid }]}>
                   {clockTime(nextSession.start)}–{clockTime(nextSession.end)} ·{' '}
-                  {nextSession.status === 'dikonfirmasi' ? 'Dikonfirmasi' : 'Menunggu konfirmasi'}
+                  {nextSession.status === 'confirmed' ? 'Dikonfirmasi' : 'Menunggu konfirmasi'}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />

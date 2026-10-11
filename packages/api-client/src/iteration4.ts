@@ -100,7 +100,7 @@ export interface ComparisonAnalytics {
 
 export interface MultiCalendarCounselor {
   user_id: string;
-  nama: string;
+  name: string;
   title: string | null;
   specialization: string | null;
   active: boolean;

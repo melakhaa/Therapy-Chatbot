@@ -2,9 +2,9 @@ export type HotlineStatus = 'active' | 'verification_required' | 'inactive';
 
 export interface HotlineRecord {
   hotline_id: string;
-  nama: string;
-  nomor: string;
-  deskripsi: string | null;
+  name: string;
+  phone: string;
+  description: string | null;
   verification_status?: HotlineStatus | null;
   verified_at?: string | null;
   verified_by?: string | null;
@@ -18,4 +18,4 @@ export interface HotlineRecord {
 }
 
 export interface HotlineDraft { name: string; phone: string; description: string; verificationNote: string; serviceType?: string; operationalHours?: string; coverage?: string }
-export type HotlinePayload = { nama: string; nomor: string; deskripsi: string | null; verification_note: string | null; verification_status?: HotlineStatus; service_type?: string | null; operational_hours?: string | null; coverage?: string | null };
+export type HotlinePayload = { name: string; phone: string; description: string | null; verification_note: string | null; verification_status?: HotlineStatus; service_type?: string | null; operational_hours?: string | null; coverage?: string | null };
