@@ -3,11 +3,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ApiError, AUTH_EXPIRED_EVENT } from '@/lib/api/client';
 import { getCurrentUser, login as loginRequest, type LoginRequest } from '@/lib/api/auth';
-import { clearSession, isAdminRole, readSession, writeSession, type AuthenticatedUser } from '@/lib/auth/session';
-import { isPreviewMode, PREVIEW_ADMIN } from '@/lib/previewMode';
+import { clearSession, isPortalRole, readSession, writeSession, type AuthenticatedUser } from '@/lib/auth/session';
+import { getPreviewUser, isPreviewMode, setPreviewRole, type PreviewRole } from '@/lib/previewMode';
 
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'unauthorized' | 'expired' | 'unavailable';
-interface AuthContextValue { status: AuthStatus; user: AuthenticatedUser | null; login: (payload: LoginRequest) => Promise<void>; logout: () => void; refresh: () => Promise<void> }
+interface AuthContextValue { status: AuthStatus; user: AuthenticatedUser | null; login: (payload: LoginRequest) => Promise<void>; logout: () => void; refresh: () => Promise<void>; switchPreviewRole: (role: PreviewRole) => void }
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -15,14 +15,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
 
   const refresh = useCallback(async () => {
-    if (isPreviewMode()) { setUser(PREVIEW_ADMIN); setStatus('authenticated'); return; }
+    if (isPreviewMode()) { setUser(getPreviewUser()); setStatus('authenticated'); return; }
     const session = readSession();
     if (!session) { setUser(null); setStatus('unauthenticated'); return; }
     setStatus('loading');
     try {
       const profile = await getCurrentUser();
       setUser(profile);
-      setStatus(isAdminRole(profile.role) ? 'authenticated' : 'unauthorized');
+      setStatus(isPortalRole(profile.role) ? 'authenticated' : 'unauthorized');
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) { clearSession(); setUser(null); setStatus('expired'); return; }
       if (error instanceof ApiError && error.status === 403) { setUser(session.user); setStatus('unauthorized'); return; }
@@ -42,16 +42,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (payload: LoginRequest) => {
-    if (isPreviewMode()) { clearSession(); setUser(PREVIEW_ADMIN); setStatus('authenticated'); return; }
+    if (isPreviewMode()) { clearSession(); setUser(getPreviewUser()); setStatus('authenticated'); return; }
     const response = await loginRequest(payload);
-    if (!isAdminRole(response.user.role)) { clearSession(); setUser(response.user); setStatus('unauthorized'); return; }
+    if (!isPortalRole(response.user.role)) { clearSession(); setUser(response.user); setStatus('unauthorized'); return; }
     writeSession({ accessToken: response.access_token, user: response.user });
     setUser(response.user);
     setStatus('authenticated');
   }, []);
 
   const logout = useCallback(() => { clearSession(); setUser(null); setStatus('unauthenticated'); }, []);
-  const value = useMemo(() => ({ status, user, login, logout, refresh }), [status, user, login, logout, refresh]);
+  const switchPreviewRole = useCallback((role: PreviewRole) => {
+    if (!isPreviewMode()) return;
+    setUser(setPreviewRole(role));
+    setStatus('authenticated');
+  }, []);
+  const value = useMemo(() => ({ status, user, login, logout, refresh, switchPreviewRole }), [status, user, login, logout, refresh, switchPreviewRole]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

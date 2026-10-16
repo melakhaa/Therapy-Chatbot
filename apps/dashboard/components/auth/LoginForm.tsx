@@ -6,11 +6,12 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { ApiError } from '@/lib/api/client';
 import { Button, Icon, IconButton, InlineAlert, Input, LoadingState } from '@/components/ui';
+import { roleHome } from '@/lib/auth/access';
 
 export function LoginForm() {
-  const { status, login, logout } = useAuth(); const { language, setLanguage, text } = useLanguage(); const router = useRouter();
+  const { status, user, login, logout } = useAuth(); const { language, setLanguage, text } = useLanguage(); const router = useRouter();
   const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [showPassword, setShowPassword] = useState(false); const [submitting, setSubmitting] = useState(false); const [error, setError] = useState<'invalid' | 'unavailable' | null>(null);
-  useEffect(() => { if (status === 'authenticated') router.replace('/overview'); }, [router, status]);
+  useEffect(() => { if (status === 'authenticated' && user) router.replace(roleHome(user.role)); }, [router, status, user]);
   if (status === 'loading') return <LoadingState fullPage label={text.auth.loading} />;
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setError(null); setSubmitting(true);
