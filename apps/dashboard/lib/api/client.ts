@@ -55,7 +55,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     const messages: Record<number, string> = {
       400: 'Permintaan tidak dapat diproses.',
       401: 'Email atau kata sandi salah, atau sesi telah berakhir.',
-      403: 'Akun ini tidak memiliki izin untuk mengakses portal administrator.',
+      403: 'Akun ini tidak memiliki izin untuk mengakses portal ini.',
       404: 'Data yang diminta tidak ditemukan.',
       422: 'Periksa kembali data yang dimasukkan.',
       429: 'Terlalu banyak percobaan. Coba lagi beberapa saat.',

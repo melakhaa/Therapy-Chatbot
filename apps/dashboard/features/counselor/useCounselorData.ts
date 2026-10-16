@@ -1,0 +1,3 @@
+'use client';
+import {useCallback,useEffect,useState} from 'react';
+export function useCounselorData<T>(loader:(signal:AbortSignal)=>Promise<T>){const[data,setData]=useState<T|null>(null);const[error,setError]=useState('');const[revision,setRevision]=useState(0);useEffect(()=>{const controller=new AbortController();loader(controller.signal).then(setData).catch((reason:unknown)=>{if(!controller.signal.aborted)setError(reason instanceof Error?reason.message:String(reason))});return()=>controller.abort()},[loader,revision]);return{data,error,retry:useCallback(()=>{setError('');setData(null);setRevision((value)=>value+1)},[])}}

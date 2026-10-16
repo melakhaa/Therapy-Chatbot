@@ -13,6 +13,19 @@ export const navigation: NavGroup[] = [
   { key: 'system', items: [{ key: 'instruments', href: '/instruments', icon: 'instrument' }, { key: 'hotline', href: '/hotline', icon: 'phone' }, { key: 'settings', href: '/settings', icon: 'settings' }] },
 ];
 
+export type CounselorNavKey = 'counselorHome'|'counselorStudents'|'counselorSchedule'|'counselorAvailability'|'counselorReviews'|'counselorSettings';
+export interface CounselorNavItem { key: CounselorNavKey; href: string; icon: IconName }
+export const counselorNavigation: Array<{key:'home'|'services'|'validation'|'account';items:CounselorNavItem[]}> = [
+  {key:'home',items:[{key:'counselorHome',href:'/counselor',icon:'home'}]},
+  {key:'services',items:[{key:'counselorStudents',href:'/counselor/students',icon:'students'},{key:'counselorSchedule',href:'/counselor/schedule',icon:'calendar'},{key:'counselorAvailability',href:'/counselor/availability',icon:'counselor'}]},
+  {key:'validation',items:[{key:'counselorReviews',href:'/counselor/reviews',icon:'instrument'}]},
+  {key:'account',items:[{key:'counselorSettings',href:'/counselor/settings',icon:'settings'}]},
+];
+
+export function navigationForRole(role: 'admin'|'konselor') {
+  return role === 'konselor' ? counselorNavigation : navigation;
+}
+
 export function isActivePath(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }

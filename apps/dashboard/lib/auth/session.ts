@@ -43,3 +43,7 @@ export function clearSession(): void {
 export function isAdminRole(role: SajiwaRole): boolean {
   return role === 'admin';
 }
+
+export function isPortalRole(role: SajiwaRole): boolean {
+  return role === 'admin' || role === 'konselor';
+}

@@ -5,6 +5,7 @@ import type { AttentionSignal } from '../features/overview/types';
 import type { Appointment, AvailabilityRule, BlockedPeriod, Counselor, CounselingRequest, CounselingResource, ResourceBlock } from '../features/counseling/types';
 import type { HotlineRecord, HotlineStatus } from '../features/hotline/types';
 import type { Instrument, InstrumentDetail, InstrumentStatus, QuestionDraft } from '../features/instruments/types';
+import type { CounselorCase, CounselorCaseDetail, CounselorException, CounselorWorkspace, ReviewComment, ReviewDetail, ReviewQueueItem } from '../features/counselor/types';
 
 const DAY = 86_400_000;
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -97,7 +98,7 @@ const standardQuestions: QuestionDraft[] = Array.from({ length: 21 }, (_, index)
 const standardBands = [{ label: 'Normal', minimum: 0, maximum: 9 }, { label: 'Ringan', minimum: 10, maximum: 13 }, { label: 'Sedang', minimum: 14, maximum: 20 }, { label: 'Berat', minimum: 21, maximum: 27 }, { label: 'Sangat berat', minimum: 28, maximum: null }];
 const customQuestions: QuestionDraft[] = [{ item_key: 'SKM-01', category: 'kesiapan', position: 1, wording: 'Saya dapat mengenali dukungan akademik yang saya perlukan.', active: true, options: answerOptions() }, { item_key: 'SKM-02', category: 'dukungan', position: 2, wording: 'Saya mengetahui layanan kampus yang dapat saya hubungi.', active: true, options: answerOptions() }];
 const instruments: Instrument[] = [
-  { instrument_id: 'preview-instrument-dass21', code: 'DASS-21', name: 'DASS-21 Standard', description: 'Instrumen standar terlindungi untuk preview konfigurasi.', active: true, language: 'id', instrument_kind: 'standard', derived_from_instrument_id: null, norms_enabled: true, provenance: { synthetic_preview: true }, versions: [{ instrument_version_id: 'preview-dass-v1', version_number: 1, status: 'published', authoritative_config: true, updated_at: at(-40, 9), published_at: at(-40, 9) }] },
+  { instrument_id: 'preview-instrument-dass21', code: 'DASS-21', name: 'DASS-21 Standard', description: 'Instrumen standar terlindungi untuk preview konfigurasi.', active: true, language: 'id', instrument_kind: 'standard', derived_from_instrument_id: null, norms_enabled: true, provenance: { synthetic_preview: true, source: 'Lovibond & Lovibond (1995)' }, versions: [{ instrument_version_id: 'preview-dass-v2', version_number: 2, status: 'draft', authoritative_config: true, updated_at: at(-1, 9), published_at: null }, { instrument_version_id: 'preview-dass-v1', version_number: 1, status: 'published', authoritative_config: true, updated_at: at(-40, 9), published_at: at(-40, 9) }] },
   { instrument_id: 'preview-instrument-draft', code: 'SKM-PREVIEW', name: 'Skrining Kesiapan Mahasiswa (Preview)', description: 'Contoh instrumen custom untuk demonstrasi builder.', active: true, language: 'id', instrument_kind: 'custom', derived_from_instrument_id: null, norms_enabled: false, provenance: { synthetic_preview: true }, versions: [{ instrument_version_id: 'preview-draft-v1', version_number: 1, status: 'draft', authoritative_config: false, updated_at: at(-1, 15), published_at: null }] },
   { instrument_id: 'preview-instrument-published', code: 'ADAPT-PREVIEW', name: 'Adaptasi Kampus Sintetis', description: 'Contoh custom yang telah dipublikasikan.', active: true, language: 'id', instrument_kind: 'custom', derived_from_instrument_id: null, norms_enabled: false, provenance: { synthetic_preview: true }, versions: [{ instrument_version_id: 'preview-published-v1', version_number: 1, status: 'published', authoritative_config: false, updated_at: at(-20, 11), published_at: at(-20, 11) }] },
   { instrument_id: 'preview-instrument-wellbeing', code: 'SWS', name: 'Student Wellbeing Screening', description: 'Deterministic versioned-review workflow for local preview.', active: true, language: 'en', instrument_kind: 'custom', derived_from_instrument_id: null, norms_enabled: false, provenance: { synthetic_preview: true, workflow: 'versioned_review' }, versions: [{ instrument_version_id: 'preview-wellbeing-v2', version_number: 2, status: 'draft', authoritative_config: false, updated_at: at(-1, 14), published_at: null }, { instrument_version_id: 'preview-wellbeing-v1', version_number: 1, status: 'published', authoritative_config: false, updated_at: at(-60, 10), published_at: at(-60, 10) }] },
@@ -105,7 +106,8 @@ const instruments: Instrument[] = [
 
 const version = (instrument: Instrument, versionId: string, status: InstrumentStatus, revision: number, questions: QuestionDraft[]): InstrumentDetail => ({ version: { ...instrument.versions[0], instrument_version_id: versionId, status, instrument_id: instrument.instrument_id, code: instrument.code, name: instrument.name, language: instrument.language, instrument_kind: instrument.instrument_kind, norms_enabled: instrument.norms_enabled, provenance: instrument.provenance, derived_from_instrument_id: null, expected_question_count: questions.length, definition_revision: revision, scoring_config: instrument.instrument_kind === 'standard' ? { strategy: 'dass21', standardization_multiplier: 2 } : { strategy: 'sum_by_dimension' }, created_at: at(-30, 9), created_by_name: 'Preview Administrator', updated_by_name: 'Preview Administrator', published_by_name: status === 'published' ? 'Konselor Preview' : null }, questions, dimensions: (instrument.instrument_kind === 'standard' ? ['depression', 'anxiety', 'stress'] : ['kesiapan', 'dukungan']).map((code, index) => ({ code, name: code, position: index + 1, multiplier: instrument.instrument_kind === 'standard' ? 2 : 1, interpretation_bands: instrument.instrument_kind === 'standard' ? clone(standardBands) : [] })), reviews: status === 'draft' ? [{ assessment_version_review_id: 'preview-review-01', definition_revision: revision, status: 'pending' }] : [] });
 const instrumentDetails: Record<string, InstrumentDetail> = {
-  'preview-dass-v1': version(instruments[0], 'preview-dass-v1', 'published', 1, standardQuestions),
+  'preview-dass-v2': (() => { const detail = version(instruments[0], 'preview-dass-v2', 'draft', 2, standardQuestions); detail.version.version_number = 2; return detail; })(),
+  'preview-dass-v1': (() => { const detail = version(instruments[0], 'preview-dass-v1', 'published', 1, standardQuestions); detail.version.version_number = 1; detail.version.published_at = at(-40, 9); return detail; })(),
   'preview-draft-v1': version(instruments[1], 'preview-draft-v1', 'draft', 3, customQuestions),
   'preview-published-v1': version(instruments[2], 'preview-published-v1', 'published', 2, customQuestions),
   'preview-wellbeing-v2': { ...version(instruments[3], 'preview-wellbeing-v2', 'draft', 2, customQuestions), reviews: [
@@ -115,6 +117,43 @@ const instrumentDetails: Record<string, InstrumentDetail> = {
   ] },
   'preview-wellbeing-v1': version(instruments[3], 'preview-wellbeing-v1', 'published', 1, customQuestions),
 };
+
+const counselorCases: CounselorCase[] = [
+  { case_id: 'preview-case-01', student_id: students[0].user_id, student_name: students[0].nama, nim: students[0].nim, faculty_name: students[0].faculty_name, academic_unit_name: students[0].academic_unit_name, context: 'Tindak lanjut asesmen dan penyesuaian akademik', risk: 'high', assessment_summary: 'DASS-21: depresi berat; kecemasan dan stres sedang', assessment_at: assessments[students[0].user_id][0].taken_at, last_session_at: at(-7, 10), next_session_at: at(1, 10), follow_up_status: 'action_required' },
+  { case_id: 'preview-case-02', student_id: students[1].user_id, student_name: students[1].nama, nim: students[1].nim, faculty_name: students[1].faculty_name, academic_unit_name: students[1].academic_unit_name, context: 'Dukungan krisis terkoordinasi', risk: 'critical', assessment_summary: 'DASS-21: ringkasan risiko sangat tinggi', assessment_at: assessments[students[1].user_id][0].taken_at, last_session_at: at(-12, 9), next_session_at: at(3, 13), follow_up_status: 'planned' },
+  { case_id: 'preview-case-03', student_id: students[2].user_id, student_name: students[2].nama, nim: students[2].nim, faculty_name: students[2].faculty_name, academic_unit_name: students[2].academic_unit_name, context: 'Pemantauan keterampilan belajar', risk: 'medium', assessment_summary: 'DASS-21: gejala sedang', assessment_at: assessments[students[2].user_id][0].taken_at, last_session_at: at(-3, 15), next_session_at: at(0, 9), follow_up_status: 'complete' },
+];
+
+let counselorExceptions: CounselorException[] = [
+  { exception_id: 'preview-exception-01', date: day(1), starts_at: at(1, 14), ends_at: at(1, 16), full_day: false, reason: 'Cuti pribadi sintetis', note: 'Contoh pengecualian yang disetujui.', status: 'approved', submitted_at: at(-4, 9), decision_note: 'Disetujui admin preview.', affected_appointments: [] },
+  { exception_id: 'preview-exception-02', date: day(4), starts_at: at(4, 0), ends_at: at(5, 0), full_day: true, reason: 'Kegiatan profesi', note: null, status: 'pending', submitted_at: at(-1, 11), decision_note: null, affected_appointments: [] },
+];
+
+let reviewQueue: ReviewQueueItem[] = [
+  { review_id: 'preview-review-assigned', instrument_version_id: 'preview-dass-v2', definition_revision: 2, current_revision: 2, status: 'pending', submitted_at: at(-1, 9), reviewer_counselor_id: 'preview-counselor-01', reviewer_name: counselors[0].nama, code: 'DASS-21', name: 'DASS-21 Standard', version_number: 2, instrument_kind: 'standard', submitted_by_name: 'Admin Preview' },
+  { review_id: 'preview-review-open', instrument_version_id: 'preview-wellbeing-v2', definition_revision: 2, current_revision: 2, status: 'pending', submitted_at: at(-2, 13), reviewer_counselor_id: null, reviewer_name: null, code: 'SWS', name: 'Student Wellbeing Screening', version_number: 2, instrument_kind: 'custom', submitted_by_name: 'Admin Preview' },
+];
+const reviewComments: Record<string, ReviewComment[]> = {
+  'preview-review-assigned': [{ review_comment_id: 'preview-comment-01', assessment_question_id: null, author_user_id: 'preview-admin-01', author_name: 'Admin Preview', comment_text: 'Mohon tinjau kejelasan skoring dan bahasa setiap item.', created_at: at(-1, 10) }],
+};
+
+function counselorWorkspace(): CounselorWorkspace {
+  const mine = appointments.filter((row) => row.counselor_id === counselors[0].user_id).map((row) => ({ ...row, service_type: 'Konseling Individu', resource_name: row.resource_name ?? null, resource_type: row.resource_id === 'preview-resource-virtual' ? 'virtual' as const : 'physical' as const }));
+  return { appointments: mine, availability: availability.filter((row) => row.counselor_id === counselors[0].user_id).map(({ availability_rule_id, day_of_week, start_time, end_time, effective_from, effective_to }) => ({ availability_rule_id, day_of_week, start_time, end_time, effective_from, effective_to })), exceptions: counselorExceptions };
+}
+
+function counselorCaseDetail(studentId: string): CounselorCaseDetail {
+  const item = counselorCases.find((row) => row.student_id === studentId);
+  if (!item) throw new Error('Preview counselor case not found');
+  return { case: item, support_summary: 'Ringkasan dukungan yang relevan untuk layanan; detail sensitif dibatasi.', assessments: (assessments[studentId] ?? []).map((row) => ({ assessment_id: row.assessment_id, instrument: row.instrument_type, taken_at: row.taken_at ?? at(-1, 9), severity: row.severity ?? 'unknown', dimensions: (row.category_results ?? []).map((dimension) => ({ name: dimension.category, score: dimension.scaled_score, severity: dimension.severity ?? 'unknown' })) })), sessions: appointments.filter((row) => row.student_id === studentId && row.counselor_id === counselors[0].user_id).map((row) => ({ appointment_id: row.appointment_id, starts_at: row.starts_at, ends_at: row.ends_at, status: row.status, service_type: 'Konseling Individu', resource_name: row.resource_name ?? null })) };
+}
+
+function reviewDetail(reviewId: string): ReviewDetail {
+  const review = reviewQueue.find((row) => row.review_id === reviewId);
+  if (!review) throw new Error('Preview instrument review not found');
+  const detail = instrumentDetails[review.instrument_version_id];
+  return { review: { ...review, version_status: detail.version.status, provenance: detail.version.provenance }, dimensions: detail.dimensions ?? [], questions: detail.questions, comments: reviewComments[reviewId] ?? [], previous: null };
+}
 
 let hotlines: HotlineRecord[] = [
   { hotline_id: 'preview-hotline-01', name: 'Layanan Dukungan Sintetis', phone: '0800-PREVIEW-01', description: 'Kontak demonstrasi yang tidak terhubung ke layanan nyata.', service_type: 'Dukungan psikologis', operational_hours: 'Sen–Jum, 08.00–17.00', coverage: 'Kampus', verification_status: 'active', verified_at: at(-5, 10), verified_by: 'Preview Administrator', verification_note: 'Verifikasi sintetis untuk demonstrasi.', created_at: at(-30, 9), updated_at: at(-5, 10), updated_by: 'Preview Administrator' },
@@ -148,7 +187,23 @@ export async function previewRequest<T>(path: string, options: ApiRequestOptions
   const url = new URL(path, 'http://preview.sajiwa.local'); const method = (options.method ?? 'GET').toUpperCase(); const body = (options.body ?? {}) as Record<string, unknown>;
   let result: unknown;
 
-  if (path.startsWith('/admin/attention')) {
+  if (url.pathname === '/counselor/cases') {
+    result = { cases: counselorCases, total: counselorCases.length };
+  } else if (/^\/counselor\/cases\/[^/]+$/.test(url.pathname)) {
+    result = counselorCaseDetail(decodeURIComponent(url.pathname.split('/').at(-1)!));
+  } else if (url.pathname === '/counselor/calendar') {
+    const from = url.searchParams.get('date_from') ?? day(-7); const to = url.searchParams.get('date_to') ?? day(7); const workspace = counselorWorkspace(); const inRange = (value: string) => key(new Date(value)) >= from && key(new Date(value)) <= to; result = { ...workspace, appointments: workspace.appointments.filter((row) => inRange(row.starts_at)), exceptions: workspace.exceptions.filter((row) => row.date >= from && row.date <= to) };
+  } else if (url.pathname === '/counselor/exception-requests' && method === 'POST') {
+    const fullDay = Boolean(body.full_day); const startsAt = fullDay ? `${body.date as string}T00:00:00+07:00` : `${body.date as string}T${body.start_time as string}:00+07:00`; const nextDate = new Date(`${body.date as string}T12:00:00Z`); nextDate.setUTCDate(nextDate.getUTCDate()+1); const endsAt = fullDay ? `${nextDate.toISOString().slice(0,10)}T00:00:00+07:00` : `${body.date as string}T${body.end_time as string}:00+07:00`; const exception: CounselorException = { exception_id: `preview-exception-${Date.now()}`, date: body.date as string, starts_at: startsAt, ends_at: endsAt, full_day: fullDay, reason: body.reason as string, note: body.note as string || null, status: 'pending', submitted_at: new Date().toISOString(), decision_note: null, affected_appointments: [] }; counselorExceptions = [exception, ...counselorExceptions]; result = { exception };
+  } else if (url.pathname === '/counselor/instrument-reviews') {
+    const status = url.searchParams.get('status'); const rows = reviewQueue.filter((row) => !status || row.status === status); result = { reviews: rows, total: rows.length };
+  } else if (/^\/counselor\/instrument-reviews\/[^/]+\/comments$/.test(url.pathname) && method === 'POST') {
+    const reviewId = decodeURIComponent(url.pathname.split('/')[3]); const comment: ReviewComment = { review_comment_id: `preview-comment-${Date.now()}`, assessment_question_id: body.assessment_question_id as string | null, author_user_id: counselors[0].user_id, author_name: counselors[0].nama, comment_text: body.comment as string, created_at: new Date().toISOString() }; reviewComments[reviewId] = [...(reviewComments[reviewId] ?? []), comment]; result = { comment };
+  } else if (/^\/counselor\/instrument-reviews\/[^/]+\/(approve|request-revision)$/.test(url.pathname) && method === 'POST') {
+    const parts = url.pathname.split('/'); const reviewId = decodeURIComponent(parts[3]); const status = parts[4] === 'approve' ? 'approved' : 'revision_requested'; reviewQueue = reviewQueue.map((row) => row.review_id === reviewId ? { ...row, status } : row); result = { review: reviewQueue.find((row) => row.review_id === reviewId) };
+  } else if (/^\/counselor\/instrument-reviews\/[^/]+$/.test(url.pathname)) {
+    result = reviewDetail(decodeURIComponent(url.pathname.split('/').at(-1)!));
+  } else if (path.startsWith('/admin/attention')) {
     const match = url.pathname.match(/^\/admin\/attention\/([^/]+)\/read$/);
     if (match && method === 'PATCH') { signals = signals.map((row) => row.guardrail_log_id === decodeURIComponent(match[1]) ? { ...row, is_read: true } : row); result = { message: 'Preview attention marked reviewed' }; }
     else result = attention();

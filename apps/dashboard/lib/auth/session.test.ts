@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { clearSession, isAdminRole, readSession, writeSession, type StoredSession } from './session.ts';
+import { clearSession, isAdminRole, isPortalRole, readSession, writeSession, type StoredSession } from './session.ts';
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>();
@@ -17,6 +17,13 @@ test('accepts only the backend administrator role', () => {
   assert.equal(isAdminRole('mahasiswa'), false);
   assert.equal(isAdminRole('konselor'), false);
   assert.equal(isAdminRole('pemangku_jabatan'), false);
+});
+
+test('portal admits administrators and counselors only', () => {
+  assert.equal(isPortalRole('admin'), true);
+  assert.equal(isPortalRole('konselor'), true);
+  assert.equal(isPortalRole('mahasiswa'), false);
+  assert.equal(isPortalRole('pemangku_jabatan'), false);
 });
 
 test('stores, reads, and clears a per-tab session', () => {
