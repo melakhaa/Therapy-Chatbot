@@ -88,7 +88,8 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             <BlurView
               intensity={Platform.OS === 'android' ? 40 : 60}
               tint="light"
-              experimentalBlurMethod="dimezisBlurView"
+              // No Android blur since SDK 55 (it needs a <BlurTargetView> around the
+              // whole screen); the tint below keeps the toast readable on its own
               style={StyleSheet.absoluteFill}
             />
             <View style={[StyleSheet.absoluteFill, s.tint]} />

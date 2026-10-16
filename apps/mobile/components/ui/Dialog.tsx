@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   dialogCard: {
     width: '100%',
