@@ -21,17 +21,25 @@ export interface UseAuthReturn {
   logout: () => Promise<void>;
 }
 
+// Every useAuth() keeps its own copy of the user. This keeps the copies in step, so a
+// component mounted before sign-in (the root layout's privacy walkthrough) learns who signed
+// in without an app restart. A listener set, not a context — no provider to thread.
+const listeners = new Set<(u: AuthUser | null) => void>();
+const broadcast = (u: AuthUser | null) => listeners.forEach((l) => l(u));
+
 export function useAuth(): UseAuthReturn {
   const [user, setUser]         = useState<AuthUser | null>(null);
   const [isLoading, setLoading] = useState(true);
   const [error, setError]       = useState<string | null>(null);
 
-  // Load persisted user on mount
+  // Load persisted user on mount, then follow sign-ins and sign-outs from anywhere
   useEffect(() => {
+    listeners.add(setUser);
     getStoredUser<AuthUser>().then((u: AuthUser | null) => {
       setUser(u);
       setLoading(false);
     });
+    return () => { listeners.delete(setUser); };
   }, []);
 
   const login = useCallback(async (payload: LoginPayload) => {
@@ -39,7 +47,7 @@ export function useAuth(): UseAuthReturn {
     setError(null);
     try {
       const data = await apiLogin(payload);
-      setUser(data.user as AuthUser);
+      broadcast(data.user as AuthUser);
       return data;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Login gagal';
@@ -52,7 +60,7 @@ export function useAuth(): UseAuthReturn {
 
   const logout = useCallback(async () => {
     await clearAuth();
-    setUser(null);
+    broadcast(null);
   }, []);
 
   return {
