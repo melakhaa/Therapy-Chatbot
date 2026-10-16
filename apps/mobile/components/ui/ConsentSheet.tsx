@@ -1,21 +1,37 @@
 // Privacy consent, shown once per account before the app is used.
-// Presented as an iOS-style sheet: a dimmed backdrop, rounded top corners, a grabber,
-// and a spring that carries it up from the bottom edge. Themed like the rest of Sajiwa.
+// A full-screen, iOS-style walkthrough: an intro, then one privacy point per page, paged
+// sideways. Transitions follow the finger rather than playing on a timer — the icon grows
+// in and the text trails it slightly (parallax), and the page dots stretch toward the page
+// being reached. All of it runs on the UI thread; with "reduce motion" on, pages just page.
 //
 // Every claim below is checked against what the backend actually does; see the comments
 // next to each point. Do not soften or extend them without re-checking the code.
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  View, Text, StyleSheet, Modal, ScrollView, Pressable, Animated, Easing,
-  useWindowDimensions, AccessibilityInfo,
-} from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Modal, Pressable, useWindowDimensions } from 'react-native';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedReaction,
+  useAnimatedRef,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSpring,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, Neu, useAuth } from '@prototype/ui-shared';
 // Direct file import: going through the chat barrel would cycle back into ui/index
 import { Companion } from '../chat/Companion';
 import { Button } from './Button';
+import { haptic } from './haptics';
+import { offsetOf, PagerDots } from './Pager';
 
 const KEY = (userId: string) => `sajiwa_consent_v1:${userId}`;
 
@@ -58,23 +74,66 @@ const POINTS: Point[] = [
   },
 ];
 
+// Intro + one page per point
+const PAGE_COUNT = POINTS.length + 1;
+
+/** Icon and text of one page, moving at two speeds so the page reads as layered. */
+const Page: React.FC<{
+  index: number;
+  width: number;
+  scrollX: SharedValue<number>;
+  reduce: boolean;
+  art: React.ReactNode;
+  children: React.ReactNode;
+}> = ({ index, width, scrollX, reduce, art, children }) => {
+  const artStyle = useAnimatedStyle(() => {
+    if (reduce) return {};
+    const p = offsetOf(scrollX.value, index, width);
+    return {
+      opacity: interpolate(p, [-1, 0, 1], [0, 1, 0], Extrapolation.CLAMP),
+      transform: [
+        { translateX: interpolate(p, [-1, 0, 1], [width * 0.3, 0, -width * 0.3], Extrapolation.CLAMP) },
+        { scale: interpolate(p, [-1, 0, 1], [0.55, 1, 0.55], Extrapolation.CLAMP) },
+      ],
+    };
+  });
+
+  // Text lags behind the art: a gentler slide and a quicker fade, the iOS parallax feel
+  const textStyle = useAnimatedStyle(() => {
+    if (reduce) return {};
+    const p = offsetOf(scrollX.value, index, width);
+    return {
+      opacity: interpolate(p, [-0.6, 0, 0.6], [0, 1, 0], Extrapolation.CLAMP),
+      transform: [{ translateX: interpolate(p, [-1, 0, 1], [width * 0.12, 0, -width * 0.12], Extrapolation.CLAMP) }],
+    };
+  });
+
+  return (
+    <View style={[s.page, { width }]} accessible accessibilityRole="summary">
+      <View style={s.pageInner}>
+        <Animated.View style={[s.artSlot, artStyle]}>{art}</Animated.View>
+        <Animated.View style={[s.textBlock, textStyle]}>{children}</Animated.View>
+      </View>
+    </View>
+  );
+};
+
 export const ConsentSheet: React.FC = () => {
   const { user, isLoggedIn, logout } = useAuth();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
+  const reduce = useReducedMotion();
 
   const [open, setOpen] = useState(false);
-  const anim = useRef(new Animated.Value(0)).current; // 0 offscreen, 1 settled
-  const reduceMotion = useRef(false);
+  const [page, setPage] = useState(0);
+  const enter = useSharedValue(0); // 0 hidden, 1 shown
+  const scrollX = useSharedValue(0);
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
 
   const userId = (user as { user_id?: string } | null)?.user_id;
 
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().catch(() => false).then((rm) => { reduceMotion.current = !!rm; });
-  }, []);
-
-  // Ask once per account, the first time that account opens the app
+  // Ask once per account, the first time that account opens the app on this device
   useEffect(() => {
     let cancelled = false;
     if (!isLoggedIn || !userId) { setOpen(false); return; }
@@ -86,75 +145,129 @@ export const ConsentSheet: React.FC = () => {
 
   useEffect(() => {
     if (!open) return;
-    anim.setValue(reduceMotion.current ? 1 : 0);
-    if (reduceMotion.current) return;
-    // The iOS sheet feel: quick to arrive, settles without bouncing past the edge
-    Animated.spring(anim, { toValue: 1, damping: 22, stiffness: 190, mass: 0.9, useNativeDriver: true }).start();
-  }, [open, anim]);
+    setPage(0);
+    scrollX.value = 0;
+    enter.value = reduce ? 1 : withSpring(1, { damping: 26, stiffness: 220, mass: 0.9 });
+  }, [open, reduce, enter, scrollX]);
+
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollX.value = e.contentOffset.x;
+  });
+
+  // Track the page the scroll lands on, from the UI thread, so it works the same on web
+  // (no momentum events there) and gives one haptic tick per page reached.
+  useAnimatedReaction(
+    () => Math.round(scrollX.value / Math.max(width, 1)),
+    (now, before) => {
+      if (before !== null && now !== before) runOnJS(setPage)(now);
+    },
+    [width],
+  );
+  useEffect(() => { if (page > 0) haptic.select(); }, [page]);
+
+  const goTo = useCallback((index: number) => {
+    scrollRef.current?.scrollTo({ x: index * width, animated: !reduce });
+  }, [scrollRef, width, reduce]);
 
   const close = useCallback((after: () => void) => {
-    if (reduceMotion.current) { setOpen(false); after(); return; }
-    Animated.timing(anim, { toValue: 0, duration: 220, easing: Easing.in(Easing.cubic), useNativeDriver: true })
-      .start(() => { setOpen(false); after(); });
-  }, [anim]);
+    if (reduce) { setOpen(false); after(); return; }
+    enter.value = withTiming(0, { duration: 220 }, (done) => {
+      if (done) {
+        runOnJS(setOpen)(false);
+        runOnJS(after)();
+      }
+    });
+  }, [enter, reduce]);
 
   const accept = () => {
     if (userId) AsyncStorage.setItem(KEY(userId), new Date().toISOString()).catch(() => {});
+    haptic.success();
     close(() => {});
   };
 
   // Consent has to be refusable, or it is not consent
-  const decline = () => close(() => { logout(); });
+  const decline = () => close(() => { logout().then(() => router.replace('/')); });
+
+  const last = page >= PAGE_COUNT - 1;
+  const primary = () => (last ? accept() : goTo(page + 1));
+  // Android back: step back through the pages first, then decline from the first one
+  const back = () => (page > 0 ? goTo(page - 1) : decline());
+
+  const screenStyle = useAnimatedStyle(() => ({
+    opacity: enter.value,
+    transform: [{ translateY: interpolate(enter.value, [0, 1], [36, 0]) }],
+  }));
 
   if (!open) return null;
 
   const TONE = { sage: colors.sage, navy: colors.primary, amber: colors.amber };
 
-  return (
-    <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={decline}>
-      <Animated.View style={[s.backdrop, { opacity: anim }]} />
-      <Animated.View
-        style={[
-          s.sheet,
-          {
-            backgroundColor: colors.background,
-            maxHeight: height * 0.88,
-            paddingBottom: insets.bottom + 12,
-            transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [height, 0] }) }],
-          },
-        ]}
-      >
-        <View style={[s.grabber, { backgroundColor: colors.outlineVariant }]} />
+  // The art for a point: a raised disc holding a sunken well, the icon inside — the same
+  // neumorphic "portal" the sign-in screen uses for the companion.
+  const disc = (p: Point) => (
+    <View style={[s.disc, { backgroundColor: colors.background, boxShadow: Neu.raised }]}>
+      <View style={[s.well, { backgroundColor: colors.background, boxShadow: Neu.inset }]}>
+        <Ionicons name={p.icon} size={54} color={TONE[p.tone]} />
+      </View>
+    </View>
+  );
 
-        <View style={s.head}>
-          <View style={{ flex: 1, gap: 6 }}>
-            <Text style={[s.eyebrow, { color: colors.textMuted }]}>Sebelum mulai</Text>
-            <Text style={[s.title, { color: colors.onSurface }]} accessibilityRole="header">
-              Privasi ceritamu
-            </Text>
-          </View>
-          <Companion expression="tenang" size={84} />
+  return (
+    <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={back}>
+      <Animated.View style={[s.screen, { backgroundColor: colors.background, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }, screenStyle]}>
+        <View style={s.topBar}>
+          <Text style={[s.eyebrow, { color: colors.textMuted }]}>Sebelum mulai</Text>
+          <Text style={[s.counter, { color: colors.textMuted }]} accessibilityLabel={`Halaman ${page + 1} dari ${PAGE_COUNT}`}>
+            {page + 1}/{PAGE_COUNT}
+          </Text>
         </View>
 
-        <ScrollView style={s.scroll} contentContainerStyle={s.scrollBody} showsVerticalScrollIndicator={false}>
-          {POINTS.map((p) => (
-            <View key={p.title} style={s.point}>
-              <View style={[s.pointIcon, { backgroundColor: TONE[p.tone] + '1F' }]}>
-                <Ionicons name={p.icon} size={18} color={TONE[p.tone]} />
-              </View>
-              <View style={{ flex: 1, gap: 3 }}>
-                <Text style={[s.pointTitle, { color: colors.onSurface }]}>{p.title}</Text>
-                <Text style={[s.pointBody, { color: colors.onSurfaceVariant }]}>{p.body}</Text>
-              </View>
-            </View>
-          ))}
-          <Text style={[s.footnote, { color: colors.textMuted }]}>
-            Kamu bisa menghapus jurnal kapan saja lewat halaman Jurnal.
-          </Text>
-        </ScrollView>
+        <Animated.ScrollView
+          ref={scrollRef}
+          horizontal
+          pagingEnabled
+          bounces={false}
+          showsHorizontalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          style={s.pager}
+        >
+          <Page
+            index={0}
+            width={width}
+            scrollX={scrollX}
+            reduce={reduce}
+            art={<Companion expression="tenang" size={190} />}
+          >
+            <Text style={[s.title, { color: colors.onSurface }]} accessibilityRole="header">Privasi ceritamu</Text>
+            <Text style={[s.body, { color: colors.onSurfaceVariant }]}>
+              Sebelum kita ngobrol, ini cara Sajiwa menjaga ceritamu. Geser untuk membaca satu per satu.
+            </Text>
+          </Page>
 
-        <View style={[s.actions, { borderTopColor: colors.outlineVariant }]}>
-          <Button label="Saya mengerti dan setuju" onPress={accept} />
+          {POINTS.map((p, i) => (
+            <Page key={p.title} index={i + 1} width={width} scrollX={scrollX} reduce={reduce} art={disc(p)}>
+              <Text style={[s.title, { color: colors.onSurface }]} accessibilityRole="header">{p.title}</Text>
+              <Text style={[s.body, { color: colors.onSurfaceVariant }]}>{p.body}</Text>
+              {i === POINTS.length - 1 && (
+                <Text style={[s.footnote, { color: colors.textMuted }]}>
+                  Kamu bisa menghapus jurnal kapan saja lewat halaman Jurnal.
+                </Text>
+              )}
+            </Page>
+          ))}
+        </Animated.ScrollView>
+
+        <View style={s.dots}>
+          <PagerDots count={PAGE_COUNT} width={width} scrollX={scrollX} color={colors.primary} />
+        </View>
+
+        <View style={s.actions}>
+          <Button
+            label={last ? 'Saya mengerti dan setuju' : 'Lanjut'}
+            onPress={primary}
+            icon={last ? undefined : <Ionicons name="arrow-forward" size={18} color="#fff" />}
+          />
           <Pressable onPress={decline} accessibilityRole="button" style={s.decline} hitSlop={8}>
             <Text style={[s.declineText, { color: colors.onSurfaceVariant }]}>Belum sekarang, keluar dulu</Text>
           </Pressable>
@@ -165,29 +278,28 @@ export const ConsentSheet: React.FC = () => {
 };
 
 const s = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(16,22,44,0.42)' },
-  // Corners only at the top, the way a sheet meets the bottom edge on iOS
-  sheet: {
-    position: 'absolute', left: 0, right: 0, bottom: 0,
-    borderTopLeftRadius: 30, borderTopRightRadius: 30,
-    paddingHorizontal: 22, paddingTop: 10,
-    boxShadow: '0px -10px 34px rgba(16,22,44,0.22)',
-  },
-  grabber: { width: 40, height: 5, borderRadius: 3, alignSelf: 'center', marginBottom: 12, opacity: 0.9 },
-
-  head: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  screen: { ...StyleSheet.absoluteFillObject },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24 },
   eyebrow: { fontSize: 11, fontFamily: 'PlusJakartaSans_700Bold', letterSpacing: 1.4, textTransform: 'uppercase' },
-  title: { fontSize: 26, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.8 },
+  counter: { fontSize: 12, fontFamily: 'PlusJakartaSans_600SemiBold' },
 
-  scroll: { flexGrow: 0 },
-  scrollBody: { gap: 16, paddingVertical: 10 },
-  point: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  pointIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  pointTitle: { fontSize: 15, fontFamily: 'PlusJakartaSans_700Bold' },
-  pointBody: { fontSize: 13.5, lineHeight: 20, fontFamily: 'PlusJakartaSans_400Regular' },
-  footnote: { fontSize: 12, lineHeight: 18, fontFamily: 'PlusJakartaSans_500Medium', paddingTop: 2 },
+  // The Modal hands web focus to the scroll area, which drew a black focus box around the
+  // whole page. Keyboard users still page with the buttons, which keep their focus ring.
+  pager: { flex: 1, outlineWidth: 0 },
+  page: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
+  // Readable line length on a tablet or a wide browser window too
+  pageInner: { width: '100%', maxWidth: 440, alignItems: 'center', gap: 34 },
+  artSlot: { alignItems: 'center', justifyContent: 'center', minHeight: 210 },
+  disc: { width: 196, height: 196, borderRadius: 98, alignItems: 'center', justifyContent: 'center' },
+  well: { width: 150, height: 150, borderRadius: 75, alignItems: 'center', justifyContent: 'center' },
+  textBlock: { alignItems: 'center', gap: 12 },
+  title: { fontSize: 27, lineHeight: 33, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.8, textAlign: 'center' },
+  body: { fontSize: 15.5, lineHeight: 24, fontFamily: 'PlusJakartaSans_400Regular', textAlign: 'center' },
+  footnote: { fontSize: 12.5, lineHeight: 19, fontFamily: 'PlusJakartaSans_500Medium', textAlign: 'center', marginTop: 4 },
 
-  actions: { gap: 4, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth },
+  dots: { marginBottom: 22 },
+
+  actions: { gap: 4, paddingHorizontal: 24, width: '100%', maxWidth: 488, alignSelf: 'center' },
   decline: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   declineText: { fontSize: 14, fontFamily: 'PlusJakartaSans_600SemiBold' },
 });
