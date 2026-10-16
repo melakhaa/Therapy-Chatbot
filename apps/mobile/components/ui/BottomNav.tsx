@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -10,6 +10,7 @@ import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Neu, useTheme } from '@prototype/ui-shared';
 import { Fab, FAB_SIZE } from './Fab';
+import { haptic } from './haptics';
 
 // Geometry of the floating bar and the chat button above it, measured from the safe-area
 // bottom. Kept here, next to the styles that produce it, because every screen that shows
@@ -71,8 +72,50 @@ const TABS: Tab[] = [
   },
 ];
 
+// ── Swiping between tabs ─────────────────────────────────────────
+// A sideways swipe on a tab screen opens the neighbouring tab (the gesture lives in the
+// root layout). Chat is left out: it is a full-screen conversation without the bar, and a
+// stray sideways drag there should not throw you out of it.
+type Dir = 'next' | 'prev';
+const SWIPE_ROUTES = TABS.map((t) => t.route).filter((r) => r !== '/chat');
+export const isSwipeTab = (pathname: string) => SWIPE_ROUTES.includes(pathname);
+
+// Direction of the switch in flight, read by the root layout to pick the transition.
+// Module state, not context: only one tab switch can be in flight at a time.
+let switching: Dir | null = null;
+let reset: ReturnType<typeof setTimeout> | undefined;
+export const tabAnimation = () =>
+  switching === 'next' ? 'slide_from_right' : switching === 'prev' ? 'slide_from_left' : 'none';
+
+function switchTab(route: string, dir: Dir | null = null) {
+  switching = dir;
+  clearTimeout(reset);
+  // Long enough for the navigator to read it for the incoming screen, short enough that a
+  // later, unrelated replace (sign-in → home) still opens without motion.
+  reset = setTimeout(() => { switching = null; }, 500);
+  router.replace(route as never);
+}
+
+// A screen holding unsaved input (a half-answered assessment, a draft) locks the swipe so
+// an accidental drag cannot throw the input away. Tapping a tab still works: that is deliberate.
+let locked = false;
+export function useTabSwipeLock(lock: boolean) {
+  useEffect(() => {
+    locked = lock;
+    return () => { locked = false; };
+  }, [lock]);
+}
+
+export function swipeTab(pathname: string, dir: Dir) {
+  const i = SWIPE_ROUTES.indexOf(pathname);
+  const to = SWIPE_ROUTES[i + (dir === 'next' ? 1 : -1)];
+  if (locked || i < 0 || !to) return;
+  haptic.select();
+  switchTab(to, dir);
+}
+
 // Floating bar; the active tab sits in a sunken well.
-// No motion is used when switching tabs.
+// A tap switches instantly; a swipe slides in from the side it came from.
 export default function BottomNav() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -130,7 +173,7 @@ export default function BottomNav() {
                 // home → chat kept four screens alive), so memory and render work grew for
                 // the whole session. Tab screens already disable swipe-back, so the stack
                 // history bought nothing.
-                router.replace(tab.route as never);
+                switchTab(tab.route);
               }
             }}
           >
