@@ -7,12 +7,12 @@ export interface AssessmentCategoryResult {
 }
 
 export interface AttentionSignal {
-  log_id: string;
+  guardrail_log_id: string;
   user_id: string | null;
   assessment_id: string | null;
   is_read: boolean;
   notified_at: string | null;
-  nama: string | null;
+  name: string | null;
   nim: string | null;
   signal_type: 'assessment' | 'safety';
   assessment_categories?: string | null;
@@ -32,7 +32,7 @@ export interface CounselingRequest {
   student_id: string;
   status: 'requested' | 'confirmed' | 'completed' | 'cancelled' | 'rescheduled' | 'no_show';
   created_at: string;
-  nama: string;
+  name: string;
   nim: string | null;
   faculty_name: string | null;
   academic_unit_name: string | null;
@@ -46,7 +46,7 @@ export interface CounselingRequestsResponse {
 }
 
 export interface CounselingAppointment {
-  appointment_id: string;
+  counseling_appointment_id: string;
   counseling_request_id: string | null;
   student_id: string;
   student_name: string;
@@ -63,14 +63,14 @@ export interface CounselingCalendarResponse {
 }
 
 export interface OrganizationSchedule {
-  jadwal_id: string;
-  konselor_id: string;
+  counseling_slot_id: string;
+  counselor_id: string;
   counselor_name: string;
-  tanggal: string;
-  waktu_mulai: string;
-  waktu_selesai: string;
-  status: 'tersedia' | 'dipesan' | 'selesai' | 'dibatalkan';
-  booking_id: string | null;
+  date: string;
+  start_time: string;
+  end_time: string;
+  status: 'available' | 'booked' | 'completed' | 'cancelled';
+  counseling_booking_id: string | null;
   booking_status: string | null;
 }
 

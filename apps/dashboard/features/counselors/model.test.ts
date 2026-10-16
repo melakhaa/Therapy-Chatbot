@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { addScheduleWindow, buildSchedulePlan, filterCounselors, normalizeCounselors, normalizeSchedule, removeScheduleWindow, upcomingAppointments, validateSchedule, WEEKDAY_ORDER } from './model.ts';
 import type { Appointment, AvailabilityRule, Counselor, ScheduleWindow } from './types.ts';
 
-const counselor: Counselor = { user_id: 'c1', nama: 'Dr. Raka', email: 'raka@example.test', title: 'Psikolog', specialization: 'Stres akademik', active: true };
-const rule = (overrides: Partial<AvailabilityRule> = {}): AvailabilityRule => ({ availability_rule_id: 'r1', counselor_id: 'c1', day_of_week: 1, start_time: '09:00:00', end_time: '12:00:00', timezone: 'Asia/Jakarta', effective_from: null, effective_to: null, active: true, ...overrides });
+const counselor: Counselor = { user_id: 'c1', name: 'Dr. Raka', email: 'raka@example.test', title: 'Psikolog', specialization: 'Stres akademik', active: true };
+const rule = (overrides: Partial<AvailabilityRule> = {}): AvailabilityRule => ({ counselor_availability_rule_id: 'r1', counselor_id: 'c1', day_of_week: 1, start_time: '09:00:00', end_time: '12:00:00', timezone: 'Asia/Jakarta', effective_from: null, effective_to: null, active: true, ...overrides });
 const window = (overrides: Partial<ScheduleWindow> = {}): ScheduleWindow => ({ key: 'r1', ruleId: 'r1', dayOfWeek: 1, startTime: '09:00', endTime: '12:00', effectiveFrom: '', effectiveTo: '', ...overrides });
 
 test('normalizes active weekly rules and orders Monday through Sunday', () => {
-  const result = normalizeSchedule([rule({ availability_rule_id: 'sun', day_of_week: 0 }), rule({ availability_rule_id: 'wed', day_of_week: 3 }), rule({ active: false })], 'c1');
+  const result = normalizeSchedule([rule({ counselor_availability_rule_id: 'sun', day_of_week: 0 }), rule({ counselor_availability_rule_id: 'wed', day_of_week: 3 }), rule({ active: false })], 'c1');
   assert.deepEqual(result.map((item) => item.dayOfWeek), [3, 0]);
   assert.deepEqual(WEEKDAY_ORDER, [1, 2, 3, 4, 5, 6, 0]);
 });
@@ -36,7 +36,7 @@ test('creates a minimal availability mutation plan in Jakarta timezone', () => {
 });
 
 test('maps active state and filters real name, email, status, and specialization fields', () => {
-  const inactive = { ...counselor, user_id: 'c2', nama: 'Sari', email: undefined, active: false, specialization: null };
+  const inactive = { ...counselor, user_id: 'c2', name: 'Sari', email: undefined, active: false, specialization: null };
   assert.deepEqual(filterCounselors([counselor, inactive], 'example', 'active', 'Stres akademik'), [counselor]);
   assert.deepEqual(filterCounselors([counselor, inactive], '', 'inactive', ''), [inactive]);
 });
@@ -49,7 +49,7 @@ test('profile normalization keeps only the privacy-safe counselor contract', () 
 });
 
 test('maps only bounded upcoming active appointments in chronological order', () => {
-  const appointment = (id: string, start: string, status: Appointment['status'] = 'confirmed'): Appointment => ({ appointment_id: id, counseling_request_id: null, student_id: `s-${id}`, student_name: `Student ${id}`, nim: null, counselor_id: 'c1', counselor_name: 'Dr. Raka', starts_at: start, ends_at: new Date(Date.parse(start) + 3_600_000).toISOString(), status });
+  const appointment = (id: string, start: string, status: Appointment['status'] = 'confirmed'): Appointment => ({ counseling_appointment_id: id, counseling_request_id: null, student_id: `s-${id}`, student_name: `Student ${id}`, nim: null, counselor_id: 'c1', counselor_name: 'Dr. Raka', starts_at: start, ends_at: new Date(Date.parse(start) + 3_600_000).toISOString(), status });
   const result = upcomingAppointments([appointment('late', '2026-10-05T04:00:00Z'), appointment('past', '2026-09-01T04:00:00Z'), appointment('cancelled', '2026-10-04T04:00:00Z', 'cancelled'), appointment('early', '2026-10-04T04:00:00Z')], new Date('2026-10-03T00:00:00Z'), 2);
-  assert.deepEqual(result.map((item) => item.appointment_id), ['early', 'late']);
+  assert.deepEqual(result.map((item) => item.counseling_appointment_id), ['early', 'late']);
 });

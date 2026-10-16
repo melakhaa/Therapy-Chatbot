@@ -2,12 +2,12 @@ import { apiFetch } from './api';
 import type { BookingStatus, Role, Severity } from './admin';
 
 export interface AttentionSignal {
-  log_id: string;
+  guardrail_log_id: string;
   user_id: string | null;
   assessment_id: string | null;
   is_read: boolean;
   notified_at: string | null;
-  nama: string | null;
+  name: string | null;
   nim: string | null;
   signal_type: 'assessment' | 'safety' | 'request';
   assessment_categories?: string | null;
@@ -31,14 +31,14 @@ export interface AttentionPage {
 }
 
 export interface OrganizationSchedule {
-  jadwal_id: string;
-  konselor_id: string;
+  counseling_slot_id: string;
+  counselor_id: string;
   counselor_name: string;
-  tanggal: string;
-  waktu_mulai: string;
-  waktu_selesai: string;
-  status: 'tersedia' | 'dipesan' | 'selesai' | 'dibatalkan';
-  booking_id: string | null;
+  date: string;
+  start_time: string;
+  end_time: string;
+  status: 'available' | 'booked' | 'completed' | 'cancelled';
+  counseling_booking_id: string | null;
   booking_status: BookingStatus | null;
 }
 
@@ -46,9 +46,9 @@ export type HotlineVerificationStatus = 'active' | 'verification_required' | 'in
 
 export interface HotlineRow {
   hotline_id: string;
-  nama: string;
-  nomor: string;
-  deskripsi: string | null;
+  name: string;
+  phone: string;
+  description: string | null;
   created_at: string | null;
   verification_status?: HotlineVerificationStatus;
   verified_at?: string | null;
@@ -58,11 +58,11 @@ export interface HotlineRow {
   updated_by?: string | null;
 }
 
-export type HotlineCreate = Pick<HotlineRow, 'nama' | 'nomor' | 'deskripsi'> &
+export type HotlineCreate = Pick<HotlineRow, 'name' | 'phone' | 'description'> &
   Partial<Pick<HotlineRow, 'verification_status' | 'verification_note'>>;
 
 export type HotlineUpdate = Partial<
-  Pick<HotlineRow, 'nama' | 'nomor' | 'deskripsi' | 'verification_status' | 'verification_note'>
+  Pick<HotlineRow, 'name' | 'phone' | 'description' | 'verification_status' | 'verification_note'>
 >;
 
 export interface AnalyticsData {
@@ -92,7 +92,7 @@ export interface AnalyticsData {
 }
 
 export interface AccountDraft {
-  nama: string;
+  name: string;
   email: string;
   password: string;
   nim?: string;
@@ -165,9 +165,9 @@ export function apiGetOrganizationSchedules(
 
 export function apiCreateOrganizationSchedule(data: {
   counselor_id: string;
-  tanggal: string;
-  waktu_mulai: string;
-  waktu_selesai: string;
+  date: string;
+  start_time: string;
+  end_time: string;
 }) {
   return apiFetch('/admin/schedules', {
     method: 'POST',

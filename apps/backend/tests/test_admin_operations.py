@@ -42,36 +42,36 @@ class AdminOperationsTests(unittest.TestCase):
         normalized = " ".join(sql.lower().split())
         if "group by 1" in normalized and "guardrail_logs" in normalized:
             return [{"signal_type": "safety", "total": 1, "unread": 1}]
-        if "select g.log_id" in normalized:
-            return [{"log_id": ADMIN, "user_id": STUDENT, "assessment_id": None, "is_read": False,
-                     "notified_at": "2026-09-24T00:00:00Z", "nama": "Synthetic", "nim": None,
+        if "select g.guardrail_log_id" in normalized:
+            return [{"guardrail_log_id": ADMIN, "user_id": STUDENT, "assessment_id": None, "is_read": False,
+                     "notified_at": "2026-09-24T00:00:00Z", "name": "Synthetic", "nim": None,
                      "signal_type": "safety"}]
-        if "from jadwal_konsultasi j" in normalized and "left join lateral" in normalized:
-            return [{"jadwal_id": ADMIN, "konselor_id": COUNSELOR, "counselor_name": "Counselor",
-                     "tanggal": "2026-09-28", "waktu_mulai": "09:00", "waktu_selesai": "10:00",
-                     "status": "tersedia", "booking_id": None, "booking_status": None}]
+        if "from counseling_slots j" in normalized and "left join lateral" in normalized:
+            return [{"counseling_slot_id": ADMIN, "counselor_id": COUNSELOR, "counselor_name": "Counselor",
+                     "date": "2026-09-28", "start_time": "09:00", "end_time": "10:00",
+                     "status": "available", "counseling_booking_id": None, "booking_status": None}]
         if "from users where user_id" in normalized:
             return [{"user_id": COUNSELOR}]
-        if "insert into jadwal_konsultasi" in normalized:
-            return [{"jadwal_id": ADMIN, "konselor_id": COUNSELOR, "tanggal": "2026-09-28",
-                     "waktu_mulai": "09:00", "waktu_selesai": "10:00", "status": "tersedia"}]
-        if "returning jadwal_id" in normalized:
-            return [{"jadwal_id": ADMIN}]
-        if "from hotline" in normalized:
-            return [{"hotline_id": ADMIN, "nama": "Synthetic Hotline", "nomor": "118",
-                     "deskripsi": None, "created_at": "2026-01-01T00:00:00Z"}]
+        if "insert into counseling_slots" in normalized:
+            return [{"counseling_slot_id": ADMIN, "counselor_id": COUNSELOR, "date": "2026-09-28",
+                     "start_time": "09:00", "end_time": "10:00", "status": "available"}]
+        if "returning counseling_slot_id" in normalized:
+            return [{"counseling_slot_id": ADMIN}]
+        if "from hotlines" in normalized:
+            return [{"hotline_id": ADMIN, "name": "Synthetic Hotline", "phone": "118",
+                     "description": None, "created_at": "2026-01-01T00:00:00Z"}]
         if "returning hotline_id" in normalized:
-            return [{"hotline_id": ADMIN, "nama": "Synthetic Hotline", "nomor": "118",
-                     "deskripsi": None, "created_at": "2026-01-01T00:00:00Z"}]
+            return [{"hotline_id": ADMIN, "name": "Synthetic Hotline", "phone": "118",
+                     "description": None, "created_at": "2026-01-01T00:00:00Z"}]
         if "severity, count(*)" in normalized:
             return [{"severity": "severe", "count": 2}]
         if "taken_at::date" in normalized:
             return [{"date": "2026-09-24", "count": 2}]
         if "b.status, count(*)" in normalized:
-            return [{"status": "menunggu", "count": 1}]
+            return [{"status": "pending", "count": 1}]
         if "count(*) as count from users" in normalized:
             return [{"count": 5}]
-        return [{"log_id": ADMIN}]
+        return [{"guardrail_log_id": ADMIN}]
 
     def headers(self, identity=ADMIN):
         return {"Authorization": "Bearer " + auth.create_token(identity, "fixture@example.com")}
@@ -97,8 +97,8 @@ class AdminOperationsTests(unittest.TestCase):
         response = client.get("/admin/schedules", headers=self.headers())
         self.assertEqual(response.status_code, 200)
         response = client.post("/admin/schedules", headers=self.headers(), json={
-            "counselor_id": COUNSELOR, "tanggal": "2026-09-28",
-            "waktu_mulai": "09:00:00", "waktu_selesai": "10:00:00",
+            "counselor_id": COUNSELOR, "date": "2026-09-28",
+            "start_time": "09:00:00", "end_time": "10:00:00",
         })
         self.assertEqual(response.status_code, 201)
         sql, params, identity = self.calls[-1]
@@ -108,15 +108,15 @@ class AdminOperationsTests(unittest.TestCase):
 
     def test_invalid_schedule_range_rejected_before_query(self):
         response = client.post("/admin/schedules", headers=self.headers(), json={
-            "counselor_id": COUNSELOR, "tanggal": "2026-09-28",
-            "waktu_mulai": "10:00:00", "waktu_selesai": "09:00:00",
+            "counselor_id": COUNSELOR, "date": "2026-09-28",
+            "start_time": "10:00:00", "end_time": "09:00:00",
         })
         self.assertEqual(response.status_code, 422)
         self.assertEqual(self.calls, [])
 
     def test_hotline_crud_uses_existing_columns_only(self):
         self.assertEqual(client.get("/admin/hotlines", headers=self.headers()).status_code, 200)
-        response = client.post("/admin/hotlines", headers=self.headers(), json={"nama": "Synthetic Hotline", "nomor": "118", "deskripsi": "Fixture"})
+        response = client.post("/admin/hotlines", headers=self.headers(), json={"name": "Synthetic Hotline", "phone": "118", "description": "Fixture"})
         self.assertEqual(response.status_code, 201)
         for sql, _, _ in self.calls:
             for forbidden in ("password", "token", "journal", "message", "triggered_input"):
@@ -126,7 +126,7 @@ class AdminOperationsTests(unittest.TestCase):
         response = client.put(
             f"/admin/hotlines/{ADMIN}",
             headers=self.headers(),
-            json={"nama": "Updated Hotline", "verification_status": "active"},
+            json={"name": "Updated Hotline", "verification_status": "active"},
         )
         self.assertEqual(response.status_code, 200)
         sql, params, identity = self.calls[-1]
@@ -142,7 +142,7 @@ class AdminOperationsTests(unittest.TestCase):
         body = response.json()
         self.assertEqual(body["assessment_total"], 2)
         self.assertEqual(body["booking_total"], 1)
-        for forbidden in ("nama", "email", "nim", "user_id"):
+        for forbidden in ("name", "email", "nim", "user_id"):
             self.assertNotIn(forbidden, str(body).lower())
 
 

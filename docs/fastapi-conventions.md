@@ -56,13 +56,13 @@ under [semantic-router-conventions.md](semantic-router-conventions.md) and
     `assessment` guardrail signal and calls `notify_dass21_admins()`. No client-supplied score is
     ever stored.
 - `GET /accounts/konselor` returns the student-visible counselor directory via `list_konselor()`
-  (public fields only: id, nama, role) — students cannot read other `users` rows under RLS.
+  (public fields only: id, name, role) — students cannot read other `users` rows under RLS.
 - Validate path/query input with FastAPI types, not manual parsing: `user_id: UUID`,
   `Query(1, ge=1, le=2147483647)` for page, `Query(20, ge=1, le=100)` for page_size, `Literal[...]` for
-  filters, `date`/`time` for schedules. Business rules (date range, `waktu_selesai > waktu_mulai`) raise
+  filters, `date`/`time` for schedules. Business rules (date range, `end_time > start_time`) raise
   `HTTPException(422, ...)` before querying.
 - Paginated list endpoints return `{entity, total, page, page_size}`; create endpoints return `201` and
-  the created row (`{"schedule": ...}` / `{"hotline": ...}`).
+  the created row (`{"jadwal": ...}` / `{"hotline": ...}`).
 - `admin.py` / `admin_operations.py` keep responses to recorded fields only — never chat content,
   journals, assessment answers, or raw guardrail trigger input.
 - Errors: `raise HTTPException(status_code=..., detail="Bahasa Indonesia message")`.

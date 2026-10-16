@@ -39,7 +39,7 @@ export function HotlinePage() {
 
   function openCreate() { setEditing(null); setDraft(blankDraft); setErrors({}); setMutationError(false); setSaved(false); setEditorOpen(true); }
   function openEdit(row: HotlineRecord) {
-    setEditing(row); setDraft({ name: row.nama, phone: row.nomor, description: row.deskripsi ?? '', verificationNote: row.verification_note ?? '', serviceType: row.service_type ?? '', operationalHours: row.operational_hours ?? '', coverage: row.coverage ?? '' }); setErrors({}); setMutationError(false); setSaved(false); setEditorOpen(true);
+    setEditing(row); setDraft({ name: row.name, phone: row.phone, description: row.description ?? '', verificationNote: row.verification_note ?? '', serviceType: row.service_type ?? '', operationalHours: row.operational_hours ?? '', coverage: row.coverage ?? '' }); setErrors({}); setMutationError(false); setSaved(false); setEditorOpen(true);
   }
   async function save() {
     const nextErrors = validateHotlineDraft(draft); setErrors(nextErrors);
@@ -77,7 +77,7 @@ export function HotlinePage() {
         {loading ? <div className="m09-loading"><Skeleton lines={7} /></div> : loadError ? <ErrorState title={copy.errors.title} message={copy.errors.load} retry={() => void load()} retryLabel={text.common.retry} /> : filtered.length === 0 ? <EmptyState title={copy.empty} message={copy.emptyBody} /> : <div className="table-wrap"><table className="data-table hotline-table"><thead><tr><th>{copy.fields.service}</th><th>{copy.fields.phone}</th>{isPreviewMode() && <><th>{copy.fields.type}</th><th>{copy.fields.hours}</th></>}<th>{copy.fields.status}</th><th>{copy.fields.verified}</th><th>{copy.fields.action}</th></tr></thead><tbody>{filtered.map((row) => {
           const rowStatus = normalizeHotlineStatus(row.verification_status);
           const items = [{ label: copy.actions.edit, onSelect: () => openEdit(row) }, ...(rowStatus !== 'active' ? [{ label: rowStatus === 'inactive' ? copy.actions.reactivate : copy.actions.verify, onSelect: () => setPending({ kind: rowStatus === 'inactive' ? 'reactivate' : 'verify', row }) }] : []), ...(rowStatus !== 'inactive' ? [{ label: copy.actions.deactivate, danger: true, onSelect: () => setPending({ kind: 'deactivate', row }) }] : [])];
-          return <tr key={row.hotline_id}><td><strong>{row.nama}</strong><small>{row.deskripsi || copy.noDescription}</small></td><td><a href={`tel:${row.nomor}`}>{row.nomor}</a></td>{isPreviewMode() && <><td>{row.service_type || '—'}</td><td>{row.operational_hours || '—'}<small>{row.coverage || ''}</small></td></>}<td><Badge tone={statusTone(rowStatus)}>{statusLabel(rowStatus)}</Badge></td><td>{formatDate(row.verified_at)}{row.verified_by && <small>{copy.verifiedActor}</small>}</td><td><DropdownMenu label={copy.actions.menu} trigger={<Icon name="more" />} items={items} /></td></tr>;
+          return <tr key={row.hotline_id}><td><strong>{row.name}</strong><small>{row.description || copy.noDescription}</small></td><td><a href={`tel:${row.phone}`}>{row.phone}</a></td>{isPreviewMode() && <><td>{row.service_type || '—'}</td><td>{row.operational_hours || '—'}<small>{row.coverage || ''}</small></td></>}<td><Badge tone={statusTone(rowStatus)}>{statusLabel(rowStatus)}</Badge></td><td>{formatDate(row.verified_at)}{row.verified_by && <small>{copy.verifiedActor}</small>}</td><td><DropdownMenu label={copy.actions.menu} trigger={<Icon name="more" />} items={items} /></td></tr>;
         })}</tbody></table></div>}
         {!loading && !loadError && <footer className="m09-table-footer">{copy.showing.replace('{shown}', String(filtered.length)).replace('{total}', String(rows.length))}</footer>}
       </section>
@@ -94,6 +94,6 @@ export function HotlinePage() {
         <InlineAlert>{editing ? copy.editor.editPolicy : copy.editor.createPolicy}</InlineAlert>
       </div>
     </Drawer>
-    <ConfirmationDialog open={!!pending} onOpenChange={(open) => { if (!open) setPending(null); }} title={pending ? copy.confirm[pending.kind].title : ''} consequence={pending ? copy.confirm[pending.kind].body.replace('{name}', pending.row.nama) : ''} cancelLabel={text.common.cancel} confirmLabel={pending ? copy.confirm[pending.kind].action : text.common.confirm} danger={pending?.kind === 'deactivate'} onConfirm={() => void runAction()} />
+    <ConfirmationDialog open={!!pending} onOpenChange={(open) => { if (!open) setPending(null); }} title={pending ? copy.confirm[pending.kind].title : ''} consequence={pending ? copy.confirm[pending.kind].body.replace('{name}', pending.row.name) : ''} cancelLabel={text.common.cancel} confirmLabel={pending ? copy.confirm[pending.kind].action : text.common.confirm} danger={pending?.kind === 'deactivate'} onConfirm={() => void runAction()} />
   </PageShell>;
 }

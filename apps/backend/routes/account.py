@@ -32,13 +32,13 @@ class LoginRequest(BaseModel):
 class CreateAccountRequest(BaseModel):
     email: EmailStr
     password: str
-    nama: str
+    name: str
     role: Literal["mahasiswa", "konselor", "admin", "pemangku_jabatan"] = "mahasiswa"
     nim: Optional[str] = None
 
 
 class UpdateAccountRequest(BaseModel):
-    nama: Optional[str] = None
+    name: Optional[str] = None
     role: Optional[Literal["mahasiswa", "konselor", "admin", "pemangku_jabatan"]] = None
     nim: Optional[str] = None
 
@@ -57,9 +57,9 @@ def register(request: CreateAccountRequest):
     try:
         with db(user_id) as conn:
             conn.execute(
-                "insert into users (user_id, email, nama, nim, role, password_hash) "
+                "insert into users (user_id, email, name, nim, role, password_hash) "
                 "values (%s, %s, %s, %s, 'mahasiswa', %s)",
-                (user_id, request.email, request.nama, request.nim, _hash(request.password)),
+                (user_id, request.email, request.name, request.nim, _hash(request.password)),
             )
     except UniqueViolation:
         raise HTTPException(status_code=400, detail="Email sudah terdaftar")
@@ -79,7 +79,7 @@ def register(request: CreateAccountRequest):
 @router.post("/auth/login")
 def login(request: LoginRequest):
     rows = query(
-        "select user_id, email, nama, nim, role, password_hash "
+        "select user_id, email, name, nim, role, password_hash "
         "from auth_lookup(%s)",
         (request.email,),
     )
@@ -102,7 +102,7 @@ def login(request: LoginRequest):
         "user": {
             "user_id": user_id,
             "email": user["email"],
-            "nama": user["nama"],
+            "name": user["name"],
             "nim": user["nim"],
             "role": user["role"],
         },
@@ -169,7 +169,7 @@ def get_my_profile(user=Depends(get_current_user)):
 def get_account_list(admin=Depends(require_role("admin", "pemangku_jabatan"))):
     try:
         rows = query(
-            "select u.user_id,u.nama,u.email,u.nim,u.role,u.created_at,sap.faculty_id,f.name as faculty_name,"
+            "select u.user_id,u.name,u.email,u.nim,u.role,u.created_at,sap.faculty_id,f.name as faculty_name,"
             "sap.academic_unit_id,au.name as academic_unit_name,au.unit_type from users u " +
             "left join student_academic_profiles sap on sap.user_id=u.user_id " +
             "left join faculties f on f.faculty_id=sap.faculty_id " +
@@ -184,7 +184,7 @@ def get_account_list(admin=Depends(require_role("admin", "pemangku_jabatan"))):
 @router.get("/accounts/konselor")
 def get_konselor_list(user=Depends(get_current_user)):
     """Counselor directory for the booking screen (public fields only, via list_konselor())."""
-    rows = query("select user_id, nama, role from list_konselor()", user_id=user.id)
+    rows = query("select user_id, name, role from list_konselor()", user_id=user.id)
     return {"users": rows, "total": len(rows)}
 
 
@@ -194,11 +194,11 @@ def create_account(request: CreateAccountRequest, admin=Depends(require_role("ad
     try:
         with db(admin.id) as conn:
             conn.execute(
-                "insert into users (user_id, nama, email, nim, role, password_hash) "
+                "insert into users (user_id, name, email, nim, role, password_hash) "
                 "values (%s, %s, %s, %s, %s, %s)",
                 (
                     user_id,
-                    request.nama,
+                    request.name,
                     request.email,
                     request.nim,
                     request.role,
@@ -211,7 +211,7 @@ def create_account(request: CreateAccountRequest, admin=Depends(require_role("ad
     return {
         "user_id": user_id,
         "email": request.email,
-        "nama": request.nama,
+        "name": request.name,
         "role": request.role,
         "message": "Akun berhasil dibuat",
     }
@@ -224,13 +224,13 @@ def update_account(
     admin=Depends(require_role("admin", "pemangku_jabatan")),
 ):
     try:
-        if request.nama is None and request.role is None and request.nim is None:
+        if request.name is None and request.role is None and request.nim is None:
             return {"message": "Tidak ada data yang diubah"}
 
         rows = query(
-            "update users set nama = coalesce(%s, nama), role = coalesce(%s, role), "
+            "update users set name = coalesce(%s, name), role = coalesce(%s, role), "
             "nim = coalesce(%s, nim) where user_id = %s returning user_id",
-            (request.nama, request.role, request.nim, user_id),
+            (request.name, request.role, request.nim, user_id),
             user_id=admin.id,
         )
 

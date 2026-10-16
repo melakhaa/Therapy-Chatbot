@@ -8,7 +8,7 @@ export function filterHotlines(rows: HotlineRecord[], search: string, status: 'a
   const needle = search.trim().toLocaleLowerCase();
   return rows.filter((row) => {
     const matchesStatus = status === 'all' || normalizeHotlineStatus(row.verification_status) === status;
-    const haystack = `${row.nama} ${row.nomor} ${row.deskripsi ?? ''}`.toLocaleLowerCase();
+    const haystack = `${row.name} ${row.phone} ${row.description ?? ''}`.toLocaleLowerCase();
     return matchesStatus && (!needle || haystack.includes(needle));
   });
 }
@@ -23,7 +23,7 @@ export function validateHotlineDraft(draft: HotlineDraft): Partial<Record<keyof 
 }
 
 export function toHotlinePayload(draft: HotlineDraft, creating = false, includePreviewFields = false): HotlinePayload {
-  return { nama: draft.name.trim(), nomor: draft.phone.trim(), deskripsi: draft.description.trim() || null, verification_note: draft.verificationNote.trim() || null, ...(creating ? { verification_status: 'verification_required' as const } : {}), ...(includePreviewFields ? { service_type: draft.serviceType?.trim() || null, operational_hours: draft.operationalHours?.trim() || null, coverage: draft.coverage?.trim() || null } : {}) };
+  return { name: draft.name.trim(), phone: draft.phone.trim(), description: draft.description.trim() || null, verification_note: draft.verificationNote.trim() || null, ...(creating ? { verification_status: 'verification_required' as const } : {}), ...(includePreviewFields ? { service_type: draft.serviceType?.trim() || null, operational_hours: draft.operationalHours?.trim() || null, coverage: draft.coverage?.trim() || null } : {}) };
 }
 
 export function hotlineActionPayload(action: 'verify' | 'reactivate'): Pick<HotlinePayload, 'verification_status'> {

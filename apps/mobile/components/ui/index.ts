@@ -6,7 +6,7 @@ export { Button }         from './Button';
 export { Divider }        from './Divider';
 export { Badge }          from './Badge';
 export { FadeIn }         from './FadeIn';
-export { default as BottomNav, BOTTOM_CLEARANCE } from './BottomNav';
+export { default as BottomNav, BOTTOM_CLEARANCE, isSwipeTab, swipeTab, tabAnimation, useTabSwipeLock } from './BottomNav';
 
 export * from './NeuView';
 export * from './Dialog';

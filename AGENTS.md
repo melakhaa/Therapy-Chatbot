@@ -35,6 +35,6 @@ Each app, package, and `db/` also has a local `AGENTS.md` — read it when worki
 - TypeScript / React / React Native / Expo / routing / UI → [docs/typescript-conventions.md](docs/typescript-conventions.md), [docs/react-conventions.md](docs/react-conventions.md), [docs/react-native-conventions.md](docs/react-native-conventions.md), [docs/expo-conventions.md](docs/expo-conventions.md), [docs/expo-router-conventions.md](docs/expo-router-conventions.md), [docs/react-native-ui-conventions.md](docs/react-native-ui-conventions.md)
 - npm workspaces / shared packages → [docs/npm-workspaces-conventions.md](docs/npm-workspaces-conventions.md)
 - Docker / local infra → [docs/docker-conventions.md](docs/docker-conventions.md)
-- Git, commits, PRs → [docs/git-conventions.md](docs/git-conventions.md) — Conventional Commits, no AI co-author trailers.
+- Git, commits, PRs → [docs/git-conventions.md](docs/git-conventions.md) — Conventional Commits, atomic per-feature commits, no AI co-author trailers.
 - Security: JWT, RBAC, encryption, secrets → [docs/security-conventions.md](docs/security-conventions.md)
 - Next.js dashboard (active app is `apps/dashboard`, not Expo) → [docs/nextjs-conventions.md](docs/nextjs-conventions.md), [apps/dashboard/AGENTS.md](apps/dashboard/AGENTS.md)

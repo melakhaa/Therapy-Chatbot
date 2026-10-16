@@ -14,7 +14,7 @@ type Day = { day: string; score: number; mood: Mood | null };
 
 const INIT_WEEK: Day[] = Array(7).fill({ day: '-', score: 0, mood: null });
 const CHART_H = 100;
-const SCORE: Record<string, number> = { Calm: 100, Focused: 80, Tired: 50, Anxious: 30 };
+const SCORE: Record<string, number> = { calm: 100, focused: 80, tired: 50, anxious: 30 };
 
 // One bar of the weekly chart, grown on the UI thread. The RN Animated version drove `height`
 // through the JS driver, so the whole chart re-laid-out on the JS thread every frame. Mounted
@@ -62,7 +62,7 @@ export default function StatsScreen() {
   const [weekOffset, setWeekOffset] = React.useState(0);
   const [allJournals, setAllJournals] = React.useState<any[]>([]);
   const [weekData, setWeekData] = React.useState<Day[]>(INIT_WEEK);
-  const [counts, setCounts] = React.useState<Record<Mood, number>>({ Calm: 0, Focused: 0, Tired: 0, Anxious: 0 });
+  const [counts, setCounts] = React.useState<Record<Mood, number>>({ calm: 0, focused: 0, tired: 0, anxious: 0 });
   const [total, setTotal] = React.useState(0);
 
   useEffect(() => {
@@ -102,7 +102,7 @@ export default function StatsScreen() {
       const d = new Date(j.created_at);
       return d >= start && d <= end;
     });
-    const c: Record<Mood, number> = { Calm: 0, Focused: 0, Tired: 0, Anxious: 0 };
+    const c: Record<Mood, number> = { calm: 0, focused: 0, tired: 0, anxious: 0 };
     period.forEach((j: any) => { if (j.mood in c) c[j.mood as Mood]++; });
     setCounts(c);
     setTotal(period.length);
@@ -119,25 +119,25 @@ export default function StatsScreen() {
 
   const recommendation = React.useMemo(() => {
     switch (dominant?.key) {
-      case 'Anxious':
+      case 'anxious':
         return {
           title: 'Tenangkan pikiranmu',
           text: 'Kecemasanmu cukup sering muncul pekan ini. Coba perlambat ritme harimu dan ceritakan apa yang kamu rasakan.',
           btn: 'Cerita ke Sajiwa', to: '/chat', icon: 'chatbubble-ellipses-outline',
         };
-      case 'Tired':
+      case 'tired':
         return {
           title: 'Pulihkan energimu',
           text: 'Kamu sering merasa lelah pekan ini. Coba tidur lebih awal atau lakukan aktivitas ringan seperti jalan santai.',
           btn: 'Cerita ke Sajiwa', to: '/chat', icon: 'moon-outline',
         };
-      case 'Focused':
+      case 'focused':
         return {
           title: 'Fokus dan produktif',
           text: 'Pekan ini kamu cukup fokus. Jaga stamina mental dengan jeda singkat 5 menit di sela aktivitas.',
           btn: 'Refleksi dengan Sajiwa', to: '/chat', icon: 'disc-outline',
         };
-      case 'Calm':
+      case 'calm':
         return {
           title: 'Pertahankan ketenanganmu',
           text: 'Kondisimu cenderung stabil pekan ini. Luangkan waktu untuk bersantai dan bersyukur setiap hari.',

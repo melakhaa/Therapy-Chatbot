@@ -30,7 +30,7 @@ class Iteration3Contracts(unittest.TestCase):
  def data(self,sql,params=(),user_id=None):
   self.calls.append((sql,params,user_id))
   if "count(*) total" in sql:return [{"total":1}]
-  if "from admin_notifications" in sql:return [{"notification_id":ADMIN,"category":"safety","title":"Signal requires review","context":"No raw content","entity_type":"guardrail_log","entity_id":STUDENT,"target_path":"/attention","read_at":None,"created_at":"2026-01-01T00:00:00Z"}]
+  if "from admin_notifications" in sql:return [{"admin_notification_id":ADMIN,"category":"safety","title":"Signal requires review","context":"No raw content","entity_type":"guardrail_log","entity_id":STUDENT,"target_path":"/attention","read_at":None,"created_at":"2026-01-01T00:00:00Z"}]
   if "from faculties f" in sql:return [{"faculty_id":ADMIN,"code":"FT","name":"Fakultas Teknik","active":True,"source_url":None,"unit_count":1,"student_count":1}]
   if "insert into student_academic_profiles" in sql:return [{"user_id":STUDENT,"faculty_id":ADMIN,"academic_unit_id":None}]
   return []

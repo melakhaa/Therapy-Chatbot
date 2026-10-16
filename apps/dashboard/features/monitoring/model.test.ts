@@ -28,15 +28,15 @@ const academic: AcademicStructure = {
 
 const attention: AttentionResponse = {
   signals: [
-    { log_id: 'assessment-severe', user_id: 'student-1', assessment_id: 'assessment-1', is_read: false, notified_at: '2026-10-03T01:00:00Z', nama: 'Alya Pratama', nim: 'DEMO-240001', signal_type: 'assessment', assessment_category_results: [{ category: 'depression', severity: 'severe', scaled_score: 24 }] },
-    { log_id: 'safety', user_id: 'student-2', assessment_id: null, is_read: true, notified_at: '2026-10-02T04:00:00Z', nama: 'Bima Santoso', nim: 'DEMO-240002', signal_type: 'safety' },
-    { log_id: 'assessment-mild', user_id: 'student-3', assessment_id: 'assessment-2', is_read: true, notified_at: '2026-09-20T01:00:00Z', nama: 'Citra Lestari', nim: 'DEMO-240003', signal_type: 'assessment', assessment_category_results: [{ category: 'anxiety', severity: 'mild', scaled_score: 8 }] },
+    { guardrail_log_id: 'assessment-severe', user_id: 'student-1', assessment_id: 'assessment-1', is_read: false, notified_at: '2026-10-03T01:00:00Z', name: 'Alya Pratama', nim: 'DEMO-240001', signal_type: 'assessment', assessment_category_results: [{ category: 'depression', severity: 'severe', scaled_score: 24 }] },
+    { guardrail_log_id: 'safety', user_id: 'student-2', assessment_id: null, is_read: true, notified_at: '2026-10-02T04:00:00Z', name: 'Bima Santoso', nim: 'DEMO-240002', signal_type: 'safety' },
+    { guardrail_log_id: 'assessment-mild', user_id: 'student-3', assessment_id: 'assessment-2', is_read: true, notified_at: '2026-09-20T01:00:00Z', name: 'Citra Lestari', nim: 'DEMO-240003', signal_type: 'assessment', assessment_category_results: [{ category: 'anxiety', severity: 'mild', scaled_score: 8 }] },
   ],
   summary: [], total: 3, page: 1, page_size: 100,
 };
 
 const requests: CounselingRequestsResponse = {
-  requests: [{ counseling_request_id: 'request-1', student_id: 'student-4', status: 'requested', created_at: '2026-10-03T02:00:00Z', nama: 'Damar Wijaya', nim: 'DEMO-240004', faculty_name: 'Fakultas Teknik', academic_unit_name: 'Informatika' }],
+  requests: [{ counseling_request_id: 'request-1', student_id: 'student-4', status: 'requested', created_at: '2026-10-03T02:00:00Z', name: 'Damar Wijaya', nim: 'DEMO-240004', faculty_name: 'Fakultas Teknik', academic_unit_name: 'Informatika' }],
   total: 1, page: 1, page_size: 100,
 };
 
@@ -67,10 +67,10 @@ test('normalizes supported backend severity values without inventing missing ris
 
 test('sorts by risk, then newest timestamp, then stable id', () => {
   assert.deepEqual(buildMonitoringCases({ ...attention, signals: [
-    { ...attention.signals[1], log_id: 'critical', notified_at: '2026-10-01T01:00:00Z' },
-    { ...attention.signals[0], log_id: 'z', notified_at: '2026-10-03T01:00:00Z' },
-    { ...attention.signals[0], log_id: 'b', notified_at: '2026-10-03T02:00:00Z' },
-    { ...attention.signals[0], log_id: 'a', notified_at: '2026-10-03T02:00:00Z' },
+    { ...attention.signals[1], guardrail_log_id: 'critical', notified_at: '2026-10-01T01:00:00Z' },
+    { ...attention.signals[0], guardrail_log_id: 'z', notified_at: '2026-10-03T01:00:00Z' },
+    { ...attention.signals[0], guardrail_log_id: 'b', notified_at: '2026-10-03T02:00:00Z' },
+    { ...attention.signals[0], guardrail_log_id: 'a', notified_at: '2026-10-03T02:00:00Z' },
   ] }, { ...requests, requests: [] }, academic).map((item) => item.sourceId), ['critical', 'a', 'b', 'z']);
 });
 

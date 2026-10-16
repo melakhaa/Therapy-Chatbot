@@ -13,7 +13,7 @@ function dayRank(day: number): number {
 }
 
 export function normalizeCounselors(response: { counselors: Counselor[] }): Counselor[] {
-  return response.counselors.map(({ user_id, nama, email, title, specialization, active }) => ({ user_id, nama, email, title, specialization, active }));
+  return response.counselors.map(({ user_id, name, email, title, specialization, active }) => ({ user_id, name, email, title, specialization, active }));
 }
 
 export function counselorInitials(name: string): string {
@@ -22,8 +22,8 @@ export function counselorInitials(name: string): string {
 
 export function normalizeSchedule(rules: AvailabilityRule[], counselorId: string): ScheduleWindow[] {
   return rules.filter((rule) => rule.counselor_id === counselorId && rule.active).map((rule) => ({
-    key: rule.availability_rule_id,
-    ruleId: rule.availability_rule_id,
+    key: rule.counselor_availability_rule_id,
+    ruleId: rule.counselor_availability_rule_id,
     dayOfWeek: rule.day_of_week,
     startTime: timeValue(rule.start_time),
     endTime: timeValue(rule.end_time),
@@ -90,7 +90,7 @@ export function buildSchedulePlan(counselorId: string, original: ScheduleWindow[
 
 export function filterCounselors(counselors: Counselor[], search: string, status: CounselorStatusFilter, specialization: string): Counselor[] {
   const term = search.trim().toLocaleLowerCase();
-  return counselors.filter((counselor) => (!term || counselor.nama.toLocaleLowerCase().includes(term) || counselor.email?.toLocaleLowerCase().includes(term))
+  return counselors.filter((counselor) => (!term || counselor.name.toLocaleLowerCase().includes(term) || counselor.email?.toLocaleLowerCase().includes(term))
     && (status === 'all' || (status === 'active' ? counselor.active : !counselor.active))
     && (!specialization || counselor.specialization === specialization));
 }

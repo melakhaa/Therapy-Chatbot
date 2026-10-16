@@ -54,14 +54,14 @@ class AdminContractTests(unittest.TestCase):
         if "from users" in sql:
             if params[0] != STUDENT:
                 return []
-            return [{"user_id": STUDENT, "nama": "Test Student", "email": "test@example.com",
+            return [{"user_id": STUDENT, "name": "Test Student", "email": "test@example.com",
                      "nim": None, "role": "mahasiswa", "created_at": "2026-09-01T00:00:00Z"}]
-        if "booking_konsultasi" in sql:
-            return [{"booking_id": ADMIN, "status": "menunggu", "tanggal": "2026-09-23",
-                     "waktu_mulai": "09:00:00", "waktu_selesai": "10:00:00"}]
+        if "counseling_bookings" in sql:
+            return [{"counseling_booking_id": ADMIN, "status": "pending", "date": "2026-09-23",
+                     "start_time": "09:00:00", "end_time": "10:00:00"}]
         return [{"assessment_id": ADMIN, "user_id": STUDENT, "instrument_type": "PHQ-9",
                  "score": 15, "severity": "severe", "taken_at": "2026-09-23T00:00:00Z",
-                 "nama": None if user_id == COUNSELOR else "Test Student", "nim": None}]
+                 "name": None if user_id == COUNSELOR else "Test Student", "nim": None}]
 
     def get(self, path, identity=ADMIN):
         headers = {} if identity is None else {"Authorization": "Bearer " + auth.create_token(identity, "test@example.com")}
@@ -86,7 +86,7 @@ class AdminContractTests(unittest.TestCase):
     def test_counselor_can_review_results_without_identity(self):
         response = self.get("/admin/assessments", COUNSELOR)
         self.assertEqual(response.status_code, 200)
-        self.assertIsNone(response.json()["assessments"][0]["nama"])
+        self.assertIsNone(response.json()["assessments"][0]["name"])
         self.assertTrue(all(call[2] == COUNSELOR for call in self.calls))
         self.assertIn("left join users", self.calls[-1][0])
 

@@ -49,7 +49,7 @@ export function SettingsPage() {
       await load(); setSaved(true);
     } catch { setMutationError(true); }
   }
-  const initials = user?.nama.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'AD';
+  const initials = user?.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'AD';
   const selectedActive = pending?.item.active ?? false;
 
   return <PageShell title={copy.title}>
@@ -57,7 +57,7 @@ export function SettingsPage() {
       <div className="settings-grid">
         <section className="settings-card"><header><h2>{copy.appearance.title}</h2><p>{copy.appearance.body}</p></header><div className="setting-options">{(['light', 'dark', 'system'] as ThemeMode[]).map((value) => <button key={value} aria-pressed={mode === value} onClick={() => setMode(value)}>{text.theme[value]}{value === 'system' && <small>{copy.appearance.resolved}: {text.theme[resolved]}</small>}</button>)}</div></section>
         <section className="settings-card"><header><h2>{copy.language.title}</h2><p>{copy.language.body}</p></header><div className="setting-options">{(['id', 'en'] as Language[]).map((value) => <button key={value} aria-pressed={language === value} onClick={() => setLanguage(value)}>{value === 'id' ? 'Bahasa Indonesia' : 'English'}</button>)}</div></section>
-        <section className="settings-card"><header><h2>{copy.profile.title}</h2><p>{copy.profile.body}</p></header><div className="admin-profile"><span className="avatar">{initials}</span><div><Badge tone="success">{copy.profile.role}</Badge><h3>{user?.nama ?? copy.unavailable}</h3><p>{user?.email ?? copy.unavailable}</p></div></div><dl className="settings-definitions"><div><dt>{copy.profile.userId}</dt><dd>{user?.user_id ?? copy.unavailable}</dd></div><div><dt>{copy.profile.access}</dt><dd>{copy.profile.adminAccess}</dd></div></dl><InlineAlert>{copy.profile.readOnly}</InlineAlert></section>
+        <section className="settings-card"><header><h2>{copy.profile.title}</h2><p>{copy.profile.body}</p></header><div className="admin-profile"><span className="avatar">{initials}</span><div><Badge tone="success">{copy.profile.role}</Badge><h3>{user?.name ?? copy.unavailable}</h3><p>{user?.email ?? copy.unavailable}</p></div></div><dl className="settings-definitions"><div><dt>{copy.profile.userId}</dt><dd>{user?.user_id ?? copy.unavailable}</dd></div><div><dt>{copy.profile.access}</dt><dd>{copy.profile.adminAccess}</dd></div></dl><InlineAlert>{copy.profile.readOnly}</InlineAlert></section>
         <section className="settings-card"><header><h2>{copy.security.title}</h2><p>{copy.security.body}</p></header><div className="session-row"><div><strong>{copy.security.current}</strong><span>{copy.security.browser}</span></div><Badge tone="success">{copy.security.active}</Badge></div><Button variant="danger" icon="logout" onClick={logout}>{copy.security.logout}</Button><InlineAlert>{copy.security.limited}</InlineAlert></section>
       </div>
       <section className="settings-card settings-system"><header><h2>{copy.system.title}</h2><p>{copy.system.body}</p></header><dl className="system-grid"><div><dt>{copy.system.platform}</dt><dd>Sajiwa</dd></div><div><dt>{copy.system.application}</dt><dd>Next.js Admin Dashboard</dd></div><div><dt>{copy.system.role}</dt><dd>{copy.profile.role}</dd></div><div><dt>{copy.system.theme}</dt><dd>{text.theme[resolved]}</dd></div><div><dt>{copy.system.language}</dt><dd>{language.toUpperCase()}</dd></div></dl><InlineAlert tone="warning">{copy.system.runtime}</InlineAlert></section>

@@ -9,15 +9,15 @@ begin;
 
 -- Three users, inserted exactly the way register/create_account do.
 select set_config('app.current_user_id', '11111111-1111-1111-1111-111111111111', true);
-insert into users (user_id, email, nama, role, password_hash) values
+insert into users (user_id, email, name, role, password_hash) values
   ('11111111-1111-1111-1111-111111111111', 'a@test.local', 'A', 'mahasiswa', 'x');
 
 select set_config('app.current_user_id', '22222222-2222-2222-2222-222222222222', true);
-insert into users (user_id, email, nama, role, password_hash) values
+insert into users (user_id, email, name, role, password_hash) values
   ('22222222-2222-2222-2222-222222222222', 'b@test.local', 'B', 'mahasiswa', 'x');
 
 select set_config('app.current_user_id', '33333333-3333-3333-3333-333333333333', true);
-insert into users (user_id, email, nama, role, password_hash) values
+insert into users (user_id, email, name, role, password_hash) values
   ('33333333-3333-3333-3333-333333333333', 'admin@test.local', 'Admin', 'admin', 'x');
 
 do $$
@@ -39,12 +39,12 @@ begin
   select count(*) into n from auth_lookup('a@test.local');
   assert n = 1, 'auth_lookup broken for anonymous caller';
 
-  select count(*) into n from hotline;
+  select count(*) into n from hotlines;
   assert n = 0, format('anonymous saw %s unverified hotlines', n);
 
   -- migration 004 hides unverified contacts from the public; the admin still sees the seed
   perform set_config('app.current_user_id', '33333333-3333-3333-3333-333333333333', true);
-  select count(*) into n from hotline;
+  select count(*) into n from hotlines;
   assert n >= 3, format('admin cannot see hotline seed (%s rows)', n);
 
   -- a student sees only their own row

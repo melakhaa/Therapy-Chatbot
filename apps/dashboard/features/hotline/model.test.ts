@@ -4,14 +4,14 @@ import { filterHotlines, hotlineActionPayload, hotlineActionsForStatus, material
 
 test('normalizes unknown statuses conservatively', () => assert.equal(normalizeHotlineStatus('legacy'), 'verification_required'));
 test('filters loaded hotline data by status and searchable fields', () => {
-  const rows = [{ hotline_id: '1', nama: 'Layanan Kampus', nomor: '118', deskripsi: 'Dukungan', verification_status: 'active' as const }];
+  const rows = [{ hotline_id: '1', name: 'Layanan Kampus', phone: '118', description: 'Dukungan', verification_status: 'active' as const }];
   assert.equal(filterHotlines(rows, 'kampus', 'active').length, 1);
   assert.equal(filterHotlines(rows, '118', 'inactive').length, 0);
 });
 test('validates and normalizes hotline payloads without changing phone formatting', () => {
   const draft = { name: ' Kampus ', phone: ' (024) 746 0000 ext 12 ', description: ' Dukungan ', verificationNote: ' Dicek ' };
   assert.deepEqual(validateHotlineDraft(draft), {});
-  assert.deepEqual(toHotlinePayload(draft, true), { nama: 'Kampus', nomor: '(024) 746 0000 ext 12', deskripsi: 'Dukungan', verification_note: 'Dicek', verification_status: 'verification_required' });
+  assert.deepEqual(toHotlinePayload(draft, true), { name: 'Kampus', phone: '(024) 746 0000 ext 12', description: 'Dukungan', verification_note: 'Dicek', verification_status: 'verification_required' });
 });
 test('maps lifecycle actions to server statuses', () => {
   assert.deepEqual(hotlineActionPayload('verify'), { verification_status: 'active' });

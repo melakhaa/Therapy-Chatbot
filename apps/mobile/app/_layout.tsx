@@ -1,6 +1,7 @@
-import { Stack, router } from 'expo-router';
+import { Stack, router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { View } from 'react-native';
 import { setUnauthorizedCallback } from '@prototype/api-client';
 import { useFonts } from 'expo-font';
 import {
@@ -13,17 +14,19 @@ import {
 } from '@expo-google-fonts/plus-jakarta-sans';
 
 import * as SplashScreen from 'expo-splash-screen';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider } from '@prototype/ui-shared';
 import { SajiwaColors } from '@prototype/ui-shared';
 import { AnimatedSplashScreen } from '../components/AnimatedSplashScreen';
 import { ToastProvider } from '../components/ui/Toast';
 import { ConsentSheet } from '../components/ui/ConsentSheet';
+import { isSwipeTab, swipeTab, tabAnimation } from '../components/ui/BottomNav';
 
 SplashScreen.preventAutoHideAsync();
 
-// Bottom-nav tabs switch instantly, the way a native tab bar does, and never swipe back
-const TAB = { animation: 'none', gestureEnabled: false } as const;
+// Bottom-nav tabs never swipe back. A tap switches instantly, the way a native tab bar does;
+// a sideways swipe slides the next tab in from the side it came from.
+const TAB = () => ({ animation: tabAnimation(), gestureEnabled: false } as const);
 // Auth screens replace each other rather than stacking, so they cross-fade
 const AUTH = { animation: 'fade', gestureEnabled: false } as const;
 
@@ -39,6 +42,26 @@ export default function RootLayout() {
 
   const [splashAnimationFinished, setSplashAnimationFinished] = useState(false);
 
+  // Swipe sideways on a tab screen to reach the neighbouring tab. It waits for a clearly
+  // horizontal drag (40pt), longer than the calendar's month swipe (24pt) and a scroll
+  // view's own slop, so anything inside that pages sideways claims the drag first.
+  const pathname = usePathname();
+  const tabSwipe = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(isSwipeTab(pathname))
+        .activeOffsetX([-40, 40])
+        .failOffsetY([-16, 16])
+        .runOnJS(true)
+        .onEnd((e) => {
+          // A long drag, or a short flick still moving the same way
+          const flick = Math.abs(e.velocityX) > 500 && Math.sign(e.velocityX) === Math.sign(e.translationX);
+          if (Math.abs(e.translationX) < 80 && !flick) return;
+          swipeTab(pathname, e.translationX < 0 ? 'next' : 'prev');
+        }),
+    [pathname],
+  );
+
   useEffect(() => {
     setUnauthorizedCallback(() => {
       router.replace('/');
@@ -52,6 +75,8 @@ export default function RootLayout() {
       <ThemeProvider>
         <ToastProvider>
         <StatusBar style="dark" />
+        <GestureDetector gesture={tabSwipe}>
+        <View style={{ flex: 1 }}>
         <Stack
           screenOptions={{
             headerShown: false,
@@ -77,12 +102,14 @@ export default function RootLayout() {
           <Stack.Screen name="admin" options={AUTH} />
           <Stack.Screen name="chat" options={TAB} />
           <Stack.Screen name="journal" />
-          <Stack.Screen name="assessment" />
+          <Stack.Screen name="assessment" options={TAB} />
           <Stack.Screen name="stats" />
           <Stack.Screen name="profile" options={TAB} />
           <Stack.Screen name="schedule" options={TAB} />
           <Stack.Screen name="journal-history" options={TAB} />
         </Stack>
+        </View>
+        </GestureDetector>
         {/* Privacy consent, once per account, above every screen */}
         <ConsentSheet />
         {!splashAnimationFinished && (

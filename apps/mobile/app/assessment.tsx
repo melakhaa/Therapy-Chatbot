@@ -12,6 +12,7 @@ import {
 import {
   BottomNav, BOTTOM_CLEARANCE, Button, ScreenHeader, PressableScale, NeuView, FadeIn,
   Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  useTabSwipeLock,
 } from '../components/ui';
 import { Companion } from '../components/chat';
 
@@ -36,6 +37,8 @@ export default function AssessmentScreen() {
   const questions=useMemo(()=>[...(instrument?.questions||[])].sort((a,b)=>a.position-b.position),[instrument]);
   const question=questions[index];
   const complete=questions.length>0&&Object.keys(answers).length===questions.length;
+  // Half-answered: a stray sideways swipe must not throw the answers away
+  useTabSwipeLock(Object.keys(answers).length>0&&!completion);
 
   const submit=async()=>{
     if(!instrument||!complete)return;

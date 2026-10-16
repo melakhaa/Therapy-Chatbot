@@ -17,7 +17,7 @@ const units: AcademicUnit[] = [
   { academic_unit_id: 'u1', faculty_id: 'f1', faculty_name: 'Teknik', code: 'IF', name: 'Informatika', unit_type: 'study_program', active: true },
   { academic_unit_id: 'u2', faculty_id: 'f2', faculty_name: 'Kedokteran', code: 'KD', name: 'Kedokteran', unit_type: 'study_program', active: true },
 ];
-const student: StudentRow = { user_id: 's1', nama: 'Alya Pratama', email: 'alya@example.test', nim: '24001', role: 'mahasiswa', created_at: '2026-02-03T00:00:00Z', faculty_id: 'f1', faculty_name: 'Teknik', academic_unit_id: 'u1', academic_unit_name: 'Informatika', unit_type: 'study_program' };
+const student: StudentRow = { user_id: 's1', name: 'Alya Pratama', email: 'alya@example.test', nim: '24001', role: 'mahasiswa', created_at: '2026-02-03T00:00:00Z', faculty_id: 'f1', faculty_name: 'Teknik', academic_unit_id: 'u1', academic_unit_name: 'Informatika', unit_type: 'study_program' };
 
 test('builds the server directory query without empty filters', () => {
   const filters: DirectoryFilters = { search: ' Alya ', facultyId: 'f1', academicUnitId: 'u1', page: 2, pageSize: 25 };
@@ -31,9 +31,9 @@ test('restricts units to one faculty and clears an incompatible unit', () => {
 });
 
 test('validates only identity fields supported by the update endpoint', () => {
-  assert.deepEqual(validateIdentityDraft({ nama: ' Alya ', nim: ' 24001 ' }, student), { payload: { nama: 'Alya', nim: '24001' }, error: null });
-  assert.equal(validateIdentityDraft({ nama: '', nim: '24001' }, student).error, 'name');
-  assert.equal(validateIdentityDraft({ nama: 'Alya', nim: '' }, student).error, 'nim');
+  assert.deepEqual(validateIdentityDraft({ name: ' Alya ', nim: ' 24001 ' }, student), { payload: { name: 'Alya', nim: '24001' }, error: null });
+  assert.equal(validateIdentityDraft({ name: '', nim: '24001' }, student).error, 'name');
+  assert.equal(validateIdentityDraft({ name: 'Alya', nim: '' }, student).error, 'nim');
 });
 
 test('maps assessment category results without answer content or raw scores', () => {

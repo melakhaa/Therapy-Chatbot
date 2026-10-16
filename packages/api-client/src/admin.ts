@@ -5,26 +5,26 @@ export type Severity = 'minimal' | 'mild' | 'moderate' | 'severe';
 export interface Profile extends UserRow { role: Role }
 export interface AssessmentRow {
   assessment_id: string; user_id: string; instrument_type: string;
-  score: number; severity: Severity; taken_at: string | null; nama?: string | null; nim?: string | null;
+  score: number; severity: Severity; taken_at: string | null; name?: string | null; nim?: string | null;
   instrument_version_id?: string | null;
   category_results?: { category: 'depression' | 'anxiety' | 'stress'; raw_score: number; scaled_score: number; severity: string }[] | null;
 }
 export interface AssessmentPage { assessments: AssessmentRow[]; total: number; page: number; page_size: number }
 export interface BookingHistory {
-  booking_id: string; status: BookingStatus; tanggal: string; waktu_mulai: string; waktu_selesai: string;
+  counseling_booking_id: string; status: BookingStatus; date: string; start_time: string; end_time: string;
 }
 export interface BookingPage { bookings: BookingHistory[]; total: number; page: number; page_size: number }
-export type BookingStatus = 'menunggu' | 'dikonfirmasi' | 'selesai' | 'dibatalkan';
+export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
 export interface Schedule {
-  jadwal_id: string; tanggal: string; waktu_mulai: string; waktu_selesai: string;
-  status: 'tersedia' | 'dipesan' | 'selesai' | 'dibatalkan';
+  counseling_slot_id: string; date: string; start_time: string; end_time: string;
+  status: 'available' | 'booked' | 'completed' | 'cancelled';
 }
 export interface IncomingBooking {
-  booking_id: string; jadwal_id: string; status: BookingStatus; catatan: string | null;
-  created_at: string; jadwal_konsultasi: Omit<Schedule, 'jadwal_id' | 'status'> & { konselor_id: string };
+  counseling_booking_id: string; counseling_slot_id: string; status: BookingStatus; notes: string | null;
+  created_at: string; counseling_slots: Omit<Schedule, 'counseling_slot_id' | 'status'> & { counselor_id: string };
 }
-export interface AccountInput { nama: string; email: string; password: string; nim?: string; role: Role }
-export type AccountUpdate = Pick<AccountInput, 'nama' | 'nim' | 'role'>;
+export interface AccountInput { name: string; email: string; password: string; nim?: string; role: Role }
+export type AccountUpdate = Pick<AccountInput, 'name' | 'nim' | 'role'>;
 export interface AssessmentFilters {
   search?: string; severity?: string; instrument?: string; date_from?: string; date_to?: string;
   faculty_id?: string | string[]; academic_unit_id?: string | string[]; page?: number;
@@ -56,7 +56,7 @@ export function apiDeleteAccount(id: string) {
 }
 export function apiGetOwnSchedules() { return apiFetch<{ jadwal: Schedule[] }>('/jadwal/saya'); }
 export function apiGetIncomingBookings() { return apiFetch<{ bookings: IncomingBooking[] }>('/booking/masuk'); }
-export function apiCreateSchedule(data: Pick<Schedule, 'tanggal' | 'waktu_mulai' | 'waktu_selesai'>) {
+export function apiCreateSchedule(data: Pick<Schedule, 'date' | 'start_time' | 'end_time'>) {
   return apiFetch('/jadwal', { method: 'POST', body: JSON.stringify(data) });
 }
 export function apiUpdateBooking(id: string, status: BookingStatus) {

@@ -52,7 +52,7 @@ export default function LoginScreen() {
         return;
       }
 
-      toast.show(`Selamat datang kembali${data.user.nama ? ', ' + data.user.nama.split(' ')[0] : ''}!`);
+      toast.show(`Selamat datang kembali${data.user.name ? ', ' + data.user.name.split(' ')[0] : ''}!`);
       router.replace('/home');
     } catch {
       // error sudah disimpan di hook

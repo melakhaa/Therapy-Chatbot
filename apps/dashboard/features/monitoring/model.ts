@@ -26,11 +26,11 @@ export function buildMonitoringCases(attention: AttentionResponse, requests: Cou
       const categoryResults = signal.assessment_category_results ?? [];
       const backendSeverity = highestSeverity(categoryResults);
       return {
-        id: `attention:${signal.log_id}`,
-        sourceId: signal.log_id,
+        id: `attention:${signal.guardrail_log_id}`,
+        sourceId: signal.guardrail_log_id,
         type: signal.signal_type,
         studentId: signal.user_id,
-        studentName: signal.nama,
+        studentName: signal.name,
         nim: signal.nim,
         facultyName: null,
         academicUnitName: null,
@@ -48,7 +48,7 @@ export function buildMonitoringCases(attention: AttentionResponse, requests: Cou
       sourceId: request.counseling_request_id,
       type: 'request',
       studentId: request.student_id,
-      studentName: request.nama,
+      studentName: request.name,
       nim: request.nim,
       facultyName: request.faculty_name,
       academicUnitName: request.academic_unit_name,

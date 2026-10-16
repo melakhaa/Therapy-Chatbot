@@ -21,7 +21,7 @@ import { apiFetch, apiLogout, clearAuth, getStoredUser } from '@prototype/api-cl
 
 interface UserRow {
   user_id: string;
-  nama: string;
+  name: string;
   email: string;
   nim?: string;
   role: string;
@@ -52,7 +52,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getStoredUser<{ nama: string }>().then((u) => { if (u?.nama) setAdminName(u.nama); });
+    getStoredUser<{ name: string }>().then((u) => { if (u?.name) setAdminName(u.name); });
     fetchUsers();
     Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
   }, []);
@@ -176,7 +176,7 @@ function StatCard({ label, value, icon, color }: { label: string; value: number;
 
 function UserCard({ user, colors }: { user: UserRow; colors: any }) {
   const roleColor = ROLE_COLORS[user.role] || '#6b7280';
-  const initials = (user.nama || user.email).slice(0, 2).toUpperCase();
+  const initials = (user.name || user.email).slice(0, 2).toUpperCase();
   const date = new Date(user.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
 
   return (
@@ -185,7 +185,7 @@ function UserCard({ user, colors }: { user: UserRow; colors: any }) {
         <Text style={[s.avatarTxt, { color: roleColor }]}>{initials}</Text>
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[s.userName, { color: colors.onSurface }]} numberOfLines={1}>{user.nama || '—'}</Text>
+        <Text style={[s.userName, { color: colors.onSurface }]} numberOfLines={1}>{user.name || '—'}</Text>
         <Text style={[s.userEmail, { color: colors.onSurfaceVariant }]} numberOfLines={1}>{user.email}</Text>
         {user.nim && <Text style={[s.userNim, { color: colors.outline }]}>NIM: {user.nim}</Text>}
       </View>

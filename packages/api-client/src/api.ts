@@ -81,7 +81,7 @@ export interface LoginResponse {
   user: {
     user_id: string;
     email: string;
-    nama: string;
+    name: string;
     nim?: string;
     role: 'mahasiswa' | 'konselor' | 'admin' | 'pemangku_jabatan';
   };
@@ -129,7 +129,7 @@ export async function apiConfirmPasswordReset(email: string, otp: string, new_pa
 // ── Guardrail / Hotline ────────────────────────────────────────────────────────
 
 export async function apiGetHotline() {
-  return apiFetch<{ hotlines: { nama: string; nomor: string; deskripsi?: string }[] }>(
+  return apiFetch<{ hotlines: { name: string; phone: string; description?: string }[] }>(
     '/guardrail/hotline',
     { auth: false }
   );
@@ -280,11 +280,11 @@ export async function apiSubmitAssessment(payload: AssessmentPayload) {
 // ── Jadwal / Booking ───────────────────────────────────────────────────────────
 
 export interface JadwalSlot {
-  jadwal_id: string;
-  konselor_id: string;
-  tanggal: string;
-  waktu_mulai: string;
-  waktu_selesai: string;
+  counseling_slot_id: string;
+  counselor_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
   status: string;
 }
 
@@ -292,10 +292,10 @@ export async function apiGetJadwal(): Promise<{ jadwal: JadwalSlot[] }> {
   return apiFetch('/jadwal');
 }
 
-export async function apiBuatBooking(jadwal_id: string, catatan?: string) {
+export async function apiBuatBooking(counseling_slot_id: string, notes?: string) {
   return apiFetch('/booking', {
     method: 'POST',
-    body: JSON.stringify({ jadwal_id, catatan }),
+    body: JSON.stringify({ counseling_slot_id, notes }),
   });
 }
 
@@ -316,7 +316,7 @@ export interface DashboardData {
   weekly_trend: { date: string; count: number }[];
   recent_severe: { assessment_id: string; user_id: string; score: number; taken_at: string }[];
   guardrail_trigger_count: number;
-  pending_bookings: { booking_id: string; user_id: string; created_at: string }[];
+  pending_bookings: { counseling_booking_id: string; student_id: string; created_at: string }[];
 }
 
 export async function apiGetDashboard(): Promise<DashboardData> {
@@ -325,7 +325,7 @@ export async function apiGetDashboard(): Promise<DashboardData> {
 
 export interface UserRow {
   user_id: string;
-  nama: string;
+  name: string;
   email: string;
   nim?: string;
   role: string;
@@ -350,7 +350,7 @@ export async function apiGetKonselor(): Promise<{ users: UserRow[] }> {
 
 export interface JournalPayload {
   content: string;
-  mood?: 'Calm' | 'Anxious' | 'Focused' | 'Tired';
+  mood?: 'calm' | 'anxious' | 'focused' | 'tired';
 }
 
 export async function apiSaveJournal(payload: JournalPayload) {

@@ -35,7 +35,7 @@ def list_assessments(
           and (%s::text is null or a.instrument_type = %s)
           and (%s::date is null or a.taken_at >= %s::date)
           and (%s::date is null or a.taken_at < %s::date + interval '1 day')
-          and (%s = '' or u.nama ilike %s or u.nim ilike %s
+          and (%s = '' or u.name ilike %s or u.nim ilike %s
                or a.user_id::text ilike %s)
           and (%s::uuid[] is null or sap.faculty_id = any(%s::uuid[]))
           and (%s::uuid[] is null or sap.academic_unit_id = any(%s::uuid[]))
@@ -58,7 +58,7 @@ def list_assessments(
     total = query("select count(*) as total " + where, params, user_id=operator.id)[0]["total"]
     rows = query(
         "select a.assessment_id, a.user_id, a.instrument_type, a.instrument_version_id, a.score, "
-        "a.severity, a.taken_at, u.nama, u.nim,(select jsonb_agg(jsonb_build_object('category',r.category,'raw_score',r.raw_score,'scaled_score',r.scaled_score,'severity',r.severity) order by r.category) from assessment_category_results r where r.assessment_id=a.assessment_id) category_results " + where +
+        "a.severity, a.taken_at, u.name, u.nim,(select jsonb_agg(jsonb_build_object('category',r.category,'raw_score',r.raw_score,'scaled_score',r.scaled_score,'severity',r.severity) order by r.category) from assessment_category_results r where r.assessment_id=a.assessment_id) category_results " + where +
         " order by a.taken_at desc nulls last, a.assessment_id desc limit %s offset %s",
         params + (page_size, (page - 1) * page_size), user_id=operator.id,
     )
@@ -68,7 +68,7 @@ def list_assessments(
 @router.get("/users/{user_id}")
 def user_detail(user_id: UUID, operator=Depends(directory_access)):
     rows = query(
-        "select u.user_id,u.nama,u.email,u.nim,u.role,u.created_at,sap.faculty_id,f.name as faculty_name,"
+        "select u.user_id,u.name,u.email,u.nim,u.role,u.created_at,sap.faculty_id,f.name as faculty_name,"
         "sap.academic_unit_id,au.name as academic_unit_name,au.unit_type from users u "
         "left join student_academic_profiles sap on sap.user_id=u.user_id "
         "left join faculties f on f.faculty_id=sap.faculty_id "
@@ -103,11 +103,11 @@ def user_bookings(
     page_size: int = Query(20, ge=1, le=100), operator=Depends(operator_access),
 ):
     # Existing RLS restricts counselors to bookings on their own schedules.
-    source = "from booking_konsultasi b join jadwal_konsultasi j on j.jadwal_id = b.jadwal_id where b.user_id = %s"
+    source = "from counseling_bookings b join counseling_slots j on j.counseling_slot_id = b.counseling_slot_id where b.student_id = %s"
     total = query("select count(*) as total " + source, (str(user_id),), user_id=operator.id)[0]["total"]
     rows = query(
-        "select b.booking_id, b.status, j.tanggal, j.waktu_mulai, j.waktu_selesai "
-        + source + " order by j.tanggal desc, b.booking_id desc limit %s offset %s",
+        "select b.counseling_booking_id, b.status, j.date, j.start_time, j.end_time "
+        + source + " order by j.date desc, b.counseling_booking_id desc limit %s offset %s",
         (str(user_id), page_size, (page - 1) * page_size), user_id=operator.id,
     )
     return {"bookings": rows, "total": total, "page": page, "page_size": page_size}

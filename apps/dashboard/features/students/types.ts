@@ -5,7 +5,7 @@ export type SupportProfileState = 'none' | 'present' | 'unknown' | 'prefer_not_t
 
 export interface StudentRow {
   user_id: string;
-  nama: string;
+  name: string;
   email: string;
   nim: string | null;
   role: string;
@@ -44,13 +44,13 @@ export interface StudentAssessmentPage {
   page_size: number;
 }
 
-export type BookingStatus = 'menunggu' | 'dikonfirmasi' | 'selesai' | 'dibatalkan';
+export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
 export interface StudentBooking {
-  booking_id: string;
+  counseling_booking_id: string;
   status: BookingStatus;
-  tanggal: string;
-  waktu_mulai: string;
-  waktu_selesai: string;
+  date: string;
+  start_time: string;
+  end_time: string;
 }
 
 export interface StudentBookingPage {
@@ -68,8 +68,8 @@ export interface DirectoryFilters {
   pageSize: 25 | 50;
 }
 
-export interface IdentityDraft { nama: string; nim: string }
-export interface IdentityPayload { nama: string; nim?: string }
+export interface IdentityDraft { name: string; nim: string }
+export interface IdentityPayload { name: string; nim?: string }
 export interface StudentDataBundle {
   student: StudentRow;
   assessments: StudentAssessmentPage | null;

@@ -7,7 +7,7 @@ export type UpcomingSession = {
   start: string;
   end: string;
   counselor: string | null;
-  status: 'menunggu' | 'dikonfirmasi';
+  status: 'pending' | 'confirmed';
 };
 
 /**
@@ -19,11 +19,11 @@ export type UpcomingSession = {
 export function nearestSession(requests: MyCounselingRequest[], now: number = Date.now()): UpcomingSession | undefined {
   return requests
     .map((r): UpcomingSession | null => {
-      if (r.appointment_id && r.starts_at && r.ends_at && (r.appointment_status === 'confirmed' || r.appointment_status === 'rescheduled')) {
-        return { start: r.starts_at, end: r.ends_at, counselor: r.counselor_name, status: 'dikonfirmasi' };
+      if (r.counseling_appointment_id && r.starts_at && r.ends_at && (r.appointment_status === 'confirmed' || r.appointment_status === 'rescheduled')) {
+        return { start: r.starts_at, end: r.ends_at, counselor: r.counselor_name, status: 'confirmed' };
       }
       if (r.status === 'requested' && r.preferred_starts_at && r.preferred_ends_at) {
-        return { start: r.preferred_starts_at, end: r.preferred_ends_at, counselor: r.preferred_counselor_name, status: 'menunggu' };
+        return { start: r.preferred_starts_at, end: r.preferred_ends_at, counselor: r.preferred_counselor_name, status: 'pending' };
       }
       return null; // cancelled, completed, no-show, or a request without a pick
     })

@@ -1,10 +1,16 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, useWindowDimensions } from 'react-native';
+import Animated, {
+  Extrapolation, interpolate, runOnJS, useAnimatedReaction, useAnimatedScrollHandler, useAnimatedStyle,
+  useReducedMotion, useSharedValue, type SharedValue,
+} from 'react-native-reanimated';
+import { ScrollView as GestureScrollView } from 'react-native-gesture-handler';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BottomNav, BOTTOM_CLEARANCE, FadeIn, useToast, clockTime } from '../components/ui';
+import { BottomNav, BOTTOM_CLEARANCE, FadeIn, useToast, clockTime, haptic, useTabSwipeLock } from '../components/ui';
+import { offsetOf, PagerDots } from '../components/ui/Pager';
 import { Companion } from '../components/chat';
 import { useAuth } from '@prototype/ui-shared';
 import type { Expression } from '@prototype/utils';
@@ -33,6 +39,104 @@ const moment = () => {
   if (h < 18) return { greet: 'Selamat sore', ask: 'Sore ini gimana perasaanmu?', face: 'menyapa' as Expression };
   if (h < 22) return { greet: 'Selamat malam', ask: 'Malam ini, ada yang ingin kamu ceritakan?', face: 'tenang' as Expression };
   return { greet: 'Selamat malam', ask: 'Belum tidur? Aku temani sebentar.', face: 'mengantuk' as Expression };
+};
+
+type Slide = { kicker: string; title: string; face: Expression; cta: string; icon: keyof typeof Ionicons.glyphMap; tint: string; to: string };
+
+// Each page spans the full screen width and holds the card inside the screen's own 20pt
+// gutter, so while swiping the neighbouring card shows up across a gap, App Store style.
+const GUTTER = 20;
+// Room for the raised shadow (9px offset + 20px blur), which the pager would otherwise clip
+const SHADOW = 26;
+
+/** One hero card. The card rides the scroll; inside it the companion and the words move at
+ *  their own speeds, so the swipe reads as layered rather than a flat slide. */
+const HeroSlide: React.FC<{ slide: Slide; index: number; width: number; scrollX: SharedValue<number>; reduce: boolean }> = ({
+  slide, index, width, scrollX, reduce,
+}) => {
+  const artStyle = useAnimatedStyle(() => {
+    if (reduce) return {};
+    const p = offsetOf(scrollX.value, index, width);
+    return {
+      opacity: interpolate(p, [-1, 0, 1], [0.2, 1, 0.2], Extrapolation.CLAMP),
+      transform: [
+        { translateX: interpolate(p, [-1, 0, 1], [width * 0.25, 0, -width * 0.25], Extrapolation.CLAMP) },
+        { scale: interpolate(p, [-1, 0, 1], [0.6, 1, 0.6], Extrapolation.CLAMP) },
+      ],
+    };
+  });
+  const textStyle = useAnimatedStyle(() => {
+    if (reduce) return {};
+    const p = offsetOf(scrollX.value, index, width);
+    return {
+      opacity: interpolate(p, [-0.7, 0, 0.7], [0, 1, 0], Extrapolation.CLAMP),
+      transform: [{ translateX: interpolate(p, [-1, 0, 1], [width * 0.1, 0, -width * 0.1], Extrapolation.CLAMP) }],
+    };
+  });
+
+  return (
+    <View style={[s.heroPage, { width }]}>
+      <View style={[s.hero, { boxShadow: triRaised(1) }]}>
+        <View style={s.heroTop}>
+          <Animated.View style={[{ flex: 1, gap: 8 }, textStyle]}>
+            <Text style={s.heroKicker}>{slide.kicker}</Text>
+            <Text style={s.heroTitle}>{slide.title}</Text>
+          </Animated.View>
+          {/* Neumorphism on navy: shadows are navy tints, not grey */}
+          <Animated.View style={[s.heroStage, artStyle]}>
+            <View style={s.heroWell}>
+              <Companion expression={slide.face} size={92} />
+            </View>
+          </Animated.View>
+        </View>
+        <PressableScale
+          onPress={() => router.push(slide.to as any)}
+          accessibilityRole="button"
+          style={({ pressed }) => [s.heroCta, pressed && { transform: [{ scale: 0.98 }] }]}
+        >
+          <Ionicons name={slide.icon} size={18} color={slide.tint} />
+          <Text style={s.heroCtaText}>{slide.cta}</Text>
+          <Ionicons name="arrow-forward" size={18} color={TRI.navy} />
+        </PressableScale>
+      </View>
+    </View>
+  );
+};
+
+/** The hero, paged sideways. One haptic tick per card reached; with reduce motion on, cards just page. */
+// The gesture-handler ScrollView takes part in gesture negotiation, so a drag on the cards
+// pages the cards instead of switching tabs (the root layout's swipe).
+const PagerScroll = Animated.createAnimatedComponent(GestureScrollView);
+
+const HeroCarousel: React.FC<{ slides: Slide[] }> = ({ slides }) => {
+  const { width } = useWindowDimensions();
+  const reduce = useReducedMotion();
+  const scrollX = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((e) => { scrollX.value = e.contentOffset.x; });
+  useAnimatedReaction(
+    () => Math.round(scrollX.value / Math.max(width, 1)),
+    (now, before) => { if (before !== null && now !== before) runOnJS(haptic.select)(); },
+    [width],
+  );
+
+  return (
+    <View style={{ gap: 12 }}>
+      <PagerScroll
+        horizontal
+        pagingEnabled
+        bounces={false}
+        showsHorizontalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        style={s.heroPager}
+      >
+        {slides.map((sl, i) => (
+          <HeroSlide key={sl.to} slide={sl} index={i} width={width} scrollX={scrollX} reduce={reduce} />
+        ))}
+      </PagerScroll>
+      <PagerDots count={slides.length} width={width} scrollX={scrollX} color={TRI.navy} />
+    </View>
+  );
 };
 
 export default function HomeScreen() {
@@ -75,6 +179,7 @@ export default function HomeScreen() {
   }, [journals]);
   const prompt = useMemo(todayPrompt, []);
   const words = draft.trim() ? draft.trim().split(/\s+/).length : 0;
+  useTabSwipeLock(!!draft.trim()); // an unsaved journal line survives a stray swipe
 
   const quickCheckin = async (m: Mood) => {
     if (savingMood || current?.mood === m) return;
@@ -140,7 +245,7 @@ export default function HomeScreen() {
     const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
     const top = ranked[0];
     const tie = ranked[1] && ranked[1][1] === top?.[1]; // no single dominant mood: don't pretend there is
-    const heavy = days.filter((d) => d.mood === 'Anxious' || d.mood === 'Tired').map((d) => DAY_LONG[d.date.getDay()]);
+    const heavy = days.filter((d) => d.mood === 'anxious' || d.mood === 'tired').map((d) => DAY_LONG[d.date.getDay()]);
     let insight = 'Belum ada check-in minggu ini. Satu ketukan di atas sudah cukup untuk mulai.';
     if (top) {
       insight = tie ? 'Suasana hatimu cukup beragam minggu ini.' : `${moodOf(top[0])!.label} paling sering muncul.`;
@@ -150,14 +255,21 @@ export default function HomeScreen() {
   }, [journals]);
 
 
-  const firstName = user?.nama?.split(' ')[0];
-  const initials = (user?.nama || 'S').split(' ').slice(0, 2).map((w: string) => w[0]?.toUpperCase()).join('');
+  const firstName = user?.name?.split(' ')[0];
+  const initials = (user?.name || 'S').split(' ').slice(0, 2).map((w: string) => w[0]?.toUpperCase()).join('');
   const face: Expression = current?.mood ? MOOD_COMPANION[current.mood as Mood].face : now.face;
 
   // Only pages the bottom nav does not already reach, and that nothing else on this screen links to
   const shortcuts = [
     { icon: 'time-outline', label: 'Riwayat chat', hint: 'Lanjutkan cerita', color: TRI.navy, to: '/chat-history' },
     { icon: 'call-outline', label: 'Hotline', hint: 'Bantuan darurat', color: TRI.coral, to: '/hotline' },
+  ];
+
+  // Talk now first; then the two other ways in that need a nudge more than a tab icon gives
+  const slides: Slide[] = [
+    { kicker: 'Sajiwa siap mendengarkan', title: now.ask, face, cta: 'Mulai cerita baru', icon: 'chatbubble-ellipses', tint: TRI.navy, to: '/chat' },
+    { kicker: 'Konseling kampus', title: 'Mau ngobrol langsung dengan konselor?', face: 'menyapa', cta: 'Pilih jadwal konseling', icon: 'calendar', tint: TRI.amber, to: '/schedule' },
+    { kicker: 'Asesmen DASS-21', title: 'Kenali kondisi emosimu lewat 21 pertanyaan singkat', face: 'berpikir', cta: 'Mulai asesmen', icon: 'clipboard', tint: TRI.sage, to: '/assessment' },
   ];
 
   return (
@@ -196,31 +308,9 @@ export default function HomeScreen() {
             </View>
         </FadeIn>
 
-        {/* ── Hero: talk now, or pick up where you left off ── */}
+        {/* ── Hero: talk now, or one of the other ways in; swipe sideways ── */}
         <FadeIn>
-            <View style={[s.hero, { boxShadow: triRaised(1) }]}>
-              <View style={s.heroTop}>
-                <View style={{ flex: 1, gap: 8 }}>
-                  <Text style={s.heroKicker}>Sajiwa siap mendengarkan</Text>
-                  <Text style={s.heroTitle}>{now.ask}</Text>
-                </View>
-                {/* Neumorphism on navy: shadows are navy tints, not grey */}
-                <View style={s.heroStage}>
-                  <View style={s.heroWell}>
-                    <Companion expression={face} size={92} />
-                  </View>
-                </View>
-              </View>
-              <PressableScale
-                onPress={() => router.push('/chat')}
-                accessibilityRole="button"
-                style={({ pressed }) => [s.heroCta, pressed && { transform: [{ scale: 0.98 }] }]}
-              >
-                <Ionicons name="chatbubble-ellipses" size={18} color={TRI.navy} />
-                <Text style={s.heroCtaText}>Mulai cerita baru</Text>
-                <Ionicons name="arrow-forward" size={18} color={TRI.navy} />
-              </PressableScale>
-            </View>
+          <HeroCarousel slides={slides} />
         </FadeIn>
 
         {/* ── One-tap check-in (journal = sage) ── */}
@@ -388,7 +478,7 @@ export default function HomeScreen() {
                   <Text style={s.sessionName} numberOfLines={1}>{next.counselor ?? 'Konselor kampus'}</Text>
                   <Text style={s.sessionMeta}>
                     {DAY_LONG[new Date(next.start).getDay()]}, {clockTime(next.start)} ·{' '}
-                    {next.status === 'dikonfirmasi' ? 'dikonfirmasi' : 'menunggu konfirmasi'}
+                    {next.status === 'confirmed' ? 'confirmed' : 'menunggu konfirmasi'}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={TRI.muted} />
@@ -439,7 +529,9 @@ const s = StyleSheet.create({
   avatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: TRI.bg, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: TRI.navy, fontSize: 15, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: 0.2 },
 
-  hero: { backgroundColor: TRI.navy, borderRadius: 28, padding: 16, gap: 10, overflow: 'hidden' },
+  heroPager: { marginHorizontal: -GUTTER, marginVertical: -SHADOW },
+  heroPage: { paddingHorizontal: GUTTER, paddingVertical: SHADOW },
+  hero: { flex: 1, backgroundColor: TRI.navy, borderRadius: 28, padding: 16, gap: 10, overflow: 'hidden', justifyContent: 'space-between' },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   heroKicker: { color: 'rgba(255,255,255,0.78)', fontSize: 13, fontFamily: 'PlusJakartaSans_600SemiBold' },
   heroTitle: { color: '#fff', fontSize: 19, lineHeight: 25, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.5 },

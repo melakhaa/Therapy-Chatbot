@@ -67,7 +67,7 @@ def _version_detail(version_id: str, admin_id: str):
         "select v.instrument_version_id,v.instrument_id,i.code,i.name,i.language,i.instrument_kind,i.norms_enabled,i.provenance,"
         "i.derived_from_instrument_id,v.version_number,v.status,"
         "v.expected_question_count,v.authoritative_config,v.scoring_config,v.definition_revision,v.created_at,v.updated_at,"
-        "v.published_at,cu.nama created_by_name,uu.nama updated_by_name,pu.nama published_by_name "
+        "v.published_at,cu.name created_by_name,uu.name updated_by_name,pu.name published_by_name "
         "from assessment_instrument_versions v join assessment_instruments i on i.instrument_id=v.instrument_id "
         "left join users cu on cu.user_id=v.created_by left join users uu on uu.user_id=v.updated_by "
         "left join users pu on pu.user_id=v.published_by where v.instrument_version_id=%s",
@@ -85,12 +85,12 @@ def _version_detail(version_id: str, admin_id: str):
         (version_id,), user_id=admin_id,
     )
     dimensions = query(
-        "select dimension_id,code,name,description,position,multiplier,interpretation_bands "
+        "select assessment_dimension_id,code,name,description,position,multiplier,interpretation_bands "
         "from assessment_dimensions where instrument_version_id=%s order by position",
         (version_id,), user_id=admin_id,
     )
     reviews = query(
-        "select review_id,definition_revision,status,submitted_at,reviewer_counselor_id,decided_at,decision_comment "
+        "select assessment_version_review_id,definition_revision,status,submitted_at,reviewer_user_id,decided_at,decision_comment "
         "from assessment_version_reviews where instrument_version_id=%s order by submitted_at desc",
         (version_id,), user_id=admin_id,
     )
@@ -221,8 +221,8 @@ def save_instrument_draft(version_id: UUID, body: DraftDefinition, admin=Depends
         conn.execute("delete from assessment_questions where instrument_version_id=%s", (str(version_id),))
         for question in sorted(body.questions, key=lambda item: item.position):
             created = conn.execute(
-                "insert into assessment_questions(instrument_version_id,item_key,category,dimension_id,position,wording,active) "
-                "values(%s,%s,%s,(select dimension_id from assessment_dimensions where instrument_version_id=%s and code=%s),%s,%s,%s) returning assessment_question_id",
+                "insert into assessment_questions(instrument_version_id,item_key,category,assessment_dimension_id,position,wording,active) "
+                "values(%s,%s,%s,(select assessment_dimension_id from assessment_dimensions where instrument_version_id=%s and code=%s),%s,%s,%s) returning assessment_question_id",
                 (str(version_id), question.item_key, question.category, str(version_id), question.category, question.position, question.wording.strip(), question.active),
             ).fetchone()
             for option in sorted(question.options, key=lambda item: item.position):
@@ -288,7 +288,7 @@ def _publish_issues(conn, version_id: str) -> List[str]:
         dimensions = conn.execute("select code from assessment_dimensions where instrument_version_id=%s", (version_id,)).fetchall()
         if not dimensions:
             issues.append("Instrumen kustom wajib memiliki sedikitnya satu dimensi")
-        if conn.execute("select 1 from assessment_questions q left join assessment_dimensions d on d.dimension_id=q.dimension_id where q.instrument_version_id=%s and q.active and d.dimension_id is null limit 1", (version_id,)).fetchone():
+        if conn.execute("select 1 from assessment_questions q left join assessment_dimensions d on d.assessment_dimension_id=q.assessment_dimension_id where q.instrument_version_id=%s and q.active and d.assessment_dimension_id is null limit 1", (version_id,)).fetchone():
             issues.append("Setiap pertanyaan aktif wajib terhubung ke dimensi")
         approved = conn.execute("select 1 from assessment_version_reviews where instrument_version_id=%s and definition_revision=%s and status='approved' limit 1", (version_id, version["definition_revision"])).fetchone()
         if not approved:
@@ -554,8 +554,8 @@ def multi_counselor_calendar(
     selected_clause = "" if not counselor_ids else " and u.user_id=any(%s::uuid[])"
     selected_params = () if not counselor_ids else (counselor_ids,)
     counselors = query(
-        "select u.user_id,u.nama,cp.title,cp.specialization,coalesce(cp.active,true) active from users u "
-        "left join counselor_profiles cp on cp.user_id=u.user_id where u.role='konselor'" + selected_clause + " order by u.nama",
+        "select u.user_id,u.name,cp.title,cp.specialization,coalesce(cp.active,true) active from users u "
+        "left join counselor_profiles cp on cp.user_id=u.user_id where u.role='konselor'" + selected_clause + " order by u.name",
         selected_params, user_id=admin.id,
     )
     resolved_ids = [str(row["user_id"]) for row in counselors]
@@ -564,21 +564,21 @@ def multi_counselor_calendar(
     if not resolved_ids:
         return {"counselors": [], "appointments": [], "availability": [], "blocked_periods": []}
     appointments = query(
-        "select a.appointment_id,a.counseling_request_id,a.student_id,s.nama student_name,s.nim,"
-        "a.counselor_id,c.nama counselor_name,a.starts_at,a.ends_at,a.status "
+        "select a.counseling_appointment_id,a.counseling_request_id,a.student_id,s.name student_name,s.nim,"
+        "a.counselor_id,c.name counselor_name,a.starts_at,a.ends_at,a.status "
         "from counseling_appointments a join users s on s.user_id=a.student_id join users c on c.user_id=a.counselor_id "
         "where a.counselor_id=any(%s::uuid[]) and a.starts_at<%s::date+interval '1 day' and a.ends_at>%s::date order by a.starts_at",
         (resolved_ids, date_to, date_from), user_id=admin.id,
     )
     availability = query(
-        "select availability_rule_id,counselor_id,day_of_week,start_time,end_time,timezone,effective_from,effective_to,active "
+        "select counselor_availability_rule_id,counselor_id,day_of_week,start_time,end_time,timezone,effective_from,effective_to,active "
         "from counselor_availability_rules where counselor_id=any(%s::uuid[]) and active "
         "and coalesce(effective_from,'-infinity'::date)<=%s::date and coalesce(effective_to,'infinity'::date)>=%s::date "
         "order by counselor_id,day_of_week,start_time",
         (resolved_ids, date_to, date_from), user_id=admin.id,
     )
     blocked = query(
-        "select b.blocked_period_id,b.counselor_id,u.nama counselor_name,b.starts_at,b.ends_at,b.reason "
+        "select b.counselor_blocked_period_id,b.counselor_id,u.name counselor_name,b.starts_at,b.ends_at,b.reason "
         "from counselor_blocked_periods b join users u on u.user_id=b.counselor_id "
         "where b.counselor_id=any(%s::uuid[]) and b.starts_at<%s::date+interval '1 day' and b.ends_at>%s::date order by b.starts_at",
         (resolved_ids, date_to, date_from), user_id=admin.id,
