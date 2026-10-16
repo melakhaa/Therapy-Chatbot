@@ -4,11 +4,12 @@ import Animated, {
   Extrapolation, interpolate, runOnJS, useAnimatedReaction, useAnimatedScrollHandler, useAnimatedStyle,
   useReducedMotion, useSharedValue, type SharedValue,
 } from 'react-native-reanimated';
+import { ScrollView as GestureScrollView } from 'react-native-gesture-handler';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BottomNav, BOTTOM_CLEARANCE, FadeIn, useToast, clockTime, haptic } from '../components/ui';
+import { BottomNav, BOTTOM_CLEARANCE, FadeIn, useToast, clockTime, haptic, useTabSwipeLock } from '../components/ui';
 import { offsetOf, PagerDots } from '../components/ui/Pager';
 import { Companion } from '../components/chat';
 import { useAuth } from '@prototype/ui-shared';
@@ -103,6 +104,10 @@ const HeroSlide: React.FC<{ slide: Slide; index: number; width: number; scrollX:
 };
 
 /** The hero, paged sideways. One haptic tick per card reached; with reduce motion on, cards just page. */
+// The gesture-handler ScrollView takes part in gesture negotiation, so a drag on the cards
+// pages the cards instead of switching tabs (the root layout's swipe).
+const PagerScroll = Animated.createAnimatedComponent(GestureScrollView);
+
 const HeroCarousel: React.FC<{ slides: Slide[] }> = ({ slides }) => {
   const { width } = useWindowDimensions();
   const reduce = useReducedMotion();
@@ -116,7 +121,7 @@ const HeroCarousel: React.FC<{ slides: Slide[] }> = ({ slides }) => {
 
   return (
     <View style={{ gap: 12 }}>
-      <Animated.ScrollView
+      <PagerScroll
         horizontal
         pagingEnabled
         bounces={false}
@@ -128,7 +133,7 @@ const HeroCarousel: React.FC<{ slides: Slide[] }> = ({ slides }) => {
         {slides.map((sl, i) => (
           <HeroSlide key={sl.to} slide={sl} index={i} width={width} scrollX={scrollX} reduce={reduce} />
         ))}
-      </Animated.ScrollView>
+      </PagerScroll>
       <PagerDots count={slides.length} width={width} scrollX={scrollX} color={TRI.navy} />
     </View>
   );
@@ -174,6 +179,7 @@ export default function HomeScreen() {
   }, [journals]);
   const prompt = useMemo(todayPrompt, []);
   const words = draft.trim() ? draft.trim().split(/\s+/).length : 0;
+  useTabSwipeLock(!!draft.trim()); // an unsaved journal line survives a stray swipe
 
   const quickCheckin = async (m: Mood) => {
     if (savingMood || current?.mood === m) return;
