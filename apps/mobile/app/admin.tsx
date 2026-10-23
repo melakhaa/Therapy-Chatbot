@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@prototype/ui-shared';
+import { FADE_MS } from '../components/ui/motion';
 import { apiFetch, apiLogout, clearAuth, getStoredUser } from '@prototype/api-client';
 
 
@@ -54,7 +55,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     getStoredUser<{ name: string }>().then((u) => { if (u?.name) setAdminName(u.name); });
     fetchUsers();
-    Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+    Animated.timing(fadeAnim, { toValue: 1, duration: FADE_MS, useNativeDriver: true }).start();
   }, []);
 
   const fetchUsers = async () => {

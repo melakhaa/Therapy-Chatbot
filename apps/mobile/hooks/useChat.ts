@@ -9,6 +9,7 @@ import {
   saveChatSessionId,
 } from '@prototype/api-client';
 import { useToast } from '../components/ui/Toast';
+import { SPRING_QUICK } from '../components/ui/motion';
 
 export interface UseChatReturn {
   messages: Message[];
@@ -259,8 +260,8 @@ export function useChat(initialSessionId?: string): UseChatReturn {
       setShowQuickReplies(false);
 
       Animated.sequence([
-        Animated.spring(sendBtnScale, { toValue: 0.82, useNativeDriver: true }),
-        Animated.spring(sendBtnScale, { toValue: 1, useNativeDriver: true }),
+        Animated.spring(sendBtnScale, { toValue: 0.82, ...SPRING_QUICK, useNativeDriver: true }),
+        Animated.spring(sendBtnScale, { toValue: 1, ...SPRING_QUICK, useNativeDriver: true }),
       ]).start();
 
       apiChatStream(

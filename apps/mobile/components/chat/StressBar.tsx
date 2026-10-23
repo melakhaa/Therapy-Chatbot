@@ -7,6 +7,7 @@ import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSprin
 import { Ionicons } from '@expo/vector-icons';
 import { Spacing, BorderRadius } from '@prototype/ui-shared';
 import { useTheme, Neu } from '@prototype/ui-shared';
+import { SPRING_FILL } from '../ui/motion';
 
 interface Props {
   level: number;
@@ -82,7 +83,7 @@ export const StressBar: React.FC<Props> = ({ level, onSupportPress }) => {
   useEffect(() => {
     const to = expanded ? 1 : 0;
     // Critically damped: unfolds like an iOS disclosure row, without a bounce at the end.
-    open.value = reduce ? withTiming(to, { duration: 0 }) : withSpring(to, { damping: 26, stiffness: 260, mass: 0.8, overshootClamping: true });
+    open.value = reduce ? withTiming(to, { duration: 0 }) : withSpring(to, SPRING_FILL);
     // open is a stable shared value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded, reduce]);

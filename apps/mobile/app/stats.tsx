@@ -8,6 +8,7 @@ import { apiGetJournals } from '@prototype/api-client';
 
 import { BottomNav, BOTTOM_CLEARANCE, FadeIn, NeuView, Button, ScreenHeader, IconButton, useToast } from '../components/ui';
 import { useTheme, Neu } from '@prototype/ui-shared';
+import { SPRING_FILL } from '../components/ui/motion';
 import { MOODS, Mood, moodOf } from '../constants/moods';
 
 type Day = { day: string; score: number; mood: Mood | null };
@@ -25,7 +26,7 @@ const Bar: React.FC<{ score: number; color: string; index: number }> = ({ score,
   useEffect(() => {
     fill.value = withDelay(
       60 * index,
-      withSpring(score / 100, { damping: 22, stiffness: 170, overshootClamping: true, reduceMotion: ReduceMotion.System }),
+      withSpring(score / 100, { ...SPRING_FILL, reduceMotion: ReduceMotion.System }),
     );
     // fill is a stable shared value.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button, IconButton } from '../ui';
 import { Neu, useTheme } from '@prototype/ui-shared';
 import { toDialable, extensionOf } from '@prototype/utils';
+import { EXIT_EASING_RN, EXIT_MS, FADE_MS, SPRING } from '../ui/motion';
 
 interface Props {
   visible: boolean;
@@ -41,10 +42,15 @@ export const AlertModal: React.FC<Props> = ({ visible, onDismiss, onConfirmRepor
 
   useEffect(() => {
     if (visible) setShown(true);
-    Animated.spring(scale, { toValue: visible ? 1 : 0.96, damping: 24, stiffness: 300, useNativeDriver: true }).start();
+    Animated.spring(scale, { toValue: visible ? 1 : 0.96, ...SPRING, useNativeDriver: true }).start();
     // Unmount on the fade, not on the spring: the spring keeps settling for a few hundred ms
     // after the card is already invisible, and an invisible Modal still swallows every touch.
-    Animated.timing(opacity, { toValue: visible ? 1 : 0, duration: visible ? 200 : 160, useNativeDriver: true }).start(
+    Animated.timing(opacity, {
+      toValue: visible ? 1 : 0,
+      duration: visible ? FADE_MS : EXIT_MS,
+      easing: visible ? undefined : EXIT_EASING_RN,
+      useNativeDriver: true,
+    }).start(
       ({ finished }) => { if (finished && !visible) setShown(false); },
     );
   }, [visible]);

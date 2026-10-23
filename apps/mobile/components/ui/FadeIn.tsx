@@ -4,12 +4,11 @@
 // Reanimated's layout-animation path mispositions elements, so there it is a plain fade.
 // Runs on the UI thread, and honors the system "reduce motion" setting.
 import React from 'react';
-import { Platform, StyleProp, ViewStyle } from 'react-native';
-import Animated, { FadeIn as Fade, FadeInDown, ReduceMotion } from 'react-native-reanimated';
+import { StyleProp, ViewStyle } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { arrive } from './motion';
 
-const entering = Platform.OS === 'web'
-  ? Fade.duration(240).reduceMotion(ReduceMotion.System)
-  : FadeInDown.springify().damping(26).stiffness(220).mass(0.85).reduceMotion(ReduceMotion.System);
+const entering = arrive(FadeInDown);
 
 interface FadeInProps {
   children: React.ReactNode;

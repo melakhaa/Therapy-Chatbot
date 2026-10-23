@@ -10,6 +10,7 @@ import { useTheme } from '@prototype/ui-shared';
 import type { Expression } from '@prototype/utils';
 import { CHARACTER } from '../../constants/character';
 import { haptic } from './haptics';
+import { EXIT_EASING_RN, EXIT_MS, SPRING_FILL } from './motion';
 
 type ToastType = 'success' | 'error' | 'info';
 interface ToastState { type: ToastType; message: string; id: number }
@@ -35,7 +36,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const hide = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
     timeLeft.stopAnimation();
-    Animated.timing(slide, { toValue: 0, duration: 200, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(() =>
+    Animated.timing(slide, { toValue: 0, duration: EXIT_MS, easing: EXIT_EASING_RN, useNativeDriver: true }).start(() =>
       setToast(null),
     );
   }, [slide, timeLeft]);
@@ -50,7 +51,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       timeLeft.setValue(1);
       // Spring, not a fixed-length ease: the sheet decelerates into place the way iOS
       // banners do. Clamped, because any overshoot would open a gap above the top edge.
-      Animated.spring(slide, { toValue: 1, stiffness: 320, damping: 30, mass: 0.9, overshootClamping: true, useNativeDriver: true }).start();
+      Animated.spring(slide, { toValue: 1, ...SPRING_FILL, useNativeDriver: true }).start();
       // Success and failure get the matching iOS notification tap; plain info stays silent.
       if (type === 'success') haptic.success();
       else if (type === 'error') haptic.error();
@@ -88,7 +89,8 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             <BlurView
               intensity={Platform.OS === 'android' ? 40 : 60}
               tint="light"
-              experimentalBlurMethod="dimezisBlurView"
+              // No Android blur since SDK 55 (it needs a <BlurTargetView> around the
+              // whole screen); the tint below keeps the toast readable on its own
               style={StyleSheet.absoluteFill}
             />
             <View style={[StyleSheet.absoluteFill, s.tint]} />
