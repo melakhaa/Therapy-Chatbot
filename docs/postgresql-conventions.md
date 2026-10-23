@@ -48,6 +48,8 @@ create extension if not exists pgcrypto;   -- gen_random_uuid() etc.
 | `counseling_requests`, `counseling_appointments`, `counseling_appointment_events`, `counseling_admin_notes` | Counseling request → appointment workflow, event history, admin notes |
 | `counseling_resources`, `counseling_resource_blocks` | B1 rooms/equipment and their blocked periods |
 | `student_support_profiles` | Separately protected support profile (`none`/`present`/`unknown`/`prefer_not_to_say`) |
+| `counselor_case_assignments` | Counselor caseload; case-scoped RLS reads through `counselor_has_case()` |
+| `counselor_exception_requests` | Counselor time-off requests; admin approval creates the blocked period |
 | `report_export_audits` | Audit trail for report exports (scope, actor, timestamp) |
 
 ## Conventions
