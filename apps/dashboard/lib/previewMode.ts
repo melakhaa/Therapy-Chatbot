@@ -9,7 +9,7 @@ export const PREVIEW_ADMIN: AuthenticatedUser = {
 
 export const PREVIEW_COUNSELOR: AuthenticatedUser = {
   user_id: 'preview-counselor-01',
-  nama: 'Konselor Preview',
+  name: 'Konselor Preview',
   email: 'konselor.preview@sajiwa.local',
   role: 'konselor',
 };

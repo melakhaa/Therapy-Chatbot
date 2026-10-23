@@ -27,12 +27,12 @@ test('preview role defaults to admin and switches both persisted and resolved id
   const sessionStorage = new MemoryStorage();
   Object.defineProperty(globalThis, 'window', { configurable: true, value: { sessionStorage } });
   assert.equal(getPreviewUser().role, 'admin');
-  assert.equal(setPreviewRole('konselor').nama, 'Konselor Preview');
+  assert.equal(setPreviewRole('konselor').name, 'Konselor Preview');
   assert.equal(sessionStorage.getItem(PREVIEW_ROLE_KEY), 'konselor');
   assert.equal(getPreviewUser().role, 'konselor');
-  assert.equal(getPreviewUser().nama, 'Konselor Preview');
+  assert.equal(getPreviewUser().name, 'Konselor Preview');
   assert.equal(setPreviewRole('admin').role, 'admin');
-  assert.equal(getPreviewUser().nama, 'Preview Administrator');
+  assert.equal(getPreviewUser().name, 'Preview Administrator');
   Reflect.deleteProperty(globalThis, 'window');
 });
 
