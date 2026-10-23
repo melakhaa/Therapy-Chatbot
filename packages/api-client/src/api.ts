@@ -102,6 +102,11 @@ export async function apiLogout(): Promise<void> {
   await clearAuth();
 }
 
+// The privacy walkthrough is shown once per account; the acceptance lives on the server.
+export type PrivacyConsent = { accepted_at: string | null };
+export const apiGetPrivacyConsent = () => apiFetch<PrivacyConsent>('/auth/consent');
+export const apiAcceptPrivacyConsent = () => apiFetch<PrivacyConsent>('/auth/consent', { method: 'POST' });
+
 export async function apiRegister(payload: any) {
   return apiFetch('/auth/register', {
     method: 'POST',

@@ -334,12 +334,35 @@ s, r = call("GET", "/booking/saya", token=other_tok)
 check("student B sees zero of A's bookings", s == 200 and len(r["bookings"]) == 0, (s, r))
 
 print("== cleanup ==")
-sql("delete from counseling_bookings where student_id in (select user_id from users where email like %s) "
-    "or counseling_slot_id in (select counseling_slot_id from counseling_slots where counselor_id in "
-    "(select user_id from users where email like %s))", (f"%{SFX}@example.com", f"%{SFX}@example.com"))
-sql("delete from users where email like %s", (f"%{SFX}@example.com",))
-left = sql("select count(*) from users where email like %s", (f"%{SFX}@example.com",))[0][0]
+TEST_USERS = "(select user_id from users where email like %s)"
+PATTERN = f"%{SFX}@example.com"
+# Before the users go, while the rows they made can still be traced to them:
+# - triggers announce test assessments, bookings and crisis logs to admins; deleting a row
+#   does not delete its notification, which was left pointing at nothing on the dashboard
+# - guardrail_logs.user_id is ON DELETE SET NULL, so the logs outlived their users and
+#   showed up under "Perlu Perhatian" as crisis signals from a deleted account
+sql("delete from admin_notifications where entity_id in ("
+    "select assessment_id from assessments where user_id in " + TEST_USERS +
+    " union select guardrail_log_id from guardrail_logs where user_id in " + TEST_USERS +
+    " union select counseling_booking_id from counseling_bookings where student_id in " + TEST_USERS + ")",
+    (PATTERN, PATTERN, PATTERN))
+sql("delete from guardrail_logs where user_id in " + TEST_USERS, (PATTERN,))
+sql("delete from counseling_bookings where student_id in " + TEST_USERS +
+    " or counseling_slot_id in (select counseling_slot_id from counseling_slots where counselor_id in " + TEST_USERS + ")",
+    (PATTERN, PATTERN))
+sql("delete from users where email like %s", (PATTERN,))
+left = sql("select count(*) from users where email like %s", (PATTERN,))[0][0]
 check("test data cleaned up", left == 0, left)
+# Nothing the run caused may outlive it: no ownerless crisis logs from this run's sessions,
+# and no notification left pointing at a row that no longer exists.
+orphans = sql(
+    "select (select count(*) from guardrail_logs where user_id is null and session_id like %s)"
+    " + (select count(*) from admin_notifications n where n.entity_type in ('assessment','guardrail_log','legacy_booking')"
+    "    and not exists (select 1 from assessments where assessment_id = n.entity_id)"
+    "    and not exists (select 1 from guardrail_logs where guardrail_log_id = n.entity_id)"
+    "    and not exists (select 1 from counseling_bookings where counseling_booking_id = n.entity_id))",
+    (f"%{SFX}",))[0][0]
+check("no orphaned crisis logs or notifications", orphans == 0, orphans)
 
 print()
 print(f"{'ALL PASSED' if not FAILS else str(len(FAILS)) + ' FAILED: ' + ', '.join(FAILS)}")
