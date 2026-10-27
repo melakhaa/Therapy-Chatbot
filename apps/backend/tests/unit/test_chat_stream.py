@@ -18,7 +18,7 @@ from cryptography.fernet import Fernet
 
 os.environ.setdefault("JWT_SECRET", "isolated-chat-stream-test-key-not-for-real-sessions")
 os.environ.setdefault("ENCRYPTION_KEY", Fernet.generate_key().decode())
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 USER_ID = "11111111-1111-4111-8111-111111111111"
 

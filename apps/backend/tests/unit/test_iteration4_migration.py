@@ -5,7 +5,7 @@ from pathlib import Path
 class Iteration4MigrationContracts(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.sql = (Path(__file__).parents[3] / "db" / "migrations" / "002_iteration4.sql").read_text(encoding="utf-8").lower()
+        cls.sql = (Path(__file__).parents[4] / "db" / "migrations" / "002_iteration4.sql").read_text(encoding="utf-8").lower()
 
     def test_additive_only(self):
         for value in ("drop table", "drop column", "truncate ", "delete from assessments", "delete from users"):

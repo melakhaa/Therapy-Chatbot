@@ -9,7 +9,7 @@ import types
 import unittest
 
 os.environ.setdefault("JWT_SECRET", "isolated-guardrail-test-key-not-for-real-sessions")
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 # guardrail.py reads hotlines on import in some paths; no database in unit tests.
 fake_db = sys.modules.get("core.db") or types.ModuleType("core.db")

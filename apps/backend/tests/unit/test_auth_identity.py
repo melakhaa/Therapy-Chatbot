@@ -17,7 +17,7 @@ from uuid import uuid4
 
 os.environ["JWT_SECRET"] = "isolated-auth-identity-test-key-not-for-real-sessions"
 os.environ["PYTHON_DOTENV_DISABLED"] = "1"
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 fake_db = types.ModuleType("core.db")
 fake_db.query = lambda *args, **kwargs: []

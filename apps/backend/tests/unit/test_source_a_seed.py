@@ -46,7 +46,7 @@ EXPECTED_HASH = "f75551c120d96236564bb704263a3eed3e647eb8a41a6a8cface95920419e7b
 class SourceASeedTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.sql = (Path(__file__).parents[3] / "db/migrations/003_iteration4_1.sql").read_text(encoding="utf-8")
+        cls.sql = (Path(__file__).parents[4] / "db/migrations/003_iteration4_1.sql").read_text(encoding="utf-8")
         cls.rows = [
             (int(key_number), int(position), category, wording)
             for key_number, position, category, wording in re.findall(

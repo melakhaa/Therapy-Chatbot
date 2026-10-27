@@ -58,7 +58,7 @@ class Iteration3Contracts(unittest.TestCase):
 class MigrationContracts(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
-  cls.sql=(Path(__file__).parents[3]/"db"/"migrations"/"001_iteration3c.sql").read_text(encoding="utf-8").lower()
+  cls.sql=(Path(__file__).parents[4]/"db"/"migrations"/"001_iteration3c.sql").read_text(encoding="utf-8").lower()
  def test_no_destructive_statements(self):
   for statement in ("drop table","drop column","truncate ","delete from users","alter table users"):
    self.assertNotIn(statement,self.sql)

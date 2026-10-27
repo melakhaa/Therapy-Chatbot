@@ -2,7 +2,7 @@ import pathlib
 import unittest
 
 
-ROOT = pathlib.Path(__file__).resolve().parents[3]
+ROOT = pathlib.Path(__file__).resolve().parents[4]
 AUTH_INIT = (ROOT / "db/init/02_auth.sql").read_text(encoding="utf-8").lower()
 MIGRATION_002 = (ROOT / "db/migrations/002_iteration4.sql").read_text(encoding="utf-8").lower()
 MIGRATION_003 = (ROOT / "db/migrations/003_iteration4_1.sql").read_text(encoding="utf-8").lower()

@@ -3,7 +3,7 @@ from pathlib import Path
 class MigrationContracts(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
-  cls.sql=(Path(__file__).parents[3]/"db"/"migrations"/"001_iteration3c.sql").read_text(encoding="utf-8").lower()
+  cls.sql=(Path(__file__).parents[4]/"db"/"migrations"/"001_iteration3c.sql").read_text(encoding="utf-8").lower()
  def test_additive_only(self):
   for value in ("drop table","drop column","truncate ","alter table users"):
    self.assertNotIn(value,self.sql)

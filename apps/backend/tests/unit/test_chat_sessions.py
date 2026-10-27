@@ -12,7 +12,7 @@ from cryptography.fernet import Fernet
 
 os.environ.setdefault("JWT_SECRET", "isolated-chat-sessions-test-key-not-for-real-sessions")
 os.environ.setdefault("ENCRYPTION_KEY", Fernet.generate_key().decode())
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 # Same isolation as test_chat_stream: no pool, no Ollama-backed router at import.
 fake_db = sys.modules.get("core.db") or types.ModuleType("core.db")
