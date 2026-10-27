@@ -8,8 +8,9 @@ instrument authoring). An npm-workspace monorepo holds the frontend apps, the Fa
 provides the local LLM/embeddings.
 
 **Work test-first.** Every change to behaviour starts with a failing test, at the lowest
-applicable tier. The `test-driven-development` skill is mandatory for this repo; tiers,
-commands and the loop are in [docs/testing-conventions.md](docs/testing-conventions.md).
+applicable tier, at one of the agreed seams. The `tdd` skill (`.agents/skills/tdd/`) is
+mandatory for this repo; tiers, seams and the loop are in
+[docs/testing-conventions.md](docs/testing-conventions.md).
 
 ## Structure
 

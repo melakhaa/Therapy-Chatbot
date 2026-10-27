@@ -163,5 +163,5 @@ Therapy-Chatbot/
 
 Tests run in three tiers. `npm test` needs nothing running and is the one command that must
 always be green; the other two skip loudly when their stack is down. **Write the test first** —
-the `test-driven-development` skill is mandatory here. Tiers, locations and the red-green-refactor
-loop: [docs/testing-conventions.md](docs/testing-conventions.md).
+the `tdd` skill (`.agents/skills/tdd/`) is mandatory here. Tiers and the
+red → green loop: [docs/testing-conventions.md](docs/testing-conventions.md).

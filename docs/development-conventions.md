@@ -58,8 +58,7 @@ npm run test:e2e          # e2e tier: betterwright drives the dashboard in a bro
 
 The two live tiers skip loudly and exit 0 when their stack is down, so `npm test` stays the
  only command that must always be green. No CI runs any of them — run the tiers your change
- touches before opening a PR. New behaviour starts with a failing test: the
- `test-driven-development` skill is mandatory here — see
+ touches before opening a PR. New behaviour starts with a failing test at an agreed seam:
  [testing-conventions.md](testing-conventions.md#test-driven-development-is-required).
 
 ## Repo-wide conventions

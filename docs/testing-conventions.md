@@ -5,25 +5,68 @@ them — if you cannot say which, it is a unit test that has wandered.
 
 ## Test-driven development is required
 
-Every change to behaviour starts with a failing test. **Load the
-`test-driven-development` skill before you write implementation code** — it is installed per
-agent at `~/.agents/skills/test-driven-development/SKILL.md`, and any agent that reads
-`AGENTS.md` should treat it as mandatory for this repo. If your agent cannot load it, follow
-the loop below; it is the whole rule:
+Every change to behaviour starts with a failing test. **Load the `tdd` skill before you write
+implementation code** — it lives at `.agents/skills/tdd/SKILL.md` (restore it anywhere with
+`npx skills experimental_install`, which reads the tracked `skills-lock.json`), and any agent
+that reads `AGENTS.md` must treat it as mandatory for this repo. Its loop:
 
-1. **Red** — write one test for the next behaviour, run it, and watch it fail for the right
-   reason (missing behaviour, not a typo). A test that passes the first time is not this step.
-2. **Green** — write the smallest code that makes it pass. No options, no "for later".
-3. **Refactor** — clean up while it stays green.
-4. **Repeat**, then run the whole tier (`npm test`), not only the file you touched.
+1. **Red** — one test, at one agreed seam, watched failing for the right reason (missing
+   behaviour, not a typo). A test that passes the first time is not this step.
+2. **Green** — only enough code to make it pass. No options, no "for later".
+3. **Next slice** — the next test, shaped by what the last cycle taught you.
+4. Then run the whole tier (`npm test`), not only the file you touched.
 
-The iron law: **no production code without a failing test first.** Wrote the code first?
-Delete it and start from the test — keeping it as "reference" is writing tests after the
-fact, which proves nothing. Exceptions need an explicit agreement from a reviewer:
-throwaway prototypes, generated code, and config files.
+No production code without a failing test first. Wrote the code first? Delete it and start
+from the test — keeping it as "reference" is writing tests after the fact, which proves
+nothing. Exceptions need a reviewer's explicit agreement: throwaway prototypes, generated
+code, config files. Bug fixes reproduce the bug in a failing test first, then fix it once in
+the shared code path.
 
-Applies to bug fixes too: reproduce the bug in a failing test first, then fix it once, in the
-shared code path.
+**Refactoring is not part of the loop.** It happens in review, with the tests already green.
+
+## Seams: agree where the test attaches before writing it
+
+A seam is the public boundary a test observes behaviour through. Tests live at seams, never
+against internals. The seams for this codebase are pre-agreed below: a new test must attach
+to one of them, and a new seam gets added here (with its trade-off) before the test exists.
+
+| Seam | Tier | Catches | Misses |
+|------|------|---------|--------|
+| FastAPI route contract (`/auth`, `/assessment`, `/journal`, `/chat`, `/booking`) | unit (stubbed `core.db`) | request/response shape, role gates, validation | real SQL, triggers, RLS |
+| `core/dass21.py` — `score_dass21`, `classify_dass21` | unit | scoring, bands, category mapping | persistence, wiring |
+| `services/chatbot/guardrail.py` — `is_crisis`, `strip_profanity` | unit | deterministic crisis detection | model tone and routing |
+| `services/chatbot/` history assembly | unit | prompt budget, crisis filtering, ordering | real model output |
+| The live API over HTTP (incl. `db/test_rls.sql`) | integration | real SQL, triggers, encryption at rest, RLS, Ollama | anything in the UI |
+| `features/<domain>/model.ts` (dashboard) | unit | directory filters, draft validation, publish gate, priority ordering | rendering, fetch |
+| `nearestSession`, `calendarDates`, `packages/utils` exports | unit | time/TZ math, stress score, reactions | app screens |
+| Dashboard journeys (`e2e/scenarios`) | e2e | sign-in, routing, a page rendering with real data | everything not asserted |
+
+Two seams are honest gaps rather than choices: `lib/api/client` has no tier because Node
+cannot resolve the dashboard's `@/` alias, and the mobile screens have no browser tier (see
+[Known gaps](#known-gaps)).
+
+## Rules that bite in this repo
+
+- **One slice at a time, never horizontal.** Write one test, make it pass, then let the next
+test respond to what you learned. Bulk-writing tests verifies imagined behaviour and commits
+to a shape you have not built yet.
+- **No tautological tests.** The expected value comes from an independent source of truth — a
+  worked example, a published table, a literal. `assertEqual(score_dass21(r), sum(...))` or
+  a band computed with the same formula as `classify_dass21` proves nothing; the DASS-21
+  bands come from the approved clinical source.
+- **Mock only at system boundaries** — the database, the model, the clock, the network. Never
+  mock a module you own. The backend's stubbed `core.db` and the dashboard's fake fetch are
+  boundaries; a mock of `features/x/model.ts` would not be.
+- **Prefer the interface over a side channel.** A unit test asserts through the route or the
+  function, not by reading the database afterwards. The exception is the integration tier
+  proving what the API must never expose: ciphertext at rest, and RLS isolation between two
+  accounts.
+- **A test survives a refactor.** If it breaks when you move code without changing behaviour,
+  it was attached to an implementation detail. The fix is the test, not the refactor.
+- **No new source-grep tests.** Repo-wide checks such as `test_sql_percent.py` are lint-style
+  guards and are tagged `ponytail:`; they are not behaviour tests and must not grow. The
+  backend test that grepped the dashboard's minified source is the cautionary tale — it was
+  red on `main` for everyone.
 
 | Tier | Proves | Runs in | Needs |
 |------|--------|---------|-------|
@@ -78,19 +121,13 @@ gets its own line.
 
 ## Writing tests
 
-- **Test first.** New behaviour and bug fixes start with a test you watched fail (the
-  `test-driven-development` skill). If a test
-  passed the moment you wrote it, it is a characterisation test of existing behaviour —
-  fine, but say so, and do not call it TDD.
 - **One behaviour per test**, named for the behaviour (`an assigned appointment wins over
   the requested pick`), not for the function.
-- **Assert on behaviour, never on source text of another app.** A backend test that greps
-  the dashboard's minified `.tsx` for an expression breaks on every refactor and proves
-  nothing; that rule lives in the dashboard's own unit tests. This exact mistake left
-  `test_iteration4_1.py` red on `main`.
-- **No test-only code in production modules.** Test helpers live in the test file.
+- **No test-only code in production modules.** Helpers live in the test file.
 - **Fix the root cause once.** A bug found at a higher tier gets a failing test at the
   lowest tier that can express it.
+- **Say what a test is.** A test written after the code is a characterisation test, and
+  calling it TDD is a lie the next reader will trust.
 
 ## E2E hygiene
 
