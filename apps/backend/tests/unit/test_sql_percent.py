@@ -12,7 +12,7 @@ import pathlib
 import re
 import unittest
 
-BACKEND = pathlib.Path(__file__).resolve().parent.parent
+BACKEND = pathlib.Path(__file__).resolve().parent.parent.parent
 SOURCES = sorted([*BACKEND.glob("routes/*.py"), *BACKEND.glob("services/**/*.py"), BACKEND / "auth.py"])
 LIKE = re.compile(r"\b(?:i?like)\s+'([^']*)'", re.IGNORECASE)
 

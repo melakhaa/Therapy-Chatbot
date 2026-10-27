@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from unittest.mock import patch
 
 os.environ.setdefault("JWT_SECRET", "isolated-counseling-booking-test-key")
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 fake_db = sys.modules.get("core.db") or types.ModuleType("core.db")
 fake_db.query = getattr(fake_db, "query", lambda *a, **k: [])
@@ -180,7 +180,7 @@ class SlotFunctionMigrationTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        path = pathlib.Path(__file__).resolve().parents[3] / "db" / "migrations" / "006_counseling_preferred_slot.sql"
+        path = pathlib.Path(__file__).resolve().parents[4] / "db" / "migrations" / "006_counseling_preferred_slot.sql"
         cls.sql = path.read_text(encoding="utf-8").lower()
 
     def test_it_reveals_only_free_times(self):

@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from unittest.mock import patch
 
 os.environ.setdefault("JWT_SECRET", "isolated-privacy-consent-test-key")
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 fake_db = sys.modules.get("core.db") or types.ModuleType("core.db")
 fake_db.query = getattr(fake_db, "query", lambda *a, **k: [])
@@ -98,7 +98,7 @@ class PrivacyConsentTests(unittest.TestCase):
 class PrivacyConsentMigrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        path = pathlib.Path(__file__).resolve().parents[3] / "db" / "migrations" / "007_privacy_consent.sql"
+        path = pathlib.Path(__file__).resolve().parents[4] / "db" / "migrations" / "007_privacy_consent.sql"
         cls.sql = path.read_text(encoding="utf-8").lower()
 
     def test_rows_are_private_to_their_account(self):
