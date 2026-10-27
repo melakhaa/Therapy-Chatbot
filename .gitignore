@@ -57,8 +57,11 @@ env/
 # local validation exports
 /apps/dashboard/dist-*/
 
-# agent skills/plugins (pi-managed)
-.agents/
+# testing artifacts: betterwright keeps sessions/profiles in ~/.betterwright, but a
+# recording or screenshot saved beside a journey is transient
+/e2e/**/*.png
+/e2e/**/*.webm
+/e2e/**/*.mp4
 
 # Playwright
 /test-results/
