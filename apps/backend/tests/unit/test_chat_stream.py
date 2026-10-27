@@ -1,6 +1,6 @@
 """The SSE contract for /chat/stream. No database, model, or network is used.
 
-Run from apps/backend: python -m unittest discover -s tests -v
+Run from apps/backend: python -m unittest discover -s tests/unit -v
 
 Regression guard: persisting the turn used to sit outside the generator's try block, so a
 failed write (stale JWT whose user_id no longer exists, RLS denial, pool timeout) aborted

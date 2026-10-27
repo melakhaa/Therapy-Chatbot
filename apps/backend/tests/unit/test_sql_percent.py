@@ -1,6 +1,6 @@
 """Every LIKE pattern in the API's SQL doubles its % wildcard. Reads source; no database.
 
-Run from apps/backend: python -m unittest discover -s tests -v
+Run from apps/backend: python -m unittest discover -s tests/unit -v
 
 psycopg parses % as a placeholder whenever a query has parameters, so `like 'x%'` raises
 "only '%s', '%b', '%t' are allowed as placeholders" at request time — it broke

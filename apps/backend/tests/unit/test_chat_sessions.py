@@ -1,6 +1,6 @@
 """The conversation list behind the chat history drawer. No database, model, or network.
 
-Run from apps/backend: python -m unittest discover -s tests -v
+Run from apps/backend: python -m unittest discover -s tests/unit -v
 """
 import os
 import sys

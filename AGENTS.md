@@ -7,6 +7,10 @@ instrument authoring). An npm-workspace monorepo holds the frontend apps, the Fa
 (Python 3.12), and the shared TypeScript packages; Docker runs PostgreSQL 17 + pgvector, Ollama
 provides the local LLM/embeddings.
 
+**Work test-first.** Every change to behaviour starts with a failing test, at the lowest
+applicable tier. The `test-driven-development` skill is mandatory for this repo; tiers,
+commands and the loop are in [docs/testing-conventions.md](docs/testing-conventions.md).
+
 ## Structure
 
 ```
@@ -27,6 +31,7 @@ Each app, package, and `db/` also has a local `AGENTS.md` — read it when worki
 ## Read when relevant
 
 - Install, run, tests, gotchas → [docs/development-conventions.md](docs/development-conventions.md)
+- Test tiers, test-first rule, e2e hygiene → [docs/testing-conventions.md](docs/testing-conventions.md)
 - Project-wide non-negotiables → [docs/project-conventions.md](docs/project-conventions.md)
 - Python / FastAPI / Pydantic → [docs/python-conventions.md](docs/python-conventions.md), [docs/fastapi-conventions.md](docs/fastapi-conventions.md), [docs/pydantic-conventions.md](docs/pydantic-conventions.md)
 - Backend enablement (instrument review, counseling resources, hotlines) → [docs/backend-enablement.md](docs/backend-enablement.md)

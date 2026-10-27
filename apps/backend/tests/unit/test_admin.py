@@ -1,6 +1,6 @@
 """Isolated API contract tests. No live database, AI, or application data is used.
 
-Run from apps/backend: python -m unittest discover -s tests -v
+Run from apps/backend: python -m unittest discover -s tests/unit -v
 Requires FastAPI, httpx, PyJWT, python-dotenv in the test environment.
 """
 import os

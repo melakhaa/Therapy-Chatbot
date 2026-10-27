@@ -1,6 +1,6 @@
 """Students booking counseling from the mobile calendar. No database, model, or network.
 
-Run from apps/backend: python -m unittest discover -s tests -v
+Run from apps/backend: python -m unittest discover -s tests/unit -v
 
 The mobile app now books through the Iteration 3 request -> admin assignment flow. A
 request may carry the slot the student picked; these guard that the pick can only be a

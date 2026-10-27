@@ -41,7 +41,8 @@ DATABASE_URL above) so RLS applies.
 
 ## Self-check
 
-Run after any schema or policy change:
+This is the database half of the integration tier — `npm run test:integration` from the
+repo root runs it together with the live API checks. Run it after any schema or policy change:
 
 ```bash
 docker exec -i -e PGPASSWORD=sajiwa_app sajiwa-db \

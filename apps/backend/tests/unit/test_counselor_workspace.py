@@ -1,6 +1,6 @@
 """Counselor workspace: caseload, calendar, schedule exceptions. No database, model, or network.
 
-Run from apps/backend: python -m unittest discover -s tests -v
+Run from apps/backend: python -m unittest discover -s tests/unit -v
 
 The counselor comes from the token and every case query is scoped to that counselor's active
 assignments; exceptions are filed by the counselor and decided only by an admin, and an
