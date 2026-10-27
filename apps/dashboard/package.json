@@ -8,8 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit --incremental false",
-    "test": "npm run test:foundation",
-    "test:foundation": "node --experimental-strip-types --test --test-isolation=none \"lib/**/*.test.ts\" \"features/**/*.test.ts\""
+    "test": "npm run test:unit",
+    "test:unit": "node --experimental-strip-types --test --test-isolation=none \"lib/**/*.test.ts\" \"features/**/*.test.ts\""
   },
   "dependencies": {
     "next": "16.3.8",

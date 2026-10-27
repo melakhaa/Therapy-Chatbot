@@ -3,8 +3,11 @@
 # dependencies
 node_modules/
 .agent/
-.agents/
 .claude/
+
+# agent skills: the vendored copies are local; skills-lock.json is the tracked
+# manifest, restored with `npx skills experimental_install`
+.agents/
 
 # Expo
 .expo/
@@ -57,8 +60,12 @@ env/
 # local validation exports
 /apps/dashboard/dist-*/
 
-# agent skills/plugins (pi-managed)
-.agents/
+# testing artifacts: betterwright keeps sessions/profiles in ~/.betterwright; a repo-local
+# profile, or a recording/screenshot saved beside a journey, is transient
+/.betterwright/
+/e2e/**/*.png
+/e2e/**/*.webm
+/e2e/**/*.mp4
 
 # Playwright
 /test-results/

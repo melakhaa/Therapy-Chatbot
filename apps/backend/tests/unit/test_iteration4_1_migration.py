@@ -6,7 +6,7 @@ from pathlib import Path
 class Iteration41MigrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.sql = (Path(__file__).parents[3] / "db/migrations/003_iteration4_1.sql").read_text(encoding="utf-8").lower()
+        cls.sql = (Path(__file__).parents[4] / "db/migrations/003_iteration4_1.sql").read_text(encoding="utf-8").lower()
 
     def test_is_additive_and_preserves_history(self):
         for forbidden in ("drop table", "drop column", "truncate ", "delete from assessments", "update assessments set"):

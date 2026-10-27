@@ -1,6 +1,6 @@
 """Contracts for prompt-history assembly. No database, model, or network is used.
 
-Run from apps/backend: python -m unittest discover -s tests -v
+Run from apps/backend: python -m unittest discover -s tests/unit -v
 """
 import os
 import sys

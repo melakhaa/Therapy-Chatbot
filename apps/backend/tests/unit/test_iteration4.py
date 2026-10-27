@@ -6,7 +6,7 @@ from pathlib import Path
 class Iteration4ApiContracts(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        root = Path(__file__).parents[3]
+        root = Path(__file__).parents[4]
         cls.route = (root / "apps" / "backend" / "routes" / "iteration4.py").read_text(encoding="utf-8").lower()
         cls.client = (root / "packages" / "api-client" / "src" / "iteration4.ts").read_text(encoding="utf-8").lower()
 

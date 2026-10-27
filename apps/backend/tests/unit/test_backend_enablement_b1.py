@@ -1,7 +1,7 @@
 import pathlib
 import unittest
 
-ROOT = pathlib.Path(__file__).resolve().parents[3]
+ROOT = pathlib.Path(__file__).resolve().parents[4]
 MIGRATION = (ROOT / "db/migrations/004_backend_enablement.sql").read_text(encoding="utf-8").lower()
 ROUTES = (ROOT / "apps/backend/routes/backend_enablement.py").read_text(encoding="utf-8")
 ITERATION3 = (ROOT / "apps/backend/routes/iteration3.py").read_text(encoding="utf-8")

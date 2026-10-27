@@ -1,6 +1,5 @@
 // Which counseling session to show as "next" on Home, Profil and Konseling. Pure (type-only
-// imports), so it is checked with plain Node:
-//   node --experimental-strip-types hooks/upcomingSession.check.mjs
+// imports), so it is unit-tested with plain Node (`npm run test:unit`):
 import type { MyCounselingRequest } from '@prototype/api-client';
 
 export type UpcomingSession = {

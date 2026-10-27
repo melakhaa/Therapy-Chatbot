@@ -6,11 +6,12 @@ FastAPI app + AI services. Run all commands from this directory — imports are 
 ```bash
 venv/bin/uvicorn main:app --reload               # API :8000
 venv/bin/python scripts/seed_dev_users.py        # dev accounts (once, DB up)
-venv/bin/python -m unittest discover -s tests -v # API tests, no DB/AI
-venv/bin/python scripts/api_smoke.py             # end-to-end check (full stack up)
+venv/bin/python -m unittest discover -s tests/unit -v  # unit tier, no DB/AI
+venv/bin/python tests/integration/stack_smoke.py # integration tier (full stack up)
 ```
 
-Setup, tests, and gotchas: [root development doc](../../docs/development-conventions.md).
+Setup and gotchas: [root development doc](../../docs/development-conventions.md). Test tiers:
+[testing conventions](../../docs/testing-conventions.md).
 
 - Venv `venv/` (Python 3.12 required; semantic-router has no 3.13+ wheels).
 - Schema changes: `db/migrations/NNN_*.sql` (additive, recorded in `schema_migrations`) —

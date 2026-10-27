@@ -3,7 +3,7 @@ import sys
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).parents[3]
+ROOT = Path(__file__).parents[4]
 sys.path.insert(0, str(ROOT / "apps" / "backend"))
 
 from core.dass21 import CATEGORY_ITEMS, RESPONSE_SCORES, classify_dass21, score_dass21
@@ -99,7 +99,10 @@ class Iteration41StaticContracts(unittest.TestCase):
         self.assertIn("hasil ini bukan diagnosis", self.mobile)
 
     def test_standard_lock_and_custom_workflow(self):
-        self.assertIn("instrument_kind==='custom'&&detail.version.status==='draft'", self.admin_model)
+        # Editability is draft-only; standard definitions carry the protected notice instead of
+        # a free-form editor. Assert the stable names, not the minified expression shape.
+        self.assertIn("return detail.version.status==='draft'", self.admin_model)
+        self.assertIn("copy.detail.protected", self.admin_detail)
         self.assertIn("/admin/assessment-instruments", self.admin_api)
         self.assertIn("version.instrument_kind==='standard'", self.admin_detail)
         self.assertIn("copy.detail.standardscoring", self.admin_detail)

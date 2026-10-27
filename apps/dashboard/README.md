@@ -14,6 +14,10 @@ npm run dashboard:test
 npm run dashboard:build
 ```
 
+Unit tests run with `npm run dashboard:test`. The browser journeys that exercise this app
+live in `e2e/` at the repository root (`npm run test:e2e`, full stack required). See
+[testing conventions](../../docs/testing-conventions.md).
+
 Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_API_URL` to the FastAPI origin. This public variable must contain an origin only, never a token, database URL, or secret.
 
 For a frontend-only local preview, set `NEXT_PUBLIC_PREVIEW_MODE=true` in `.env.local` and run `npm run dev`. Preview mode is accepted only when `NODE_ENV=development`; production builds ignore the flag. It supplies an obviously synthetic administrator and centralized fictional data without contacting FastAPI or storing a fake token. Open `http://localhost:3000/overview`.

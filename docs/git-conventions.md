@@ -105,9 +105,10 @@ No husky/commitlint dependency is used — git's native `core.hooksPath` is enou
   `Merge pull request #N from melakhaa/<branch>`).
 - Use lower-kebab-case branch names: `add-docs`, `fix-readme`, `refactor-folder-structure`.
 - Keep one focused feature per branch/PR; PR title should itself read like a conventional commit.
-- No enforced commit format beyond the hook. Tests are manual runners, not CI: `apps/backend/tests/`
-  (`unittest`, needs `httpx`), `apps/backend/scripts/api_smoke.py`, `db/test_rls.sql` — run the
-  relevant ones before opening a PR ([development-conventions.md](development-conventions.md)).
+- No enforced commit format beyond the hook. Tests are manual runners, not CI: `npm test`
+  (unit tier), `npm run test:integration`, `npm run test:e2e` — run the tiers your change
+  touches before opening a PR, and write the test first with the `tdd` skill
+  ([testing-conventions.md](testing-conventions.md)).
 
 ## Ignored / never commit
 

@@ -1,5 +1,5 @@
 // Date math for the session calendar, kept free of React Native imports so it can be checked
-// with plain Node: `node --experimental-strip-types components/ui/calendarDates.check.mjs`.
+// with plain Node: `npm run test:unit`.
 //
 // Dates are 'YYYY-MM-DD' strings throughout. Comparing two of them as strings is the same as
 // comparing the dates, and parsing never goes through `new Date('YYYY-MM-DD')` — that form

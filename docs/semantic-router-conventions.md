@@ -72,7 +72,7 @@ Rules when touching this:
   absent: llama3.2 absorbs it on its own (measured — `scripts/profanity_probe.py`),
   while it mirrors ID/JV curses back at the student. Add new tokens to `PROFANITY`,
   whole-token matching only.
-- Keep the battery in `scripts/api_smoke.py` green; it asserts every crisis phrasing is
+- Keep the battery in `apps/backend/tests/integration/stack_smoke.py` green; it asserts every crisis phrasing is
   flagged, that the reply is the fixed hotline text, and that ordinary distress still
   reaches the normal path.
 

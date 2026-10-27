@@ -135,6 +135,7 @@ Therapy-Chatbot/
 │   ├── api-client/       # Shared Fetch Wrappers
 │   ├── ui-shared/        # Theme, Hooks, Components
 │   └── utils/            # Helper Functions
+├── e2e/                  # Browser journeys (betterwright) for the dashboard
 ├── db/                   # Schema, auth SQL, RLS self-check
 ├── docs/                 # Per-stack convention docs
 ├── docker-compose.yml    # PostgreSQL 17 + pgvector + pgAdmin
@@ -150,9 +151,17 @@ Therapy-Chatbot/
 | `npm run dashboard:typecheck` | Type-check the dashboard |
 | `npm run dashboard:lint` | Lint the dashboard |
 | `npm run dashboard:test` | Run dashboard tests |
+| `npm test` | Unit tier: every workspace + backend, no stack required |
+| `npm run test:integration` | Integration tier: live API, Postgres, RLS self-check |
+| `npm run test:e2e` | E2E tier: betterwright drives the dashboard in a browser |
 | `npm run dashboard:build` | Build the production dashboard |
 | `npm run dashboard:start` | Serve the production dashboard |
 | `docker compose up -d` | Start local PostgreSQL + pgAdmin |
 | `docker compose down` | Stop local services |
 | `docker compose down -v` | Stop and wipe local data (re-applies `db/init`) |
 | `venv/bin/uvicorn main:app --reload` | Run the backend (from `apps/backend`) |
+
+Tests run in three tiers. `npm test` needs nothing running and is the one command that must
+always be green; the other two skip loudly when their stack is down. **Write the test first** —
+the `tdd` skill (`.agents/skills/tdd/`) is mandatory here. Tiers and the
+red → green loop: [docs/testing-conventions.md](docs/testing-conventions.md).

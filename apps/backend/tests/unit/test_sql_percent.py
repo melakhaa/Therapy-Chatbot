@@ -1,6 +1,6 @@
 """Every LIKE pattern in the API's SQL doubles its % wildcard. Reads source; no database.
 
-Run from apps/backend: python -m unittest discover -s tests -v
+Run from apps/backend: python -m unittest discover -s tests/unit -v
 
 psycopg parses % as a placeholder whenever a query has parameters, so `like 'x%'` raises
 "only '%s', '%b', '%t' are allowed as placeholders" at request time — it broke
@@ -12,7 +12,7 @@ import pathlib
 import re
 import unittest
 
-BACKEND = pathlib.Path(__file__).resolve().parent.parent
+BACKEND = pathlib.Path(__file__).resolve().parent.parent.parent
 SOURCES = sorted([*BACKEND.glob("routes/*.py"), *BACKEND.glob("services/**/*.py"), BACKEND / "auth.py"])
 LIKE = re.compile(r"\b(?:i?like)\s+'([^']*)'", re.IGNORECASE)
 

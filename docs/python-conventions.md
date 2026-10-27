@@ -12,8 +12,9 @@ apps/backend/
 ├── core/            # cross-cutting (security.py, db.py, dass21.py)
 ├── routes/          # API routers
 ├── services/        # business/AI logic
-├── tests/           # isolated unittest contract tests (no DB, no AI)
-└── scripts/         # one-off scripts (embed.py, seed_dev_users.py, api_smoke.py)
+├── tests/unit/      # unit tier: unittest, no DB, no AI
+├── tests/integration/ # integration tier: live stack (stack_smoke.py, run.sh)
+└── scripts/         # one-off scripts (embed.py, seed_dev_users.py)
 ```
 
 Modules are top-level, **not** a package: imports are `from auth import ...`, `from core.security import ...`,
@@ -46,7 +47,7 @@ import (`embed.py`, `test_rag_performance.py`) so direct `python scripts/x.py` i
   follow that pattern when adding one.
 - Contract tests live in `tests/` (`unittest`) and isolate the module under test: stub `core.db.query`
   in `sys.modules` and patch `auth.query`; never open a real database, AI model, or network. Run with
-  `python -m unittest discover -s tests -v` (see [development-conventions.md](development-conventions.md)).
+  `python -m unittest discover -s tests/unit -v` (see [development-conventions.md](development-conventions.md)).
 - Fail fast on missing critical config (`core/security.py` raises at import if `ENCRYPTION_KEY` is unset).
 
 ## Run

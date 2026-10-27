@@ -1,6 +1,6 @@
 """The SSE contract for /chat/stream. No database, model, or network is used.
 
-Run from apps/backend: python -m unittest discover -s tests -v
+Run from apps/backend: python -m unittest discover -s tests/unit -v
 
 Regression guard: persisting the turn used to sit outside the generator's try block, so a
 failed write (stale JWT whose user_id no longer exists, RLS denial, pool timeout) aborted
@@ -18,7 +18,7 @@ from cryptography.fernet import Fernet
 
 os.environ.setdefault("JWT_SECRET", "isolated-chat-stream-test-key-not-for-real-sessions")
 os.environ.setdefault("ENCRYPTION_KEY", Fernet.generate_key().decode())
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 USER_ID = "11111111-1111-4111-8111-111111111111"
 

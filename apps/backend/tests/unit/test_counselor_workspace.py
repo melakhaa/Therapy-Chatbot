@@ -1,6 +1,6 @@
 """Counselor workspace: caseload, calendar, schedule exceptions. No database, model, or network.
 
-Run from apps/backend: python -m unittest discover -s tests -v
+Run from apps/backend: python -m unittest discover -s tests/unit -v
 
 The counselor comes from the token and every case query is scoped to that counselor's active
 assignments; exceptions are filed by the counselor and decided only by an admin, and an
@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 os.environ.setdefault("JWT_SECRET", "isolated-counselor-workspace-test-key")
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 fake_db = sys.modules.get("core.db") or types.ModuleType("core.db")
 fake_db.query = getattr(fake_db, "query", lambda *a, **k: [])
@@ -224,7 +224,7 @@ class CounselorWorkspaceTests(unittest.TestCase):
 class CounselorWorkspaceMigration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        path = pathlib.Path(__file__).resolve().parents[3] / "db" / "migrations" / "008_counselor_workspace.sql"
+        path = pathlib.Path(__file__).resolve().parents[4] / "db" / "migrations" / "008_counselor_workspace.sql"
         cls.sql = path.read_text(encoding="utf-8").lower()
 
     def test_broad_support_profile_read_is_replaced_by_the_case_rule(self):

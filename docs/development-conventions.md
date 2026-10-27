@@ -37,35 +37,31 @@ cd apps/mobile    && npx expo start                           # Expo (mobile)
 npm run dashboard:dev                                         # Next.js admin :3000
 ```
 
-Seed dev accounts once the DB is up (idempotent; the first admin can't be created via the API):
+Seed dev accounts once the DB is up (idempotent; the first admin can't be created via the API),
+and embed the RAG corpus once (the integration streaming checks need retrieved context):
 
 ```bash
 cd apps/backend && venv/bin/python scripts/seed_dev_users.py
+cd apps/backend && venv/bin/python scripts/embed.py
 ```
 
 Also start `ollama serve` for chat/embeddings ([ollama-conventions.md](ollama-conventions.md)).
 
 ## Tests
 
-Three tiers, all manual (no CI). Tiers 2 and 3 need the stack running; tier 1 is fully isolated.
+Three tiers — unit, integration, e2e — with one command each. Rules, locations and known
+ gaps: [testing-conventions.md](testing-conventions.md).
 
 ```bash
-# 1. Isolated API contract tests — no DB, no AI, no network. Needs httpx installed
-#    (FastAPI TestClient) and only the venv. Stubs core.db and signs real JWTs.
-#    Covers the admin/ops + iteration3/4 contracts, DASS-21 scoring and instrument
-#    validation, migration static checks, and prompt-history assembly
-#    (tests/test_chat_history.py — the crisis filter and history budget).
-cd apps/backend && venv/bin/python -m unittest discover -s tests -v
-
-# 2. RLS isolation + auth functions, against the live DB
-docker exec -i -e PGPASSWORD=sajiwa_app sajiwa-db \
-  psql -v ON_ERROR_STOP=1 -U sajiwa_app -d sajiwa < db/test_rls.sql
-
-# 3. end-to-end API check: auth, assessments, journals, jadwal/booking, dashboard,
-#    chat (real Ollama), chat-session persistence + history isolation, RLS isolation.
-#    Exits non-zero on failure.
-cd apps/backend && venv/bin/python scripts/api_smoke.py
+npm test                  # unit tier: every workspace + backend, no stack required
+npm run test:integration  # integration tier: live API, Postgres, RLS self-check
+npm run test:e2e          # e2e tier: betterwright drives the dashboard in a browser
 ```
+
+The two live tiers skip loudly and exit 0 when their stack is down, so `npm test` stays the
+ only command that must always be green. No CI runs any of them — run the tiers your change
+ touches before opening a PR. New behaviour starts with a failing test at an agreed seam:
+ [testing-conventions.md](testing-conventions.md#test-driven-development-is-required).
 
 ## Repo-wide conventions
 
