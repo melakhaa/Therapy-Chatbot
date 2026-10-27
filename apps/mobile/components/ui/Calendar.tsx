@@ -7,12 +7,13 @@
 // six-week grid so the content below never jumps between months, and one Reanimated entering
 // transition on the UI thread when the month changes. The date math lives in calendarDates.ts.
 import React, { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, FadeInLeft, FadeInRight, LayoutAnimationConfig, ReduceMotion } from 'react-native-reanimated';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeIn, FadeInLeft, FadeInRight, LayoutAnimationConfig } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@prototype/ui-shared';
 import { haptic } from './haptics';
+import { arrive, FADE_MS } from './motion';
 import { MONTHS, MONTHS_SHORT, WEEKDAYS, WEEKDAYS_LONG, monthCells, monthIndex, ymdOf } from './calendarDates';
 
 export { longDate, toYmd } from './calendarDates';
@@ -29,10 +30,7 @@ interface CalendarProps {
 
 // The new month slides in from the side it came from, like paging a native calendar.
 // Web keeps a fade: Reanimated's layout-animation path mispositions elements there.
-const enterFrom = (dir: 1 | -1) =>
-  Platform.OS === 'web'
-    ? FadeIn.duration(180)
-    : (dir > 0 ? FadeInRight : FadeInLeft).springify().damping(24).stiffness(260).reduceMotion(ReduceMotion.System);
+const enterFrom = (dir: 1 | -1) => arrive(dir > 0 ? FadeInRight : FadeInLeft);
 
 export const Calendar: React.FC<CalendarProps> = ({ value, onChange, available, minDate }) => {
   const { colors } = useTheme();
@@ -150,7 +148,7 @@ export const Calendar: React.FC<CalendarProps> = ({ value, onChange, available, 
 
       {picking ? (
         // ── Month picker: 12 months of pickYear; a dot marks months with open days ──
-        <Animated.View entering={FadeIn.duration(160)} style={s.monthGrid}>
+        <Animated.View entering={FadeIn.duration(FADE_MS)} style={s.monthGrid}>
           {MONTHS_SHORT.map((label, i) => {
             const k = pickYear * 12 + i;
             const disabled = k < minMonth;

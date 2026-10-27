@@ -578,9 +578,17 @@ def multi_counselor_calendar(
         (resolved_ids, date_to, date_from), user_id=admin.id,
     )
     blocked = query(
-        "select b.counselor_blocked_period_id,b.counselor_id,u.name counselor_name,b.starts_at,b.ends_at,b.reason "
+        "select b.counselor_blocked_period_id,b.counselor_id,u.name counselor_name,b.starts_at,b.ends_at,b.reason,"
+        "case when e.counselor_exception_request_id is null then 'admin' else 'counselor' end source,'approved' review_status "
         "from counselor_blocked_periods b join users u on u.user_id=b.counselor_id "
-        "where b.counselor_id=any(%s::uuid[]) and b.starts_at<%s::date+interval '1 day' and b.ends_at>%s::date order by b.starts_at",
-        (resolved_ids, date_to, date_from), user_id=admin.id,
+        "left join counselor_exception_requests e on e.counselor_blocked_period_id=b.counselor_blocked_period_id "
+        "where b.counselor_id=any(%s::uuid[]) and b.starts_at<%s::date+interval '1 day' and b.ends_at>%s::date "
+        # Undecided and rejected requests are not blocks yet, but the admin needs to see them;
+        # they carry the request id, and source='counselor' keeps the delete action off them.
+        "union all select e.counselor_exception_request_id,e.counselor_id,u.name,e.starts_at,e.ends_at,e.reason,'counselor',e.status "
+        "from counselor_exception_requests e join users u on u.user_id=e.counselor_id "
+        "where e.status in ('pending','rejected') and e.counselor_id=any(%s::uuid[]) "
+        "and e.starts_at<%s::date+interval '1 day' and e.ends_at>%s::date order by starts_at",
+        (resolved_ids, date_to, date_from, resolved_ids, date_to, date_from), user_id=admin.id,
     )
     return {"counselors": counselors, "appointments": appointments, "availability": availability, "blocked_periods": blocked}

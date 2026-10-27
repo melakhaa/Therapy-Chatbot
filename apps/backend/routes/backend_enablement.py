@@ -151,7 +151,8 @@ def _review_detail(assessment_version_review_id: str, user_id: str):
 
 @counselor_router.get("/instrument-reviews")
 def review_queue(status: Optional[Literal["pending","revision_requested","approved"]] = None, counselor=Depends(counselor_access)):
-    rows = query("select r.assessment_version_review_id,r.instrument_version_id,r.definition_revision,r.status,r.submitted_at,r.reviewer_user_id,i.code,i.name,v.version_number,v.definition_revision current_revision from assessment_version_reviews r join assessment_instrument_versions v on v.instrument_version_id=r.instrument_version_id join assessment_instruments i on i.instrument_id=v.instrument_id where (%s::text is null or r.status=%s) order by case when r.status='pending' then 0 else 1 end,r.submitted_at", (status, status), user_id=counselor.id)
+    # Reviewer names through list_konselor(): users RLS hides other counselors' rows
+    rows = query("select r.assessment_version_review_id,r.instrument_version_id,r.definition_revision,r.status,r.submitted_at,r.reviewer_user_id,k.name reviewer_name,i.code,i.name,i.instrument_kind,v.version_number,v.definition_revision current_revision from assessment_version_reviews r join assessment_instrument_versions v on v.instrument_version_id=r.instrument_version_id join assessment_instruments i on i.instrument_id=v.instrument_id left join list_konselor() k on k.user_id=r.reviewer_user_id where (%s::text is null or r.status=%s) order by case when r.status='pending' then 0 else 1 end,r.submitted_at", (status, status), user_id=counselor.id)
     return {"reviews": rows, "total": len(rows)}
 
 

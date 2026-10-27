@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Platform } from 'react-native';
-import Animated, { FadeIn as Fade, FadeInDown, ReduceMotion } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { arrive } from '../ui/motion';
 import { NeuView } from '../ui/NeuView';
 import { useTheme } from '@prototype/ui-shared';
 import type { Message } from '@prototype/utils';
@@ -14,9 +14,7 @@ interface Props {
 
 // Settles up into the thread on a damped spring, the way a message lands in iOS Messages.
 // Web takes a plain fade: Reanimated's web layout path mispositions entering elements.
-const FADE = Platform.OS === 'web'
-  ? Fade.duration(180).reduceMotion(ReduceMotion.System)
-  : FadeInDown.springify().damping(24).stiffness(240).mass(0.7).reduceMotion(ReduceMotion.System);
+const FADE = arrive(FadeInDown);
 
 export const fmtTime = (d: Date) =>
   d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });

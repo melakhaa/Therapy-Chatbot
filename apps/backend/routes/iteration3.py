@@ -1,5 +1,5 @@
 """Additive Iteration 3C APIs; private source content is never selected."""
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import List, Literal, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -22,6 +22,11 @@ class ProfileBody(BaseModel):
     faculty_id:Optional[UUID]=None; academic_unit_id:Optional[UUID]=None
 class RequestBody(BaseModel):
     preferred_context:Optional[str]=Field(default=None,max_length=250)
+    # The slot picked on the mobile calendar; all three or none. The admin still assigns.
+    preferred_counselor_id:Optional[UUID]=None; preferred_starts_at:Optional[datetime]=None; preferred_ends_at:Optional[datetime]=None
+
+# Length of one counseling session, the step the mobile calendar offers slots in.
+SESSION_MINUTES=60
 class CounselorBody(BaseModel):
     title:Optional[str]=Field(default=None,max_length=100); specialization:Optional[str]=Field(default=None,max_length=250); active:bool=True
 class AvailabilityBody(BaseModel):
@@ -130,21 +135,58 @@ def notifications_read(admin=Depends(admin_access)):
     rows=query("update admin_notifications set read_at=now() where admin_user_id=%s and read_at is null returning admin_notification_id",(admin.id,),user_id=admin.id)
     return {"updated":len(rows)}
 
+@student_router.get("/slots")
+def open_slots(counselor_id:UUID,date_from:date,date_to:date,user=Depends(get_current_user)):
+    """Free sessions of one counselor, for the mobile calendar. Only start/end pairs: never
+    who holds a taken slot. counseling_open_slots() applies the same rules as assign."""
+    if date_from>date_to or (date_to-date_from).days>62: raise HTTPException(422,"Rentang tanggal tidak valid atau melebihi 62 hari")
+    rows=query("select starts_at,ends_at from counseling_open_slots(%s,%s,%s,%s)",(str(counselor_id),date_from,date_to,SESSION_MINUTES),user_id=user.id)
+    return {"slots":rows,"session_minutes":SESSION_MINUTES}
+
+@student_router.get("/requests")
+def own_requests(student=Depends(get_current_user)):
+    """The student's own requests, each with the slot they picked and, once an admin has
+    assigned it, the appointment actually booked (which may differ from the pick)."""
+    rows=query("select cr.counseling_request_id,cr.status,cr.preferred_context,cr.created_at,"
+               "cr.preferred_counselor_id,cr.preferred_starts_at,cr.preferred_ends_at,pk.name preferred_counselor_name,"
+               "a.counseling_appointment_id,a.counselor_id,ak.name counselor_name,a.starts_at,a.ends_at,a.status appointment_status "
+               "from counseling_requests cr left join counseling_appointments a on a.counseling_request_id=cr.counseling_request_id "
+               # users RLS hides counselor rows from a student; list_konselor() exposes just their names.
+               "left join list_konselor() pk on pk.user_id=cr.preferred_counselor_id left join list_konselor() ak on ak.user_id=a.counselor_id "
+               "where cr.student_id=%s order by cr.created_at desc limit 20",(student.id,),user_id=student.id)
+    return {"requests":rows,"total":len(rows)}
+
 @student_router.post("/requests",status_code=201)
 def request_create(b:RequestBody,student=Depends(get_current_user)):
+    slot=(b.preferred_counselor_id,b.preferred_starts_at,b.preferred_ends_at)
+    if any(v is not None for v in slot) and not all(v is not None for v in slot): raise HTTPException(422,"Pilih konselor dan waktu sekaligus, atau kosongkan keduanya")
+    counselor=start=end=None
     with db(student.id) as conn:
         role=conn.execute("select role from users where user_id=%s",(student.id,)).fetchone()
         if not role or role["role"]!="mahasiswa": raise HTTPException(403,"Hanya mahasiswa yang dapat mengirim permintaan konseling")
-        row=conn.execute("insert into counseling_requests(student_id,preferred_context) values(%s,%s) "
-                         "returning counseling_request_id,student_id,status,preferred_context,created_at",(student.id,clean(b.preferred_context))).fetchone()
+        if b.preferred_counselor_id:
+            counselor,start,end=str(b.preferred_counselor_id),utc(b.preferred_starts_at),utc(b.preferred_ends_at)
+            # The lock assign takes for this counselor: two students cannot both claim one slot,
+            # and an admin assignment cannot land on it between this check and the insert.
+            conn.execute("select pg_advisory_xact_lock(hashtext(%s))",("appointment:"+counselor,))
+            # Only a slot the calendar would offer right now; a crafted body cannot pick an
+            # arbitrary time. The ±1 day margin covers a session whose local date differs from UTC's.
+            if not conn.execute("select 1 from counseling_open_slots(%s,%s,%s,%s) where starts_at=%s and ends_at=%s",
+                                (counselor,(start-timedelta(days=1)).date(),(start+timedelta(days=1)).date(),SESSION_MINUTES,start,end)).fetchone():
+                raise HTTPException(409,"Waktu itu sudah tidak tersedia. Pilih waktu lain.")
+        row=conn.execute("insert into counseling_requests(student_id,preferred_context,preferred_counselor_id,preferred_starts_at,preferred_ends_at) values(%s,%s,%s,%s,%s) "
+                         "returning counseling_request_id,student_id,status,preferred_context,preferred_counselor_id,preferred_starts_at,preferred_ends_at,created_at",
+                         (student.id,clean(b.preferred_context),counselor,start,end)).fetchone()
     return {"request":row}
 
 @admin_router.get("/counseling/requests")
 def requests(state:Optional[str]=Query(None,alias="status"),page:int=Query(1,ge=1),page_size:int=Query(30,ge=1,le=100),admin=Depends(admin_access)):
     p=(state,state); src=("from counseling_requests cr join users u on u.user_id=cr.student_id left join student_academic_profiles sap on sap.user_id=u.user_id "
-       "left join faculties f on f.faculty_id=sap.faculty_id left join academic_units au on au.academic_unit_id=sap.academic_unit_id where (%s::text is null or cr.status=%s)")
+       "left join faculties f on f.faculty_id=sap.faculty_id left join academic_units au on au.academic_unit_id=sap.academic_unit_id "
+       "left join users pc on pc.user_id=cr.preferred_counselor_id where (%s::text is null or cr.status=%s)")
     total=query("select count(*) total "+src,p,user_id=admin.id)[0]["total"]
     rows=query("select cr.counseling_request_id,cr.student_id,cr.status,cr.preferred_context,cr.created_at,u.name,u.nim,"
+               "cr.preferred_counselor_id,pc.name preferred_counselor_name,cr.preferred_starts_at,cr.preferred_ends_at,"
                "f.name faculty_name,au.name academic_unit_name "+src+" order by cr.created_at desc limit %s offset %s",
                p+(page_size,(page-1)*page_size),user_id=admin.id)
     return {"requests":rows,"total":total,"page":page,"page_size":page_size}

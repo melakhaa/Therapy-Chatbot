@@ -17,7 +17,6 @@ import {
   View,
 } from 'react-native';
 import Animated, {
-  Easing,
   runOnJS,
   useAnimatedStyle,
   useReducedMotion,
@@ -31,6 +30,7 @@ import { apiChatSessions, type ChatSessionSummary } from '@prototype/api-client'
 import { Neu, useTheme } from '@prototype/ui-shared';
 import { Button, PressableScale, conversationTime, haptic } from '../ui';
 import { Companion } from './Companion';
+import { EXIT, FADE_MS, SPRING } from '../ui/motion';
 
 interface Props {
   visible: boolean;
@@ -73,9 +73,9 @@ export const ChatHistoryDrawer: React.FC<Props> = ({
       setMounted(true);
       fetchSessions();
       // Critically damped: the panel decelerates into place like an iOS sheet, no bounce.
-      progress.value = reduce ? withTiming(1, { duration: 120 }) : withSpring(1, { damping: 30, stiffness: 300, mass: 0.9 });
+      progress.value = reduce ? withTiming(1, { duration: FADE_MS }) : withSpring(1, SPRING);
     } else if (mounted) {
-      progress.value = withTiming(0, { duration: 200, easing: Easing.in(Easing.quad) }, (done) => {
+      progress.value = withTiming(0, EXIT, (done) => {
         if (done) runOnJS(setMounted)(false);
       });
     }

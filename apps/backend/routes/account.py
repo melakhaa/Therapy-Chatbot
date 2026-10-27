@@ -165,6 +165,25 @@ def get_my_profile(user=Depends(get_current_user)):
     return rows[0]
 
 
+@router.get("/auth/consent")
+def get_privacy_consent(user=Depends(get_current_user)):
+    """When this account accepted the privacy walkthrough, or null: the app shows it once per account."""
+    rows = query("select accepted_at from privacy_consents where user_id = %s", (user.id,), user_id=user.id)
+    return {"accepted_at": rows[0]["accepted_at"] if rows else None}
+
+
+@router.post("/auth/consent")
+def accept_privacy_consent(user=Depends(get_current_user)):
+    # The first acceptance is the one on record; accepting again keeps it.
+    with db(user.id) as conn:
+        conn.execute(
+            "insert into privacy_consents(user_id) values (%s) on conflict (user_id) do nothing",
+            (user.id,),
+        )
+        row = conn.execute("select accepted_at from privacy_consents where user_id = %s", (user.id,)).fetchone()
+    return {"accepted_at": row["accepted_at"]}
+
+
 @router.get("/accounts")
 def get_account_list(admin=Depends(require_role("admin", "pemangku_jabatan"))):
     try:

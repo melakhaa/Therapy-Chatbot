@@ -23,7 +23,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiAcceptPrivacyConsent, apiGetPrivacyConsent } from '@prototype/api-client';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, Neu, useAuth } from '@prototype/ui-shared';
@@ -32,8 +32,7 @@ import { Companion } from '../chat/Companion';
 import { Button } from './Button';
 import { haptic } from './haptics';
 import { offsetOf, PagerDots } from './Pager';
-
-const KEY = (userId: string) => `sajiwa_consent_v1:${userId}`;
+import { EXIT, SPRING } from './motion';
 
 type Point = { icon: keyof typeof Ionicons.glyphMap; tone: 'sage' | 'navy' | 'amber'; title: string; body: string };
 
@@ -127,27 +126,32 @@ export const ConsentSheet: React.FC = () => {
 
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const enter = useSharedValue(0); // 0 hidden, 1 shown
   const scrollX = useSharedValue(0);
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
 
   const userId = (user as { user_id?: string } | null)?.user_id;
 
-  // Ask once per account, the first time that account opens the app on this device
+  // Ask once per account: the acceptance is stored with the account on the server, so a
+  // new phone, a reinstall, or cleared app data does not ask again.
   useEffect(() => {
     let cancelled = false;
     if (!isLoggedIn || !userId) { setOpen(false); return; }
-    AsyncStorage.getItem(KEY(userId))
-      .then((saved) => { if (!cancelled && !saved) setOpen(true); })
-      .catch(() => {}); // storage unavailable: don't block the app
+    apiGetPrivacyConsent()
+      .then((c) => { if (!cancelled && !c.accepted_at) setOpen(true); })
+      // Unknown is treated as not yet accepted: asking twice is better than never asking
+      .catch(() => { if (!cancelled) setOpen(true); });
     return () => { cancelled = true; };
   }, [isLoggedIn, userId]);
 
   useEffect(() => {
     if (!open) return;
     setPage(0);
+    setSaveError(false);
     scrollX.value = 0;
-    enter.value = reduce ? 1 : withSpring(1, { damping: 26, stiffness: 220, mass: 0.9 });
+    enter.value = reduce ? 1 : withSpring(1, SPRING);
   }, [open, reduce, enter, scrollX]);
 
   const onScroll = useAnimatedScrollHandler((e) => {
@@ -171,7 +175,7 @@ export const ConsentSheet: React.FC = () => {
 
   const close = useCallback((after: () => void) => {
     if (reduce) { setOpen(false); after(); return; }
-    enter.value = withTiming(0, { duration: 220 }, (done) => {
+    enter.value = withTiming(0, EXIT, (done) => {
       if (done) {
         runOnJS(setOpen)(false);
         runOnJS(after)();
@@ -179,10 +183,20 @@ export const ConsentSheet: React.FC = () => {
     });
   }, [enter, reduce]);
 
-  const accept = () => {
-    if (userId) AsyncStorage.setItem(KEY(userId), new Date().toISOString()).catch(() => {});
-    haptic.success();
-    close(() => {});
+  // Closes only once the server has it; otherwise the next sign-in would ask again
+  const accept = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError(false);
+    try {
+      await apiAcceptPrivacyConsent();
+      haptic.success();
+      close(() => {});
+    } catch {
+      setSaveError(true);
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Consent has to be refusable, or it is not consent
@@ -263,7 +277,13 @@ export const ConsentSheet: React.FC = () => {
         </View>
 
         <View style={s.actions}>
+          {saveError && (
+            <Text style={[s.error, { color: colors.error }]} accessibilityLiveRegion="polite">
+              Persetujuan belum tersimpan. Periksa koneksimu, lalu coba lagi.
+            </Text>
+          )}
           <Button
+            loading={saving}
             label={last ? 'Saya mengerti dan setuju' : 'Lanjut'}
             onPress={primary}
             icon={last ? undefined : <Ionicons name="arrow-forward" size={18} color="#fff" />}
@@ -300,6 +320,7 @@ const s = StyleSheet.create({
   dots: { marginBottom: 22 },
 
   actions: { gap: 4, paddingHorizontal: 24, width: '100%', maxWidth: 488, alignSelf: 'center' },
+  error: { fontSize: 13, lineHeight: 19, fontFamily: 'PlusJakartaSans_600SemiBold', textAlign: 'center', marginBottom: 8 },
   decline: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   declineText: { fontSize: 14, fontFamily: 'PlusJakartaSans_600SemiBold' },
 });

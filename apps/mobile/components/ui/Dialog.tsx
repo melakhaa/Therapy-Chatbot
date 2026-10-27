@@ -15,7 +15,6 @@ import {
   Platform,
 } from 'react-native';
 import Animated, {
-  Easing,
   runOnJS,
   useAnimatedStyle,
   useReducedMotion,
@@ -25,6 +24,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Typography, Spacing, BorderRadius } from '@prototype/ui-shared';
 import { useTheme, Neu } from '@prototype/ui-shared';
+import { EXIT, FADE_MS, SPRING } from './motion';
 
 export interface DialogProps {
   open: boolean;
@@ -48,9 +48,9 @@ export const Dialog: React.FC<DialogProps> = ({
     if (open) {
       setMounted(true);
       // iOS alert motion: settles down from slightly larger on a critically damped spring.
-      progress.value = reduce ? withTiming(1, { duration: 120 }) : withSpring(1, { damping: 28, stiffness: 340, mass: 0.9 });
+      progress.value = reduce ? withTiming(1, { duration: FADE_MS }) : withSpring(1, SPRING);
     } else if (mounted) {
-      progress.value = withTiming(0, { duration: 160, easing: Easing.out(Easing.quad) }, (done) => {
+      progress.value = withTiming(0, EXIT, (done) => {
         if (done) runOnJS(setMounted)(false);
       });
     }
