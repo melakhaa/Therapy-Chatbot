@@ -16,7 +16,7 @@ const request = (over: Record<string, unknown> = {}) => ({
   preferred_counselor_name: 'Bu Sari',
   preferred_starts_at: null,
   preferred_ends_at: null,
-  appointment_id: null,
+  counseling_appointment_id: null,
   counselor_id: null,
   counselor_name: null,
   starts_at: null,
@@ -31,7 +31,7 @@ const booked = (h: number, appointment_status = 'confirmed', counselor_name = 'P
     status: appointment_status,
     preferred_starts_at: at(h + 5),
     preferred_ends_at: at(h + 6),
-    appointment_id: 'a1',
+    counseling_appointment_id: 'a1',
     counselor_id: 'k2',
     counselor_name,
     starts_at: at(h),
@@ -48,7 +48,7 @@ test('a pick waiting for an admin shows at the picked time', () => {
     start: at(3),
     end: at(4),
     counselor: 'Bu Sari',
-    status: 'menunggu',
+    status: 'pending',
   });
 });
 
@@ -57,9 +57,9 @@ test('an assigned appointment wins over the requested pick', () => {
     start: at(2),
     end: at(3),
     counselor: 'Pak Budi',
-    status: 'dikonfirmasi',
+    status: 'confirmed',
   });
-  assert.equal(nearestSession([booked(2, 'rescheduled')], NOW)?.status, 'dikonfirmasi');
+  assert.equal(nearestSession([booked(2, 'rescheduled')], NOW)?.status, 'confirmed');
 });
 
 test('closed outcomes never show as next', () => {
