@@ -39,7 +39,8 @@ begin
   select count(*) into n from auth_lookup('a@test.local');
   assert n = 1, 'auth_lookup broken for anonymous caller';
 
-  select count(*) into n from hotlines;
+  -- active hotlines are public on purpose (migration 004); unverified ones never are
+  select count(*) into n from hotlines where verification_status <> 'active';
   assert n = 0, format('anonymous saw %s unverified hotlines', n);
 
   -- migration 004 hides unverified contacts from the public; the admin still sees the seed
