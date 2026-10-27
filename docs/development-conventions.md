@@ -37,10 +37,12 @@ cd apps/mobile    && npx expo start                           # Expo (mobile)
 npm run dashboard:dev                                         # Next.js admin :3000
 ```
 
-Seed dev accounts once the DB is up (idempotent; the first admin can't be created via the API):
+Seed dev accounts once the DB is up (idempotent; the first admin can't be created via the API),
+and embed the RAG corpus once (the integration streaming checks need retrieved context):
 
 ```bash
 cd apps/backend && venv/bin/python scripts/seed_dev_users.py
+cd apps/backend && venv/bin/python scripts/embed.py
 ```
 
 Also start `ollama serve` for chat/embeddings ([ollama-conventions.md](ollama-conventions.md)).
