@@ -1,16 +1,19 @@
-"""End-to-end smoke test for the Sajiwa API.
+"""Integration tier — the API against the real stack (Postgres, Ollama, uvicorn).
 
 Starts nothing: expects `docker compose up -d` and uvicorn to already be running.
 Exercises auth, accounts, assessments, journals, jadwal/booking, dashboard, chat
 (real Ollama), and RLS isolation between two students, then deletes everything it
-created.
+created. It is a script rather than unittest cases because the checks share one
+seeded student and must run in order; it reports every failure instead of stopping
+at the first one.
 
     cd apps/backend
-    venv/bin/python scripts/api_smoke.py
+    venv/bin/python tests/integration/stack_smoke.py
 
 Env overrides: `API_BASE`, `SMOKE_DB_URL` (superuser URL, used only to seed the
 first admin and to verify DB state — the API itself always uses sajiwa_app).
-Exits non-zero on the first failing check.
+Exits 0 with a SKIP line when the stack is not up, so a unit run is never blocked
+by it, and 1 when any check fails.
 """
 
 import json, os, urllib.request, urllib.error, uuid, sys, time
@@ -20,6 +23,17 @@ BASE = os.getenv("API_BASE", "http://localhost:8000")
 DB = os.getenv("SMOKE_DB_URL", "postgresql://sajiwa:sajiwa@localhost:5432/sajiwa")
 FAILS = []
 SFX = uuid.uuid4().hex[:8]
+
+def skip_without_stack():
+    """Integration tier: skip loudly, never silently pass."""
+    try:
+        urllib.request.urlopen(BASE + "/health", timeout=3).close()
+        psycopg.connect(DB, connect_timeout=3).close()
+    except Exception as error:
+        print(f"SKIP integration: stack not reachable ({error})")
+        print("     start it: docker compose up -d, then venv/bin/uvicorn main:app --reload")
+        sys.exit(0)
+
 
 def call(method, path, body=None, token=None):
     req = urllib.request.Request(BASE + path, method=method)
@@ -77,6 +91,7 @@ def sql(q, p=None):
         return cur.fetchall() if cur.description else []
 
 print("== health ==")
+skip_without_stack()
 s, h = call("GET", "/health")
 check("GET /health", s == 200 and h.get("status") == "ok", (s, h))
 
