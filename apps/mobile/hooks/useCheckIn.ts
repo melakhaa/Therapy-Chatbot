@@ -9,16 +9,11 @@ import { router } from 'expo-router';
 import { useAuth } from '@prototype/ui-shared';
 
 const KIND = 'checkin';
-// Android fixes a channel's importance when it is first created, so raising it needs a new id
-const CHANNEL = 'checkin-banner';
 // One fixed time for now; add a setting when students ask for a different one
 const HOUR = 19;
 // Scheduled a week ahead and re-planned on every launch, so the greetings keep coming as long
 // as the app is opened at least once a week, and stop for a student who has gone quiet.
 const DAYS = 7;
-// Testing knob: EXPO_PUBLIC_CHECKIN_TEST_SECONDS=10 in apps/mobile/.env also sends one greeting
-// that many seconds after launch, so the notification can be checked without waiting for 19:00.
-const TEST_SECONDS = Number(process.env.EXPO_PUBLIC_CHECKIN_TEST_SECONDS) || 0;
 
 const PROMPTS: ((name: string) => { title: string; body: string })[] = [
   (n) => ({ title: `Hai ${n}, apa kabar hari ini?`, body: 'Gimana harimu? Cerita ke Sajiwa, sedikit juga boleh.' }),
@@ -50,22 +45,17 @@ if (native) {
 async function plan(name: string) {
   let { status } = await Notifications.getPermissionsAsync();
   if (status !== 'granted') ({ status } = await Notifications.requestPermissionsAsync());
-  if (status !== 'granted') {
-    console.warn('[check-in] notification permission not granted; nothing scheduled');
-    return;
-  }
+  if (status !== 'granted') return;
 
   if (Platform.OS === 'android') {
-    // HIGH: shown as a heads-up banner. DEFAULT only drops it silently into the shade.
-    await Notifications.setNotificationChannelAsync(CHANNEL, {
-      name: 'Sapaan harian', importance: Notifications.AndroidImportance.HIGH,
+    await Notifications.setNotificationChannelAsync(KIND, {
+      name: 'Sapaan harian', importance: Notifications.AndroidImportance.DEFAULT,
     });
   }
-  // Without the buttons the greeting still arrives and still opens the chat
   await Notifications.setNotificationCategoryAsync(
     KIND,
     ANSWERS.map((a) => ({ identifier: a.id, buttonTitle: a.title, options: { opensAppToForeground: true } })),
-  ).catch((e) => console.warn('[check-in] answer buttons unavailable', e));
+  );
 
   await Notifications.cancelAllScheduledNotificationsAsync();
   const now = new Date();
@@ -78,16 +68,9 @@ async function plan(name: string) {
     const prompt = PROMPTS[Math.floor(at.getTime() / 86_400_000) % PROMPTS.length](name);
     await Notifications.scheduleNotificationAsync({
       content: { ...prompt, categoryIdentifier: KIND, data: { kind: KIND } },
-      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at, channelId: CHANNEL },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at, channelId: KIND },
     });
   }
-  if (TEST_SECONDS > 0) {
-    await Notifications.scheduleNotificationAsync({
-      content: { ...PROMPTS[0](name), categoryIdentifier: KIND, data: { kind: KIND } },
-      trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: TEST_SECONDS, channelId: CHANNEL },
-    });
-  }
-  if (__DEV__) console.log(`[check-in] scheduled ${DAYS} evenings at ${HOUR}:00${TEST_SECONDS ? `, plus a test in ${TEST_SECONDS}s` : ''}`);
 }
 
 function open(response: Notifications.NotificationResponse) {
@@ -107,7 +90,7 @@ export function useCheckIn(ready: boolean) {
   // Plan on sign-in and each launch; a sign-out (or a non-student account) clears the plan
   useEffect(() => {
     if (!native || isLoading) return;
-    if (student) plan(name).catch((e) => console.warn('[check-in] scheduling failed', e));
+    if (student) plan(name).catch(() => {});
     else Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
   }, [isLoading, student, name]);
 
