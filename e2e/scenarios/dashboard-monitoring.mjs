@@ -1,6 +1,8 @@
 // E2E journey: an admin route keeps its session and renders its own screen.
 // Signing in twice per journey is deliberate — a fresh browser session per journey means
 // no journey inherits a login from another, which is what makes a failure meaningful.
+// ponytail: the URL and the seeded dev account are hardcoded because a betterwright
+// snippet has no process.env; add env plumbing when a second environment exists.
 const DASHBOARD = 'http://localhost:3000';
 
 await page.goto(`${DASHBOARD}/login`);
