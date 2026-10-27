@@ -54,6 +54,10 @@ export default function ChatScreen() {
 
   const [historyOpen, setHistoryOpen] = useState(false);
 
+  // An answer tapped on the daily check-in notification waits in the composer, unsent
+  const draft = params.draft as string | undefined;
+  useEffect(() => { if (draft) setInputText(draft); }, [draft, setInputText]);
+
   useEffect(() => {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
   }, [messages, isTyping]);

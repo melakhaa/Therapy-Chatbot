@@ -278,7 +278,7 @@ export const ConsentSheet: React.FC = () => {
 };
 
 const s = StyleSheet.create({
-  screen: { ...StyleSheet.absoluteFillObject },
+  screen: { ...StyleSheet.absoluteFill },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24 },
   eyebrow: { fontSize: 11, fontFamily: 'PlusJakartaSans_700Bold', letterSpacing: 1.4, textTransform: 'uppercase' },
   counter: { fontSize: 12, fontFamily: 'PlusJakartaSans_600SemiBold' },

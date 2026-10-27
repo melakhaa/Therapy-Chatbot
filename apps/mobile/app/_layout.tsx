@@ -21,6 +21,7 @@ import { AnimatedSplashScreen } from '../components/AnimatedSplashScreen';
 import { ToastProvider } from '../components/ui/Toast';
 import { ConsentSheet } from '../components/ui/ConsentSheet';
 import { isSwipeTab, swipeTab, tabAnimation } from '../components/ui/BottomNav';
+import { useCheckIn } from '../hooks/useCheckIn';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -41,6 +42,8 @@ export default function RootLayout() {
   });
 
   const [splashAnimationFinished, setSplashAnimationFinished] = useState(false);
+  // Daily check-in notification; a tap waits for the splash, by which time sign-in has redirected
+  useCheckIn(fontsLoaded && splashAnimationFinished);
 
   // Swipe sideways on a tab screen to reach the neighbouring tab. It waits for a clearly
   // horizontal drag (40pt), longer than the calendar's month swipe (24pt) and a scroll
