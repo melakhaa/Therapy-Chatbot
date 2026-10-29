@@ -524,6 +524,23 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-accent);
   .month-count { min-width: 1.1rem; height: 1.1rem; display: grid; place-items: center; padding: 0 .25rem; border-radius: 999px; background: var(--color-accent); color: var(--color-accent-contrast); font-size: .62rem; font-weight: 800; }
 }
 
+/* Readability: on desktop, tables fit the panel instead of scrolling sideways and words never split
+   mid-way; small print stays legible; overview metrics get room for their labels */
+@media (min-width: 64.01rem) {
+  :is(.priority-table, .schedule-table, .monitoring-table, .student-table, .assessment-history-table, .request-table, .counseling-list, .counselor-table, .hotline-table, .academic-table, .exception-table, .instrument-directory-table table, .counselor-priority-table, .counselor-cases-table, .counselor-schedule-table, .counselor-exception-table, .counselor-review-table) { min-width: 0; }
+  .overview-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 112rem) { .overview-kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+:is(.operations-table, .data-table, .table-shell) :is(th, td) { overflow-wrap: break-word; }
+.operations-table small, .data-table small, .metric-card p { font-size: .78rem; }
+.metric-card { align-items: center; }
+.button-text-danger { color: var(--color-danger); }
+/* Phone: metrics become a compact 2-column summary so the priority queue starts on the first screen */
+@media (max-width: 36rem) { .overview-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; } .metric-card { padding: .75rem; } .metric-card p, .metric-icon { display: none; } }
+.priority-table th:nth-child(5), .monitoring-table th:nth-child(5) { min-width: 0; }
+.operations-table .detail-cell { min-width: 13rem; }
+.monitoring-table th:nth-child(2), .priority-table th:nth-child(3) { min-width: 10rem; }
+
 @page { size:A4 portrait;margin:14mm; }
 @media print {
   :root,[data-theme="dark"]{color-scheme:light;--color-background:#fff;--color-surface:#fff;--color-surface-muted:#f3f6f6;--color-text:#1c2447;--color-text-muted:#4e5876;--color-edge:#ccd8d7;--shadow-inset:none;--color-border:#ccd8d7;--shadow-surface:none}
