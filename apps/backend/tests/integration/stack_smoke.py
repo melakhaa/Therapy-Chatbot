@@ -18,6 +18,7 @@ by it, and 1 when any check fails.
 
 import json, os, urllib.request, urllib.error, uuid, sys, time
 import bcrypt, psycopg
+from websockets.sync.client import connect as ws_connect
 
 BASE = os.getenv("API_BASE", "http://localhost:8000")
 DB = os.getenv("SMOKE_DB_URL", "postgresql://sajiwa:sajiwa@localhost:5432/sajiwa")
@@ -144,6 +145,11 @@ kon_tok = r.get("access_token")
 check("konselor login", s == 200 and r["user"]["role"] == "konselor", (s, r))
 
 print("== assessments ==")
+# The admin watches /realtime while the student submits: migration 009's trigger on
+# guardrail_logs must reach the socket as an area notice that carries no student data.
+live = ws_connect(BASE.replace("http", "ws", 1) + "/realtime", open_timeout=5)
+live.send(json.dumps({"type": "auth", "token": admin_tok}))
+check("realtime accepts an admin token sent in the first message", json.loads(live.recv(timeout=5)) == {"type": "ready"})
 s, r = call("POST", "/assessment/submit",
             {"answers": [{"question_id": i, "score": 3} for i in range(9)],
              "instrument_type": "PHQ-9", "session_id": f"s-{SFX}"}, stu_tok)
@@ -152,6 +158,16 @@ assess_id = r.get("assessment_id")
 
 n = sql("select count(*) from guardrail_logs where user_id = %s", (stu_id,))[0][0]
 check("severe assessment logged to guardrail_logs", n >= 1, n)
+notices = set()
+try:
+    while True:
+        notices.add(live.recv(timeout=3))
+except TimeoutError:
+    pass
+live.close()
+check("realtime announces the new safety signal by area only",
+      json.dumps({"type": "changed", "topic": "signals"}, separators=(",", ":")) in notices
+      and all(set(json.loads(n)) == {"type", "topic"} for n in notices), notices)
 
 row = sql("select source, triggered_input from guardrail_logs "
           "where assessment_id = %s", (assess_id,))

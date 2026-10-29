@@ -34,9 +34,10 @@ to one of them, and a new seam gets added here (with its trade-off) before the t
 |------|------|---------|--------|
 | FastAPI route contract (`/auth`, `/assessment`, `/journal`, `/chat`, `/booking`) | unit (stubbed `core.db`) | request/response shape, role gates, validation | real SQL, triggers, RLS |
 | `core/dass21.py` — `score_dass21`, `classify_dass21` | unit | scoring, bands, category mapping | persistence, wiring |
+| `/realtime` WebSocket (`routes/realtime.py`), `publish()` standing in for the DB listener | unit (stubbed `core.db`) | token-in-first-message handshake, staff-only gate, table→area map, expiry close | the LISTEN thread, the triggers |
 | `services/chatbot/guardrail.py` — `is_crisis`, `strip_profanity` | unit | deterministic crisis detection | model tone and routing |
 | `services/chatbot/` history assembly | unit | prompt budget, crisis filtering, ordering | real model output |
-| The live API over HTTP (incl. `db/test_rls.sql`) | integration | real SQL, triggers, encryption at rest, RLS, Ollama | anything in the UI |
+| The live API over HTTP and `/realtime` (incl. `db/test_rls.sql`) | integration | real SQL, triggers, change notices, encryption at rest, RLS, Ollama | anything in the UI |
 | `features/<domain>/model.ts` (dashboard) | unit | directory filters, draft validation, publish gate, priority ordering | rendering, fetch |
 | `nearestSession`, `calendarDates`, `packages/utils` exports | unit | time/TZ math, stress score, reactions | app screens |
 | Dashboard journeys (`e2e/scenarios`) | e2e | sign-in, routing, a page rendering with real data | everything not asserted |
