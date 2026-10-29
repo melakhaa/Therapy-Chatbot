@@ -10,7 +10,7 @@ RAG retrieval is hand-written SQL against PostgreSQL + pgvector. No hosted LLM p
 | Purpose | Model | Client |
 |---------|-------|--------|
 | Intent routing | `nomic-embed-text-v2-moe` | `semantic_router.encoders.OllamaEncoder` |
-| Chat generation | `llama3.2:3b` | `langchain_ollama.ChatOllama` |
+| Chat generation | `hf.co/SekarBestNY/llama-3-8b-instruct-gguf:Q4_K_M` (team fine-tune; `OLLAMA_CHAT_MODEL=llama3.2:3b` when RAM is short) | `langchain_ollama.ChatOllama` |
 | RAG query embeddings | `nomic-embed-text-v2-moe` | `langchain_ollama.OllamaEmbeddings` (`embed_query`) |
 | Document ingestion embeddings | `nomic-embed-text-v2-moe` | `ollama.embed(...)` |
 
@@ -76,6 +76,6 @@ zero-vector fallback would route everything to one route while looking healthy. 
 
 ```bash
 ollama serve
-ollama pull llama3.2:3b
+ollama pull hf.co/SekarBestNY/llama-3-8b-instruct-gguf:Q4_K_M
 ollama pull nomic-embed-text-v2-moe
 ```
