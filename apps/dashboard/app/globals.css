@@ -540,6 +540,14 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-accent);
 .operations-table .detail-cell { min-width: 13rem; }
 .monitoring-table th:nth-child(2), .priority-table th:nth-child(3) { min-width: 10rem; }
 
+/* DASS-21 variant form: whole subscales as plain checkboxes, count stated under them */
+.variant-form { display: grid; gap: 1rem; }
+.variant-subscales { display: grid; gap: .55rem; margin: 0; padding: 0; border: 0; }
+.variant-subscales legend { margin-bottom: .45rem; font-size: .86rem; font-weight: 800; }
+.variant-subscales label { display: flex; align-items: center; gap: .6rem; min-height: 2.25rem; font-weight: 600; cursor: pointer; }
+.variant-subscales input { width: 1.1rem; height: 1.1rem; accent-color: var(--color-accent); }
+.variant-count { margin: 0; color: var(--color-text-muted); font-size: .85rem; }
+
 @page { size:A4 portrait;margin:14mm; }
 @media print {
   :root,[data-theme="dark"]{color-scheme:light;--color-background:#fff;--color-surface:#fff;--color-surface-muted:#f3f6f6;--color-text:#1c2447;--color-text-muted:#4e5876;--color-edge:#ccd8d7;--shadow-inset:none;--color-border:#ccd8d7;--shadow-surface:none}
