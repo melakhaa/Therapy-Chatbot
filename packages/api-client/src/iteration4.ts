@@ -122,6 +122,8 @@ export interface ActiveAssessmentInstrument {
     language: string | null;
     instrument_kind: 'standard' | 'custom';
     provenance: Record<string, string>;
+    /** Set on a DASS-21 variant: the whole subscales it offers. */
+    dass21_subscales: DassCategory[] | null;
     version_number: number;
     scoring_config: Record<string, unknown>;
   };
@@ -179,8 +181,9 @@ export function apiPublishInstrumentVersion(versionId: string) {
   return apiFetch<{ version: InstrumentVersionDetail; questions: QuestionDefinition[] }>(`/admin/assessment-instruments/versions/${encodeURIComponent(versionId)}/publish`, { method: 'POST' });
 }
 
-export function apiGetActiveAssessmentInstrument(code = 'DASS-21') {
-  return apiFetch<ActiveAssessmentInstrument>(`/assessment/instrument/active?code=${encodeURIComponent(code)}`);
+/** The instrument the admin chose to show in the app, or a specific one by code. */
+export function apiGetActiveAssessmentInstrument(code?: string) {
+  return apiFetch<ActiveAssessmentInstrument>(`/assessment/instrument/active${code ? `?code=${encodeURIComponent(code)}` : ''}`);
 }
 
 export function apiSubmitInstrumentAssessment(payload: InstrumentAssessmentSubmission) {

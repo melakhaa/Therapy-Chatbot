@@ -60,7 +60,7 @@ export default function AssessmentScreen() {
   return <View style={[s.root,{backgroundColor:colors.background}]}><ScrollView contentContainerStyle={[s.content,{paddingTop:insets.top+28,paddingBottom:insets.bottom+BOTTOM_CLEARANCE}]} keyboardShouldPersistTaps="handled">
     <FadeIn><ScreenHeader
       eyebrow="Asesmen kesejahteraan"
-      title="DASS-21 Bahasa Indonesia"
+      title={instrument?.version.name??'Asesmen'}
       subtitle="Jawab sesuai kondisimu selama satu minggu terakhir. Hasil ini bukan diagnosis."
     /></FadeIn>
     {loading&&<View style={s.state}><ActivityIndicator color={colors.primary}/><Text style={{color:colors.onSurfaceVariant}}>Memuat instrumen aktif…</Text></View>}
@@ -71,14 +71,14 @@ export default function AssessmentScreen() {
       <View style={[s.track,{backgroundColor:colors.background,boxShadow:Neu.inset}]}><View style={[s.fill,{backgroundColor:colors.primary,width:`${((index+1)/questions.length)*100}%`}]}/></View>
       <FadeIn key={question.assessment_question_id}><View style={[s.card,{backgroundColor:colors.background,boxShadow:Neu.raised}]}>
         <View style={s.itemHead}>
-          <Text style={[s.itemNumber,{color:colors.primary}]}>BUTIR {question.position}</Text>
+          <Text style={[s.itemNumber,{color:colors.primary}]}>BUTIR {index+1}</Text>
           <Companion expression={index<questions.length-1?'berpikir':'semangat'} size={56}/>
         </View>
         <Text style={[s.question,{color:colors.onSurface}]}>{question.wording}</Text>
         <View style={s.options}>{question.options.map(option=>{const selected=answers[question.assessment_question_id]===option.assessment_answer_option_id;return <PressableScale key={option.assessment_answer_option_id} accessibilityRole="radio" accessibilityState={{selected}} onPress={()=>setAnswers(current=>({...current,[question.assessment_question_id]:option.assessment_answer_option_id}))} style={[s.option,{backgroundColor:colors.background,boxShadow:selected?Neu.inset:Neu.raisedSm}]}><Ionicons name={selected?'radio-button-on':'radio-button-off'} size={22} color={selected?colors.primary:colors.outline}/><Text style={[s.optionText,{color:colors.onSurface,fontFamily:selected?'PlusJakartaSans_700Bold':'PlusJakartaSans_500Medium'}]}>{option.label}</Text></PressableScale>;})}</View>
       </View></FadeIn>
       <View style={s.actions}><Button label="Sebelumnya" variant="secondary" disabled={index===0||submitting} onPress={()=>setIndex(value=>Math.max(0,value-1))}/>{index<questions.length-1?<Button label="Berikutnya" disabled={!answers[question.assessment_question_id]} onPress={()=>setIndex(value=>Math.min(questions.length-1,value+1))}/>:<Button label="Kirim asesmen" loading={submitting} disabled={!complete} onPress={confirmSubmit}/>}</View>
-      <Text style={[s.provenance,{color:colors.outline}]}>DASS-21 · {instrument.version.language} · Versi {instrument.version.version_number}</Text>
+      <Text style={[s.provenance,{color:colors.outline}]}>{instrument.version.code} · {instrument.version.language} · Versi {instrument.version.version_number}</Text>
     </>}
   </ScrollView><BottomNav/>
     <Dialog open={confirmSend} onOpenChange={setConfirmSend}>
