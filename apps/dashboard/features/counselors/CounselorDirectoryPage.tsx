@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { Badge, Button, ConfirmationDialog, Drawer, EmptyState, ErrorState, Icon, InlineAlert, Input, PageShell, Skeleton } from '@/components/ui';
+import { useLiveRefresh } from '@/lib/realtime/useLiveRefresh';
 import { addDays, jakartaDateKey } from '@/features/counseling/model';
 import { createAvailability, deactivateAvailability, getAvailability, getCounselorOperations, getCounselors, updateCounselorProfile } from './api';
 import { addScheduleWindow, buildSchedulePlan, counselorInitials, filterCounselors, normalizeCounselors, normalizeSchedule, removeScheduleWindow, scheduleSignature, upcomingAppointments, validateSchedule, WEEKDAY_ORDER, windowsForDay, type ScheduleValidation } from './model';
@@ -40,6 +41,7 @@ export function CounselorDirectoryPage({ initialCounselorId = null }: { initialC
     return () => { active = false; controller.abort(); };
   }, [version]);
 
+  useLiveRefresh(useCallback(() => setVersion((value) => value + 1), []));
   const refresh = useCallback(() => { setDirectoryLoading(true); setAvailabilityLoading(true); setDirectoryError(false); setAvailabilityError(false); setVersion((value) => value + 1); }, []);
   const specializations = useMemo(() => Array.from(new Set(counselors.map((item) => item.specialization).filter((value): value is string => !!value))).sort((a, b) => a.localeCompare(b)), [counselors]);
   const filtered = useMemo(() => filterCounselors(counselors, search, status, specialization), [counselors, search, status, specialization]);

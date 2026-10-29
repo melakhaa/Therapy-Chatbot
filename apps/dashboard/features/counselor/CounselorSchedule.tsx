@@ -18,7 +18,7 @@ export function CounselorSchedulePage() {
   const copy = counselorMessages[language];
   const [view, setView] = useState<View>('week');
   const load = useCallback((signal: AbortSignal) => getCounselorWorkspace(jakartaDate(-30), jakartaDate(45), signal), []);
-  const {data, error, retry} = useCounselorData(load);
+  const {data, error, retry} = useCounselorData(load, {topics: ['schedule']});
   const grouped = useMemo(() => (data?.appointments ?? []).reduce<Record<string, CounselorAppointment[]>>((result, row) => {
     const date = row.starts_at.slice(0, 10);
     (result[date] ??= []).push(row);

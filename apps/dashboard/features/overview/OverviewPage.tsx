@@ -14,6 +14,7 @@ import {
   type SessionDisplayStatus,
 } from '@/features/overview/model';
 import type { OverviewSources, PriorityCase } from '@/features/overview/types';
+import { useLiveRefresh } from '@/lib/realtime/useLiveRefresh';
 
 const PAGE_SIZE = 10;
 const JAKARTA_TIME_ZONE = 'Asia/Jakarta';
@@ -62,6 +63,10 @@ export function OverviewPage() {
     setNow(new Date());
     setRefreshVersion((value) => value + 1);
   }, []);
+
+  // Background refresh keeps filters, page and selection; only the data underneath changes.
+  const liveRefresh = useCallback(() => { setNow(new Date()); setRefreshVersion((value) => value + 1); }, []);
+  useLiveRefresh(liveRefresh, { topics: ['signals', 'requests', 'schedule'] });
 
   const cases = useMemo(() => sources ? buildPriorityCases(sources) : [], [sources]);
   const filteredCases = useMemo(() => cases.filter((item) => {
@@ -116,10 +121,11 @@ export function OverviewPage() {
       title={text.overview.title}
       actions={<div className="overview-header-actions"><span className="today-context">{text.overview.today}: {dateContext}</span><Button variant="secondary" icon="refresh" onClick={refresh}>{text.overview.refresh}</Button></div>}
     >
-      {loading && !sources ? <OverviewLoading /> : error || !sources ? (
+      {loading && !sources ? <OverviewLoading /> : !sources ? (
         <ErrorState title={text.errors.title} message={text.overview.loadError} retry={refresh} retryLabel={text.common.retry} />
       ) : (
         <div className="overview-stack">
+          {error && <InlineAlert tone="warning">{text.common.staleData}</InlineAlert>}
           <section className="overview-kpis" aria-label={text.overview.title}>
             <MetricCard tone="danger" icon="alert" value={metrics?.criticalCases ?? 0} label={text.overview.metrics.critical} note={text.overview.metricNotes.critical} />
             <MetricCard tone="warning" icon="monitoring" value={metrics?.activeHighRisk ?? 0} label={text.overview.metrics.highRisk} note={text.overview.metricNotes.highRisk} />

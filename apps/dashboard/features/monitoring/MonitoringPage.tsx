@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { Badge, Button, DropdownMenu, EmptyState, ErrorState, handleTabListKeyDown, Icon, InlineAlert, PageShell, Skeleton } from '@/components/ui';
+import { useLiveRefresh } from '@/lib/realtime/useLiveRefresh';
 import { markAttentionReviewed } from '@/features/overview/api';
 import { getAcademicStructure, getMonitoringSources, type MonitoringSources } from '@/features/monitoring/api';
 import {
@@ -58,6 +59,8 @@ export function MonitoringPage() {
     return () => { active = false; controller.abort(); };
   }, [filters.facultyIds, filters.academicUnitIds, refreshVersion]);
 
+  const liveRefresh = useCallback(() => { setNow(new Date()); setRefreshVersion((value) => value + 1); }, []);
+  useLiveRefresh(liveRefresh, { topics: ['signals', 'requests'] });
   const refresh = useCallback(() => {
     setLoading(true); setError(false); setActionError(false); setSelected(clearMonitoringSelection()); setNow(new Date()); setRefreshVersion((value) => value + 1);
   }, []);
@@ -125,7 +128,8 @@ export function MonitoringPage() {
 
       {selected.size > 0 && <div className="bulk-selection monitoring-bulk" role="status"><strong>{selected.size} {text.monitoring.selected}</strong><div className="bulk-actions"><Button icon="check" onClick={() => { void markSelectedReviewed(); }}>{text.monitoring.bulkReview}</Button><Button variant="secondary" disabled title={text.monitoring.backendPending}>{text.monitoring.bulkDelegate}</Button><Button variant="secondary" disabled title={text.monitoring.exportUnavailable}>{text.monitoring.bulkExport}</Button><Button variant="ghost" onClick={() => setSelected(clearMonitoringSelection())}>{text.monitoring.cancelSelection}</Button></div></div>}
       {actionError && <InlineAlert tone="danger">{text.monitoring.actionError}</InlineAlert>}
-      {loading && !sources ? <MonitoringLoading /> : error || !sources ? <section className="operations-panel"><ErrorState title={text.errors.title} message={text.monitoring.loadError} retry={refresh} retryLabel={text.common.retry} /></section> : filteredCases.length === 0 ? <section className="operations-panel"><EmptyState title={hasFilters ? text.monitoring.empty : text.monitoring.emptyUnfiltered} /></section> : <section className="operations-panel" aria-label={text.monitoring.title}>
+      {error && sources && <InlineAlert tone="warning">{text.common.staleData}</InlineAlert>}
+      {loading && !sources ? <MonitoringLoading /> : !sources ? <section className="operations-panel"><ErrorState title={text.errors.title} message={text.monitoring.loadError} retry={refresh} retryLabel={text.common.retry} /></section> : filteredCases.length === 0 ? <section className="operations-panel"><EmptyState title={hasFilters ? text.monitoring.empty : text.monitoring.emptyUnfiltered} /></section> : <section className="operations-panel" aria-label={text.monitoring.title}>
         <div className="operations-table-wrap"><table className="operations-table monitoring-table"><thead><tr><th className="selection-column"><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisible} aria-label={text.monitoring.columns.selectPage} /></th><th>{text.monitoring.columns.student}</th><th>{text.monitoring.columns.type}</th><th>{text.monitoring.columns.detail}</th><th aria-sort="descending">{text.monitoring.columns.risk}</th><th>{text.monitoring.columns.time}</th><th>{text.monitoring.columns.status}</th><th>{text.monitoring.columns.action}</th></tr></thead><tbody>{pagination.rows.map((item) => <MonitoringRow key={item.id} item={item} selected={selected.has(item.id)} onToggle={() => toggleSelected(item.id)} onOpen={() => item.studentId && router.push(`/students/${item.studentId}`)} onMarkReviewed={() => { void markReviewed(item); }} />)}</tbody></table></div>
         <footer className="monitoring-footer"><span>{text.monitoring.pagination.showing} {(pagination.page - 1) * pageSize + 1}–{Math.min(pagination.page * pageSize, filteredCases.length)} {text.monitoring.pagination.ofLoaded} ({filteredCases.length})</span><label>{text.monitoring.pagination.perPage}<select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); setSelected(clearMonitoringSelection()); }}><option value="25">25</option><option value="50">50</option></select></label><div className="pagination"><Button variant="ghost" disabled={pagination.page === 1} onClick={() => setPage((value) => value - 1)}>{text.monitoring.pagination.previous}</Button><span>{text.monitoring.pagination.page} {pagination.page} / {pagination.pageCount}</span><Button variant="ghost" disabled={pagination.page === pagination.pageCount} onClick={() => setPage((value) => value + 1)}>{text.monitoring.pagination.next}</Button></div></footer>
       </section>}

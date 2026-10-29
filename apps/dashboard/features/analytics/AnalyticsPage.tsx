@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { Badge, Button, Drawer, ErrorState, Icon, InlineAlert, PageShell, Skeleton } from '@/components/ui';
+import { useLiveRefresh } from '@/lib/realtime/useLiveRefresh';
 import { getAcademicStructure } from '@/features/monitoring/api';
 import type { AcademicStructure } from '@/features/monitoring/types';
 import { getAnalytics } from './api';
@@ -21,6 +22,7 @@ export function AnalyticsPage(){
   useEffect(()=>{if(hydrated)sessionStorage.setItem(ANALYTICS_STORAGE_KEY,JSON.stringify(filters))},[filters,hydrated]);
   useEffect(()=>{const c=new AbortController();getAcademicStructure(c.signal).then((value)=>{setStructure(value);setFilters((current)=>{const next=sanitizeForStructure(current,value);if(JSON.stringify(next)!==JSON.stringify(current)){setLoading(true);setError(false)}return next});setStructureError(false)}).catch((caught)=>{if(!(caught instanceof DOMException&&caught.name==='AbortError'))setStructureError(true)});return()=>c.abort()},[refresh]);
   useEffect(()=>{if(!hydrated||!validateDates(filters.dateFrom,filters.dateTo))return;const c=new AbortController();getAnalytics(filters,c.signal).then((value)=>{setData(value);setError(false);setLoading(false)}).catch((caught)=>{if(!(caught instanceof DOMException&&caught.name==='AbortError')){setError(true);setLoading(false)}});return()=>c.abort()},[filters,hydrated,refresh]);
+  useLiveRefresh(useCallback(()=>setRefresh((x)=>x+1),[]),{pollMs:300_000});
   const update=useCallback((patch:Partial<AnalyticsFilters>)=>{const next={...filters,...patch};setLoading(validateDates(next.dateFrom,next.dateTo));setError(false);setFilters(next)},[filters]);
   const metrics=useMemo(()=>data?aggregate(data):null,[data]); const trend=useMemo(()=>data?groupTrend(data):[],[data]); const dimensions=useMemo(()=>data?severityByCategory(data):[],[data]); const comparison=useMemo(()=>data?academicComparison(data):[],[data]); const counseling=useMemo(()=>data?counselingComposition(data):[],[data]); const insightRows=useMemo(()=>data?insights(data,language):[],[data,language]);
   const selectedFaculties=structure?.faculties.filter((item)=>filters.facultyIds.includes(item.faculty_id))??[]; const availableUnits=structure?.academicUnits.filter((item)=>filters.facultyIds.length===1&&item.faculty_id===filters.facultyIds[0]&&item.active)??[]; const selectedUnits=availableUnits.filter((item)=>filters.academicUnitIds.includes(item.academic_unit_id));
@@ -42,7 +44,8 @@ export function AnalyticsPage(){
       </section>
       {dateError&&<InlineAlert tone="danger">{copy.errors.date}</InlineAlert>}
       {structureError&&<InlineAlert tone="warning">{copy.errors.academic}</InlineAlert>}
-      {loading&&!data?<AnalyticsLoading/>:error||!data?<ErrorState title={copy.errors.title} message={copy.errors.load} retry={()=>{setLoading(true);setError(false);setRefresh((x)=>x+1)}} retryLabel={text.common.retry}/>:<>
+      {error&&data&&<InlineAlert tone="warning">{text.common.staleData}</InlineAlert>}
+      {loading&&!data?<AnalyticsLoading/>:!data?<ErrorState title={copy.errors.title} message={copy.errors.load} retry={()=>{setLoading(true);setError(false);setRefresh((x)=>x+1)}} retryLabel={text.common.retry}/>:<>
         <section className="analytics-kpis" aria-label={copy.title}><Kpi value={metrics?.assessmentTotal??0} label={copy.metrics.assessments} note={copy.metrics.assessmentNote}/><Kpi value={`${metrics?.highRiskPercent??0}%`} label={copy.metrics.severe} note={copy.metrics.severeNote.replace('{high}',String(metrics?.severe??0)).replace('{total}',String(metrics?.assessmentTotal??0))}/><Kpi value={metrics?.counselingTotal??0} label={copy.metrics.appointments} note={copy.metrics.appointmentNote}/><Kpi value={metrics?.completed??0} label={copy.metrics.completed} note={copy.metrics.completedNote}/></section>
         <div className="analytics-grid analytics-grid-wide">
           <Panel title={copy.charts.activity} description={copy.charts.activityBody.replace('{period}',period)}><BarChart rows={trend} empty={copy.empty.assessments} labelFormatter={(value)=>formatShortDate(value,language)}/></Panel>

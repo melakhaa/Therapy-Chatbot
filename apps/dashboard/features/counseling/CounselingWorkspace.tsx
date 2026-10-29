@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetState
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { ApiError } from '@/lib/api/client';
 import { Badge, Button, Drawer, EmptyState, ErrorState, handleTabListKeyDown, Icon, InlineAlert, Input, PageShell, Skeleton } from '@/components/ui';
+import { useLiveRefresh } from '@/lib/realtime/useLiveRefresh';
 import { assignCounselingRequest, deleteBlockedPeriod, getCounselingCalendar, getCounselingRequests, getCounselingResources, getCounselors, updateAppointment } from './api';
 import { activeAvailability, addDays, deriveSessionStatus, filterAppointments, hasObviousConflict, isEffectiveException, jakartaDateKey, JAKARTA_TIME_ZONE, localSchedulePayload, normalizeRequests, resourceAvailability, resourceConflictIds, weekRange, type ResourceAvailabilityState, type SessionDisplayStatus } from './model';
 import type { Appointment, AppointmentStatus, BlockedPeriod, CalendarResponse, Counselor, CounselingRequest, CounselingResource, RequestResponse } from './types';
@@ -92,6 +93,12 @@ export function CounselingWorkspace() {
     setCalendarVersion((value) => value + 1);
     setRequestVersion((value) => value + 1);
   }, []);
+  const liveRefresh = useCallback(() => {
+    setNow(new Date());
+    setCalendarVersion((value) => value + 1);
+    setRequestVersion((value) => value + 1);
+  }, []);
+  useLiveRefresh(liveRefresh, { topics: ['requests', 'schedule'] });
   const afterMutation = useCallback(() => {
     setSelectedRequest(null);
     setSelectedAppointment(null);
