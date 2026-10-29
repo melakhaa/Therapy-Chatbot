@@ -400,7 +400,6 @@ button { color: inherit; }
 .topbar::before { content: ""; position: absolute; inset: auto calc(-1 * var(--space-page)) 100%; height: calc(var(--shell-gap) + 1px); background: var(--color-background); }
 .sidebar-footer { border-top: 0; margin-inline: -.35rem; padding: .6rem .7rem; border-radius: var(--radius-md); box-shadow: var(--shadow-inset); }
 .brand-mark { border-radius: var(--radius-md); background: var(--color-surface-raised); box-shadow: var(--shadow-control); }
-[data-theme="dark"] .brand-mark img { filter: brightness(1.8); }
 .login-mascot { display: block; width: clamp(9rem, 16vw, 13.75rem); height: auto; margin-bottom: 1.25rem; }
 .state-mascot { width: 6rem; height: auto; }
 /* Neumorphic controls: raised at rest, sunk when selected, like the mobile BottomNav and IconButton */

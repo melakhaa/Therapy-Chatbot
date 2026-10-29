@@ -15,7 +15,7 @@ import { counselorMessages } from '@/lib/i18n/counselorMessages';
 
 function Brand() {
   const { user } = useAuth(); const { text } = useLanguage();
-  return <Link href={user?.role==='konselor'?'/counselor':'/overview'} className="brand" aria-label="Sajiwa"><span className="brand-mark" aria-hidden="true"><Image src="/brand/lotus.png" alt="" width={26} height={26} /></span><span><strong>Sajiwa</strong><small>{text.brandDescriptor}</small></span></Link>;
+  return <Link href={user?.role==='konselor'?'/counselor':'/overview'} className="brand" aria-label="Sajiwa"><span className="brand-mark" aria-hidden="true"><Image src="/brand/sajiwa.png" alt="" width={36} height={36} /></span><span><strong>Sajiwa</strong><small>{text.brandDescriptor}</small></span></Link>;
 }
 
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
