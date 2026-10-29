@@ -80,7 +80,9 @@ def is_crisis(text: str) -> bool:
 # Measured 2026-10-05 (scripts/profanity_probe.py): llama3.2 handles English
 # swearing gracefully on its own but MIRRORS Indonesian/Javanese curses back at
 # the student. So those tokens are stripped before the message reaches the model;
-# English cursing is deliberately absent — the LLM absorbs it.
+# English cursing is deliberately absent — the LLM absorbs it. Re-checked
+# 2026-10-29 on llama3-8b-instruct:Q4_K_M: English still OK. The strip itself is
+# unconditional, so it does not depend on which model answers.
 PROFANITY = (
     # Indonesian
     "anjing", "bangsat", "kontol", "memek", "pepek", "goblok", "tolol", "babi",
