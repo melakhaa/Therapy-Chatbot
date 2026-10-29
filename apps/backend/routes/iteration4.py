@@ -10,7 +10,7 @@ from psycopg.types.json import Jsonb
 
 from auth import get_current_user, require_role
 from core.db import db, query
-from core.dass21 import score_dass21, validate_dass21_definition
+from core.dass21 import CATEGORY_ITEMS, normalize_subscales, score_dass21, validate_dass21_definition
 
 admin_router = APIRouter(prefix="/admin", tags=["Admin Iteration 4"])
 assessment_router = APIRouter(prefix="/assessment", tags=["Assessment Instruments"])
@@ -42,6 +42,14 @@ class DerivedInstrumentRequest(BaseModel):
     name: str = Field(min_length=3, max_length=160)
     code: str = Field(min_length=3, max_length=40, pattern=r"^[A-Za-z0-9_-]+$")
     description: Optional[str] = Field(default=None, max_length=2000)
+
+
+class Dass21VariantRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=3, max_length=160)
+    code: str = Field(min_length=3, max_length=40, pattern=r"^[A-Za-z0-9_-]+$")
+    description: Optional[str] = Field(default=None, max_length=2000)
+    subscales: List[Literal["depression", "anxiety", "stress"]] = Field(min_length=1, max_length=3)
 
 
 class InstrumentAnswer(BaseModel):
@@ -101,7 +109,7 @@ def _version_detail(version_id: str, admin_id: str):
 def list_instruments(admin=Depends(admin_access)):
     rows = query(
         "select i.instrument_id,i.code,i.name,i.description,i.active,i.language,i.instrument_kind,"
-        "i.derived_from_instrument_id,i.norms_enabled,i.provenance,"
+        "i.derived_from_instrument_id,i.norms_enabled,i.provenance,i.shown_in_app,i.dass21_subscales,"
         "coalesce(jsonb_agg(jsonb_build_object('instrument_version_id',v.instrument_version_id,"
         "'version_number',v.version_number,'status',v.status,'authoritative_config',v.authoritative_config,"
         "'updated_at',v.updated_at,'published_at',v.published_at) order by v.version_number desc) "
@@ -191,6 +199,95 @@ def create_derived_instrument(instrument_id: UUID, body: DerivedInstrumentReques
         return _version_detail(str(version["instrument_version_id"]), admin.id)
     except UniqueViolation:
         raise HTTPException(409, "Kode instrumen sudah digunakan")
+
+
+@admin_router.post("/assessment-instruments/dass21-variants", status_code=201)
+def create_dass21_variant(body: Dass21VariantRequest, admin=Depends(admin_access)):
+    """Publish a DASS-21 that offers only the chosen subscales, each whole, with its official norm.
+
+    Wording, options and scores are copied from the published DASS-21 rather than sent by the
+    client, so a variant can never drift from the validated instrument.
+    """
+    try:
+        subscales = normalize_subscales(body.subscales)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+    try:
+        with db(admin.id) as conn:
+            source = conn.execute(
+                "select i.instrument_id,i.language,i.provenance,v.instrument_version_id,v.scoring_config "
+                "from assessment_instruments i join assessment_instrument_versions v on v.instrument_id=i.instrument_id "
+                "where lower(i.code)='dass-21' and i.norms_enabled and v.status='published' and v.authoritative_config",
+            ).fetchone()
+            if not source:
+                raise HTTPException(409, "DASS-21 resmi belum dipublikasikan")
+            scoring = dict(source["scoring_config"] or {})
+            scoring["category_items"] = {category: list(CATEGORY_ITEMS[category]) for category in subscales}
+            created = conn.execute(
+                "insert into assessment_instruments(code,name,description,language,instrument_kind,derived_from_instrument_id,"
+                "norms_enabled,provenance,dass21_subscales,created_by,updated_by) "
+                "values(%s,%s,%s,%s,'standard',%s,true,%s,%s,%s,%s) returning instrument_id",
+                (body.code, body.name.strip(), body.description, source["language"], str(source["instrument_id"]),
+                 Jsonb({**(source["provenance"] or {}), "dass21_subscales": list(subscales),
+                        "notice": "Whole DASS-21 subscales with the official per-subscale norms"}),
+                 list(subscales), admin.id, admin.id),
+            ).fetchone()
+            version = conn.execute(
+                "insert into assessment_instrument_versions(instrument_id,version_number,status,expected_question_count,"
+                "authoritative_config,scoring_config,created_by,updated_by) values(%s,1,'draft',%s,false,%s,%s,%s) "
+                "returning instrument_version_id",
+                (str(created["instrument_id"]), 7 * len(subscales), Jsonb(scoring), admin.id, admin.id),
+            ).fetchone()
+            questions = conn.execute(
+                "select assessment_question_id,item_key,category,position,wording from assessment_questions "
+                "where instrument_version_id=%s and active and category=any(%s) order by position",
+                (str(source["instrument_version_id"]), list(subscales)),
+            ).fetchall()
+            for question in questions:
+                copy = conn.execute(
+                    "insert into assessment_questions(instrument_version_id,item_key,category,position,wording,active) "
+                    "values(%s,%s,%s,%s,%s,true) returning assessment_question_id",
+                    (str(version["instrument_version_id"]), question["item_key"], question["category"],
+                     question["position"], question["wording"]),
+                ).fetchone()
+                conn.execute(
+                    "insert into assessment_answer_options(assessment_question_id,position,label,score) "
+                    "select %s,position,label,score from assessment_answer_options where assessment_question_id=%s",
+                    (str(copy["assessment_question_id"]), str(question["assessment_question_id"])),
+                )
+            # Copied verbatim from the authoritative version, so it is published as it stands.
+            conn.execute(
+                "update assessment_instrument_versions set status='published',authoritative_config=true,"
+                "published_by=%s,published_at=now(),updated_by=%s,updated_at=now() where instrument_version_id=%s",
+                (admin.id, admin.id, str(version["instrument_version_id"])),
+            )
+        return _version_detail(str(version["instrument_version_id"]), admin.id)
+    except UniqueViolation:
+        raise HTTPException(409, "Kode instrumen sudah digunakan")
+
+
+@admin_router.put("/assessment-instruments/{instrument_id}/shown-in-app")
+def show_instrument_in_app(instrument_id: UUID, admin=Depends(admin_access)):
+    """Make this the instrument the mobile app asks students to fill in."""
+    with db(admin.id) as conn:
+        ready = conn.execute(
+            "select 1 from assessment_instruments i join assessment_instrument_versions v on v.instrument_id=i.instrument_id "
+            "where i.instrument_id=%s and i.active and i.norms_enabled and i.instrument_kind='standard' "
+            "and v.status='published' and v.authoritative_config",
+            (str(instrument_id),),
+        ).fetchone()
+        if not ready:
+            raise HTTPException(422, "Hanya DASS-21 atau varian DASS-21 yang sudah dipublikasikan yang dapat ditampilkan di aplikasi")
+        conn.execute(
+            "update assessment_instruments set shown_in_app=false,updated_by=%s,updated_at=now() "
+            "where shown_in_app and instrument_id<>%s",
+            (admin.id, str(instrument_id)),
+        )
+        conn.execute(
+            "update assessment_instruments set shown_in_app=true,updated_by=%s,updated_at=now() where instrument_id=%s",
+            (admin.id, str(instrument_id)),
+        )
+    return {"instrument_id": str(instrument_id), "shown_in_app": True}
 
 
 @admin_router.put("/assessment-instruments/versions/{version_id}/draft")
@@ -330,14 +427,15 @@ def publish_instrument_version(version_id: UUID, admin=Depends(admin_access)):
 
 
 @assessment_router.get("/instrument/active")
-def active_instrument(code: str = Query("DASS-21", max_length=40), user=Depends(get_current_user)):
+def active_instrument(code: Optional[str] = Query(None, max_length=40), user=Depends(get_current_user)):
+    """The instrument the app shows (no `code`), or a specific one by code."""
     rows = query(
         "select v.instrument_version_id,i.instrument_id,i.code,i.name,i.language,i.instrument_kind,i.provenance,"
-        "v.version_number,v.scoring_config from assessment_instruments i "
+        "i.dass21_subscales,v.version_number,v.scoring_config from assessment_instruments i "
         "join assessment_instrument_versions v on v.instrument_id=i.instrument_id "
-        "where lower(i.code)=lower(%s) and i.active and i.norms_enabled "
-        "and v.status='published' and v.authoritative_config",
-        (code,), user_id=user.id,
+        "where (case when %s::text is null then i.shown_in_app else lower(i.code)=lower(%s) end) "
+        "and i.active and i.norms_enabled and v.status='published' and v.authoritative_config",
+        (code, code), user_id=user.id,
     )
     if not rows:
         raise HTTPException(404, "Belum ada versi instrumen aktif yang disetujui")
@@ -366,7 +464,7 @@ def submit_instrument_assessment(body: InstrumentSubmission, student=Depends(stu
     with db(student.id) as conn:
         version = conn.execute(
             "select v.instrument_version_id,v.expected_question_count,v.authoritative_config,v.scoring_config,"
-            "i.instrument_id,i.code,i.name,i.instrument_kind,i.norms_enabled "
+            "i.instrument_id,i.code,i.name,i.instrument_kind,i.norms_enabled,i.dass21_subscales "
             "from assessment_instrument_versions v join assessment_instruments i on i.instrument_id=v.instrument_id "
             # No FOR SHARE: a locking read also has to satisfy the UPDATE policy, which students
             # do not match, so the published version came back empty and every submit failed with 409.
@@ -376,8 +474,10 @@ def submit_instrument_assessment(body: InstrumentSubmission, student=Depends(stu
         ).fetchone()
         if not version or not version["authoritative_config"]:
             raise HTTPException(409, "Versi instrumen tidak aktif atau belum disetujui")
-        if version["instrument_kind"] != "standard" or not version["norms_enabled"] or version["code"].lower() != "dass-21":
+        is_dass21 = version["code"].lower() == "dass-21" or version["dass21_subscales"]
+        if version["instrument_kind"] != "standard" or not version["norms_enabled"] or not is_dass21:
             raise HTTPException(422, "Model skoring instrumen ini belum didukung")
+        subscales = normalize_subscales(version["dass21_subscales"] or CATEGORY_ITEMS)
         if len(body.answers) != version["expected_question_count"]:
             raise HTTPException(422, f"Wajib menjawab tepat {version['expected_question_count']} pertanyaan")
         definitions = conn.execute(
@@ -394,7 +494,7 @@ def submit_instrument_assessment(body: InstrumentSubmission, student=Depends(stu
         if len({str(row["assessment_question_id"]) for row in resolved}) != version["expected_question_count"]:
             raise HTTPException(422, "Jawaban tidak mencakup semua pertanyaan aktif")
         try:
-            results = score_dass21(resolved)
+            results = score_dass21(resolved, subscales=subscales)
         except ValueError as exc:
             raise HTTPException(422, str(exc))
         answer_references = [

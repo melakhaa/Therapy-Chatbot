@@ -182,6 +182,42 @@ check("assessment history", s == 200 and len(r["assessments"]) == 1, (s, r))
 s, r = call("POST", "/assessment/submit", {"answers": [{"question_id": 0, "score": 0}]}, None)
 check("assessment without token blocked", s in (401, 403), (s, r))
 
+print("== DASS-21 variants ==")
+variant_code = f"DASS-S-{SFX}"
+s, r = call("POST", "/admin/assessment-instruments/dass21-variants",
+            {"name": f"DASS-21 Stres {SFX}", "code": variant_code, "subscales": ["stress"]}, admin_tok)
+check("admin publishes a stress-only DASS-21 variant",
+      s == 201 and r["version"]["status"] == "published" and len(r["questions"]) == 7
+      and {q["category"] for q in r["questions"]} == {"stress"}, (s, r.get("version") if s == 201 else r))
+variant_id = r["version"]["instrument_id"] if s == 201 else None
+s, r = call("POST", "/admin/assessment-instruments/dass21-variants",
+            {"name": "Tanpa subskala", "code": f"DASS-X-{SFX}", "subscales": []}, admin_tok)
+check("a variant without a subscale is refused", s == 422, (s, r))
+s, r = call("PUT", f"/admin/assessment-instruments/{variant_id}/shown-in-app", token=stu_tok)
+check("mahasiswa cannot choose the app's instrument", s == 403, (s, r))
+shown_before = sql("select instrument_id, updated_by, updated_at from assessment_instruments where shown_in_app")
+s, r = call("PUT", f"/admin/assessment-instruments/{variant_id}/shown-in-app", token=admin_tok)
+check("admin shows the variant in the app", s == 200, (s, r))
+s, active = call("GET", "/assessment/instrument/active", token=stu_tok)
+check("the app now serves the variant's 7 stress items",
+      s == 200 and active["version"]["code"] == variant_code and len(active["questions"]) == 7, (s, active))
+if s == 200:
+    lowest = [{"question_id": q["assessment_question_id"], "option_id": q["options"][0]["assessment_answer_option_id"]}
+              for q in active["questions"]]
+    s, r = call("POST", "/assessment/instrument/submit",
+                {"instrument_version_id": active["version"]["instrument_version_id"], "answers": lowest}, stu_tok)
+    check("student submits the variant", s == 201, (s, r))
+    scored = sql("select category, severity from assessment_category_results where assessment_id = %s",
+                 (r.get("assessment_id"),))
+    check("only the offered subscale is scored, on its own norm", scored == [("stress", "normal")], scored)
+# Leave the stack showing what it showed before this run
+if shown_before:
+    s, r = call("PUT", f"/admin/assessment-instruments/{shown_before[0][0]}/shown-in-app", token=admin_tok)
+    check("the app's previous instrument is restored", s == 200, (s, r))
+    # The restore stamped the run's admin as updated_by, which would also block deleting that admin
+    sql("update assessment_instruments set updated_by = %s, updated_at = %s where instrument_id = %s",
+        (shown_before[0][1], shown_before[0][2], shown_before[0][0]))
+
 print("== journals ==")
 s, r = call("POST", "/journal", {"content": "hari ini berat", "mood": "anxious"}, stu_tok)
 check("create journal", s == 201 and r["journal"]["content"] == "hari ini berat", (s, r))
@@ -381,6 +417,22 @@ sql("delete from guardrail_logs where user_id in " + TEST_USERS, (PATTERN,))
 sql("delete from counseling_bookings where student_id in " + TEST_USERS +
     " or counseling_slot_id in (select counseling_slot_id from counseling_slots where counselor_id in " + TEST_USERS + ")",
     (PATTERN, PATTERN))
+# Before the users, whom it names as created_by (ON DELETE RESTRICT): a published instrument
+# is immutable by trigger, which is right for real data, so the run's own variant and the
+# answers given to it go with triggers paused for this one transaction (FK cascades pause
+# too, hence bottom-up). SFX is hex, so inlining it is safe.
+VARIANT = f"(select instrument_id from assessment_instruments where code like '%{SFX}')"
+VERSIONS = f"(select instrument_version_id from assessment_instrument_versions where instrument_id in {VARIANT})"
+sql("begin; set local session_replication_role = replica;"
+    f" delete from assessment_category_results where instrument_version_id in {VERSIONS};"
+    f" delete from assessments where instrument_version_id in {VERSIONS};"
+    f" delete from assessment_answer_options where assessment_question_id in"
+    f"  (select assessment_question_id from assessment_questions where instrument_version_id in {VERSIONS});"
+    f" delete from assessment_questions where instrument_version_id in {VERSIONS};"
+    f" delete from assessment_instrument_versions where instrument_id in {VARIANT};"
+    f" delete from assessment_instruments where code like '%{SFX}'; commit;")
+left = sql("select count(*) from assessment_instruments where code like %s", (f"%{SFX}",))[0][0]
+check("test instrument cleaned up", left == 0, left)
 sql("delete from users where email like %s", (PATTERN,))
 left = sql("select count(*) from users where email like %s", (PATTERN,))[0][0]
 check("test data cleaned up", left == 0, left)

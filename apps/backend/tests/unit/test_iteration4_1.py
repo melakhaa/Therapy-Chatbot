@@ -88,7 +88,7 @@ class Iteration41StaticContracts(unittest.TestCase):
     def test_submission_is_student_only_and_server_scored(self):
         self.assertIn('student_access = require_role("mahasiswa")', self.route)
         self.assertIn('depends(student_access)', self.route)
-        self.assertIn("score_dass21(resolved)", self.route)
+        self.assertIn("score_dass21(resolved, subscales=subscales)", self.route)
         self.assertIn("assessment_category_results", self.route)
 
     def test_mobile_uses_active_instrument_and_safe_completion(self):
