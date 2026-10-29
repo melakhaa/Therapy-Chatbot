@@ -64,7 +64,7 @@ export default function AssessmentScreen() {
       subtitle="Jawab sesuai kondisimu selama satu minggu terakhir. Hasil ini bukan diagnosis."
     /></FadeIn>
     {loading&&<View style={s.state}><ActivityIndicator color={colors.primary}/><Text style={{color:colors.onSurfaceVariant}}>Memuat instrumen aktif…</Text></View>}
-    {!loading&&error&&<View style={[s.notice,{backgroundColor:colors.errorContainer}]}><Text style={[s.noticeText,{color:colors.error}]}>{error}</Text>{!instrument&&<Button label="Coba lagi" onPress={()=>{void load();}}/>}</View>}
+    {!loading&&!!error&&<View style={[s.notice,{backgroundColor:colors.errorContainer}]}><Text style={[s.noticeText,{color:colors.error}]}>{error}</Text>{!instrument&&<Button label="Coba lagi" onPress={()=>{void load();}}/>}</View>}
     {completion&&<View style={[s.card,{backgroundColor:colors.background,boxShadow:Neu.raised}]}><Companion expression="jempol" size={104}/><Text style={[s.cardTitle,{color:colors.onSurface}]}>{completion.message}</Text><Text style={[s.body,{color:colors.onSurfaceVariant}]}>{completion.support_message}</Text><Button label="Isi asesmen lagi nanti" variant="secondary" onPress={()=>{void load();}}/></View>}
     {!loading&&!completion&&instrument&&question&&<>
       <View style={s.progressRow}><Text style={[s.progressText,{color:colors.onSurfaceVariant}]}>{index+1} / {questions.length}</Text><Text style={[s.progressText,{color:colors.onSurfaceVariant}]}>{Object.keys(answers).length} dijawab</Text></View>
