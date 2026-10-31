@@ -29,3 +29,8 @@ export function navigationForRole(role: 'admin'|'konselor') {
 export function isActivePath(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
+
+// Longest match wins: /counselor/schedule belongs to "Jadwal Saya", not to the /counselor home above it.
+export function activeNavItem<T extends { href: string }>(pathname: string, groups: readonly { items: readonly T[] }[]): T | undefined {
+  return groups.flatMap((group) => group.items).filter((item) => isActivePath(pathname, item.href)).sort((a, b) => b.href.length - a.href.length)[0];
+}

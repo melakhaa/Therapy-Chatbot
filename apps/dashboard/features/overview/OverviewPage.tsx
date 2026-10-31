@@ -14,6 +14,7 @@ import {
   type SessionDisplayStatus,
 } from '@/features/overview/model';
 import type { OverviewSources, PriorityCase } from '@/features/overview/types';
+import { useLiveRefresh } from '@/lib/realtime/useLiveRefresh';
 
 const PAGE_SIZE = 10;
 const JAKARTA_TIME_ZONE = 'Asia/Jakarta';
@@ -62,6 +63,10 @@ export function OverviewPage() {
     setNow(new Date());
     setRefreshVersion((value) => value + 1);
   }, []);
+
+  // Background refresh keeps filters, page and selection; only the data underneath changes.
+  const liveRefresh = useCallback(() => { setNow(new Date()); setRefreshVersion((value) => value + 1); }, []);
+  useLiveRefresh(liveRefresh, { topics: ['signals', 'requests', 'schedule'] });
 
   const cases = useMemo(() => sources ? buildPriorityCases(sources) : [], [sources]);
   const filteredCases = useMemo(() => cases.filter((item) => {
@@ -116,10 +121,11 @@ export function OverviewPage() {
       title={text.overview.title}
       actions={<div className="overview-header-actions"><span className="today-context">{text.overview.today}: {dateContext}</span><Button variant="secondary" icon="refresh" onClick={refresh}>{text.overview.refresh}</Button></div>}
     >
-      {loading && !sources ? <OverviewLoading /> : error || !sources ? (
+      {loading && !sources ? <OverviewLoading /> : !sources ? (
         <ErrorState title={text.errors.title} message={text.overview.loadError} retry={refresh} retryLabel={text.common.retry} />
       ) : (
         <div className="overview-stack">
+          {error && <InlineAlert tone="warning">{text.common.staleData}</InlineAlert>}
           <section className="overview-kpis" aria-label={text.overview.title}>
             <MetricCard tone="danger" icon="alert" value={metrics?.criticalCases ?? 0} label={text.overview.metrics.critical} note={text.overview.metricNotes.critical} />
             <MetricCard tone="warning" icon="monitoring" value={metrics?.activeHighRisk ?? 0} label={text.overview.metrics.highRisk} note={text.overview.metricNotes.highRisk} />
@@ -139,7 +145,7 @@ export function OverviewPage() {
                 <table className="operations-table priority-table">
                   <thead><tr>
                     <th className="selection-column"><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisible} aria-label={text.overview.columns.select} /></th>
-                    <th>{text.overview.columns.priority}</th><th>{text.overview.columns.student}</th><th>{text.overview.columns.academic}</th><th>{text.overview.columns.trigger}</th><th>{text.overview.columns.arrived}</th><th>{text.overview.columns.status}</th><th>{text.overview.columns.action}</th>
+                    <th>{text.overview.columns.priority}</th><th>{text.overview.columns.student}</th><th>{text.overview.columns.trigger}</th><th>{text.overview.columns.arrived}</th><th>{text.overview.columns.status}</th><th>{text.overview.columns.action}</th>
                   </tr></thead>
                   <tbody>{visibleCases.map((item) => <PriorityRow key={item.id} item={item} selected={selected.has(item.id)} onToggle={() => toggle(item.id)} onReview={() => item.studentId && router.push(`/students/${item.studentId}`)} onMarkReviewed={() => { void markReviewed(item); }} />)}</tbody>
                 </table>
@@ -162,7 +168,7 @@ export function OverviewPage() {
 }
 
 function MetricCard({ tone, icon, value, label, note }: { tone: 'danger' | 'warning' | 'info' | 'success'; icon: 'alert' | 'monitoring' | 'check' | 'counselor' | 'calendar' | 'user'; value: number; label: string; note: string }) {
-  return <article className={`metric-card metric-${tone}`}><span className="metric-icon"><Icon name={icon} size={22} /></span><div><strong className="metric-value">{value}</strong><h2>{label}</h2><p>{note}</p></div></article>;
+  return <article className={`metric-card ${value > 0 ? `metric-${tone}` : 'metric-calm'}`}><span className="metric-icon"><Icon name={icon} size={22} /></span><div><strong className="metric-value">{value}</strong><h2>{label}</h2><p>{note}</p></div></article>;
 }
 
 function PriorityRow({ item, selected, onToggle, onReview, onMarkReviewed }: { item: PriorityCase; selected: boolean; onToggle: () => void; onReview: () => void; onMarkReviewed: () => void }) {
@@ -174,11 +180,10 @@ function PriorityRow({ item, selected, onToggle, onReview, onMarkReviewed }: { i
   return <tr className={selected ? 'row-selected' : ''}>
     <td className="selection-column"><input type="checkbox" checked={selected} onChange={onToggle} aria-label={`${text.overview.columns.select}: ${item.studentName ?? text.overview.unavailableIdentity}`} /></td>
     <td><Badge tone={priorityTone}>{priorityLabel}</Badge></td>
-    <td><strong>{item.studentName ?? text.overview.unavailableIdentity}</strong><small>{item.nim ?? text.overview.noNim}</small></td>
-    <td><span>{item.facultyName ?? text.overview.unavailableAcademic}</span>{item.academicUnitName && <small>{item.academicUnitName}</small>}</td>
+    <td><strong>{item.studentName ?? text.overview.unavailableIdentity}</strong><small>{item.nim ?? text.overview.noNim}</small>{item.facultyName && <small>{item.facultyName}</small>}</td>
     <td className="detail-cell">{item.source === 'assessment' && item.categoryResults.length > 0 ? item.categoryResults.map((result) => <span key={result.category}>{text.overview.categories[result.category]}: {severityText(result.severity, text.overview.priority)}{result.scaled_score !== null ? ` (${result.scaled_score})` : ''}</span>) : <span>{text.overview.detail[item.source]}</span>}</td>
     <td><time dateTime={item.createdAt ?? undefined}>{formatReceived(item.createdAt, locale, text.overview.today)}</time></td>
-    <td><Badge tone={item.source === 'request' ? 'warning' : 'danger'}>{item.source === 'request' ? text.overview.state.waiting : text.overview.state.unread}</Badge></td>
+    <td><Badge tone={item.source === 'request' ? 'neutral' : 'warning'}>{item.source === 'request' ? text.overview.state.waiting : text.overview.state.unread}</Badge></td>
     <td className="action-cell"><Button variant="primary" disabled={!item.studentId} onClick={onReview}>{text.overview.review}</Button>{item.source !== 'request' && <DropdownMenu label={text.overview.rowMenu} trigger={<Icon name="more" />} items={[{ label: text.overview.markReviewed, icon: <Icon name="check" />, onSelect: onMarkReviewed }]} />}</td>
   </tr>;
 }

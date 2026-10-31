@@ -16,6 +16,7 @@ from routes.iteration3 import admin_router as iteration3_admin_router, student_r
 from routes.iteration4 import admin_router as iteration4_admin_router, assessment_router as iteration4_assessment_router
 from routes.backend_enablement import admin_router as backend_enablement_admin_router, counselor_router as backend_enablement_counselor_router
 from routes.counselor import admin_router as counselor_admin_router, router as counselor_router
+from routes.realtime import lifespan as realtime_lifespan, router as realtime_router
 
 from routes.chat import (
     guardrail_router,
@@ -43,6 +44,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=realtime_lifespan,
 )
 
 app.add_middleware(
@@ -73,6 +75,7 @@ app.include_router(backend_enablement_admin_router)
 app.include_router(backend_enablement_counselor_router)
 app.include_router(counselor_router)
 app.include_router(counselor_admin_router)
+app.include_router(realtime_router)
 
 
 @app.get("/", tags=["Health"])

@@ -269,7 +269,7 @@ export default function HomeScreen() {
   const slides: Slide[] = [
     { kicker: 'Sajiwa siap mendengarkan', title: now.ask, face, cta: 'Mulai cerita baru', icon: 'chatbubble-ellipses', tint: TRI.navy, to: '/chat' },
     { kicker: 'Konseling kampus', title: 'Mau ngobrol langsung dengan konselor?', face: 'menyapa', cta: 'Pilih jadwal konseling', icon: 'calendar', tint: TRI.amber, to: '/schedule' },
-    { kicker: 'Asesmen DASS-21', title: 'Kenali kondisi emosimu lewat 21 pertanyaan singkat', face: 'berpikir', cta: 'Mulai asesmen', icon: 'clipboard', tint: TRI.sage, to: '/assessment' },
+    { kicker: 'Asesmen DASS-21', title: 'Kenali kondisi emosimu lewat beberapa pertanyaan singkat', face: 'berpikir', cta: 'Mulai asesmen', icon: 'clipboard', tint: TRI.sage, to: '/assessment' },
   ];
 
   return (

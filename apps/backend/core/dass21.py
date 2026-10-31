@@ -33,14 +33,33 @@ def classify_dass21(category: str, standardized_score: int) -> str:
     return "extremely_severe"
 
 
-def score_dass21(items: Iterable[Mapping[str, object]]) -> dict[str, dict[str, int | str]]:
-    """Score trusted server-resolved item positions, categories, and option scores."""
+def normalize_subscales(values: Iterable[str]) -> tuple[str, ...]:
+    """The subscales a DASS-21 variant offers, in blueprint order.
+
+    A variant administers whole subscales only: the norms hold per subscale of seven items,
+    never for a hand-picked handful of items.
+    """
+    chosen = list(values)
+    if not chosen or len(set(chosen)) != len(chosen) or not set(chosen) <= set(CATEGORY_ITEMS):
+        raise ValueError("Pilih sedikitnya satu subskala DASS-21 (depression, anxiety, stress) tanpa duplikat")
+    return tuple(category for category in CATEGORY_ITEMS if category in chosen)
+
+
+def score_dass21(
+    items: Iterable[Mapping[str, object]], subscales: tuple[str, ...] = tuple(CATEGORY_ITEMS)
+) -> dict[str, dict[str, int | str]]:
+    """Score trusted server-resolved item positions, categories, and option scores.
+
+    `subscales` narrows the instrument to the subscales a variant offers; each is still
+    answered whole and classified on its own official norm.
+    """
     resolved = list(items)
+    expected = sorted(position for category in subscales for position in CATEGORY_ITEMS[category])
     positions = [int(item["position"]) for item in resolved]
-    if len(resolved) != 21 or sorted(positions) != list(range(1, 22)) or len(set(positions)) != 21:
-        raise ValueError("DASS-21 requires each item 1 through 21 exactly once")
+    if sorted(positions) != expected:
+        raise ValueError("DASS-21 requires each item of the offered subscales exactly once")
     counts = Counter(str(item["category"]) for item in resolved)
-    if counts != Counter({"depression": 7, "anxiety": 7, "stress": 7}):
+    if counts != Counter({category: 7 for category in subscales}):
         raise ValueError("DASS-21 requires exactly seven items in each category")
     for item in resolved:
         position = int(item["position"])
@@ -51,7 +70,7 @@ def score_dass21(items: Iterable[Mapping[str, object]]) -> dict[str, dict[str, i
         if score not in RESPONSE_SCORES:
             raise ValueError("DASS-21 response score must be 0, 1, 2, or 3")
     result: dict[str, dict[str, int | str]] = {}
-    for category in CATEGORY_ITEMS:
+    for category in subscales:
         raw = sum(int(item["score"]) for item in resolved if item["category"] == category)
         standardized = raw * 2
         result[category] = {

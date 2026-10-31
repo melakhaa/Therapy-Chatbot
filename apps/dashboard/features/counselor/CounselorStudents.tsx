@@ -15,7 +15,7 @@ export function CounselorStudentsPage() {
   const copy = counselorMessages[language];
   const [search, setSearch] = useState('');
   const load = useCallback((signal: AbortSignal) => getCounselorCases(signal), []);
-  const {data, error, retry} = useCounselorData(load);
+  const {data, error, retry} = useCounselorData(load, {topics: ['signals', 'schedule']});
   const rows = useMemo(() => sortCases(data?.cases ?? []).filter((row) => `${row.student_name} ${row.nim ?? ''} ${row.context}`.toLowerCase().includes(search.toLowerCase())), [data, search]);
   if (error) return <ErrorState title={copy.students.title} message={copy.errors.load} retry={retry} retryLabel={copy.common.retry}/>;
   if (!data) return <LoadingState label={copy.common.loading} fullPage/>;

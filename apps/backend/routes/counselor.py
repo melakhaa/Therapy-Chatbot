@@ -154,8 +154,9 @@ def case_detail(student_id: UUID, counselor=Depends(counselor_access)):
 
 @router.get("/calendar")
 def calendar(date_from: date, date_to: date, counselor=Depends(counselor_access)):
-    if date_from > date_to or (date_to - date_from).days > 62:
-        raise HTTPException(422, "Rentang kalender tidak valid atau melebihi 62 hari")
+    # 120 days covers the widest dashboard view (availability: 30 days back, 90 ahead)
+    if date_from > date_to or (date_to - date_from).days > 120:
+        raise HTTPException(422, "Rentang kalender tidak valid atau melebihi 120 hari")
     # The range is whole Jakarta days
     start = datetime.combine(date_from, time.min, WIB)
     end = datetime.combine(date_to + timedelta(days=1), time.min, WIB)

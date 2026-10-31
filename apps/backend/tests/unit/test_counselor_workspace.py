@@ -145,7 +145,7 @@ class CounselorWorkspaceTests(unittest.TestCase):
         self.assertIn("a.counselor_id=%s", sessions[0])
 
     def test_calendar_range_is_bounded_before_touching_the_database(self):
-        r = client.get("/counselor/calendar?date_from=2026-10-01&date_to=2026-12-31", headers=self._headers())
+        r = client.get("/counselor/calendar?date_from=2026-10-01&date_to=2027-03-01", headers=self._headers())
         self.assertEqual(r.status_code, 422)
         self.assertEqual(self.queries, [])
 
