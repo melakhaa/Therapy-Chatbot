@@ -7,7 +7,7 @@ from langchain_ollama import ChatOllama
 # avoids reloading the model per request, and the httpx timeout stops a dead Ollama from
 # parking a threadpool worker forever.
 llm = ChatOllama(
-    model="llama3.2:3b",
+    model="llama3-8b-instruct:Q4_K_M",
     temperature=float(os.getenv("OLLAMA_TEMPERATURE", "0.6")),
     num_ctx=int(os.getenv("OLLAMA_NUM_CTX", "4096")),
     keep_alive="10m",

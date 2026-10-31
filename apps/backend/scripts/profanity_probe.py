@@ -1,4 +1,4 @@
-"""Does llama3.2:3b handle swearing gracefully on its own? (no app-level filter)
+"""Does the generation model handle swearing gracefully on its own? (no app-level filter)
 
 Sends profane messages through the real persona prompt and classifies the reply:
   OK       -> empathetic, stays on topic
