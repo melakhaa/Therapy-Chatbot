@@ -1,13 +1,14 @@
 // Unit tier — which counseling session counts as "next" on Home, Profil and Konseling.
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { MyCounselingRequest } from '@prototype/api-client';
 import { nearestSession } from './upcomingSession.ts';
 
 const NOW = Date.parse('2026-10-06T00:30:00Z'); // 07.30 WIB, Selasa
 const at = (hoursFromNow: number) => new Date(NOW + hoursFromNow * 3_600_000).toISOString();
 
 let seq = 0;
-const request = (over: Record<string, unknown> = {}) => ({
+const request = (over: Partial<MyCounselingRequest> = {}): MyCounselingRequest => ({
   counseling_request_id: `request-${++seq}`,
   status: 'requested',
   preferred_context: null,
@@ -26,7 +27,11 @@ const request = (over: Record<string, unknown> = {}) => ({
 });
 
 const pick = (h: number) => request({ preferred_starts_at: at(h), preferred_ends_at: at(h + 1) });
-const booked = (h: number, appointment_status = 'confirmed', counselor_name = 'Pak Budi') =>
+const booked = (
+  h: number,
+  appointment_status: NonNullable<MyCounselingRequest['appointment_status']> = 'confirmed',
+  counselor_name = 'Pak Budi',
+) =>
   request({
     status: appointment_status,
     preferred_starts_at: at(h + 5),
@@ -63,7 +68,7 @@ test('an assigned appointment wins over the requested pick', () => {
 });
 
 test('closed outcomes never show as next', () => {
-  for (const status of ['cancelled', 'completed', 'no_show']) {
+  for (const status of ['cancelled', 'completed', 'no_show'] as const) {
     assert.equal(nearestSession([booked(2, status)], NOW), undefined, status);
   }
 });
