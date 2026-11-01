@@ -168,7 +168,7 @@ export default function ChatScreen() {
           }}
           contentContainerStyle={s.msgList}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={messages.length ? <DayDivider label={dayLabel} /> : null}
+          ListHeaderComponent={messages.length ? <DayDivider label={dayLabel} /> : undefined}
           ListFooterComponent={
             isTyping ? (
               <TypingIndicator />
