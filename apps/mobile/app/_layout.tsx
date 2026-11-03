@@ -22,6 +22,7 @@ import { ToastProvider } from '../components/ui/Toast';
 import { ConsentSheet } from '../components/ui/ConsentSheet';
 import { isSwipeTab, swipeTab, tabAnimation } from '../components/ui/BottomNav';
 import { useCheckIn } from '../hooks/useCheckIn';
+import { useInbox } from '../hooks/useInbox';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -44,6 +45,8 @@ export default function RootLayout() {
   const [splashAnimationFinished, setSplashAnimationFinished] = useState(false);
   // Daily check-in notification; a tap waits for the splash, by which time sign-in has redirected
   useCheckIn(fontsLoaded && splashAnimationFinished);
+  // Counseling news from the server, and reminders before each session
+  useInbox(fontsLoaded && splashAnimationFinished);
 
   // Swipe sideways on a tab screen to reach the neighbouring tab. It waits for a clearly
   // horizontal drag (40pt), longer than the calendar's month swipe (24pt) and a scroll
@@ -107,6 +110,7 @@ export default function RootLayout() {
           <Stack.Screen name="journal" />
           <Stack.Screen name="assessment" options={TAB} />
           <Stack.Screen name="stats" />
+          <Stack.Screen name="notifications" />
           <Stack.Screen name="profile" options={TAB} />
           <Stack.Screen name="schedule" options={TAB} />
           <Stack.Screen name="journal-history" options={TAB} />

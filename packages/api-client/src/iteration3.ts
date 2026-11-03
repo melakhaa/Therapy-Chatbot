@@ -29,6 +29,11 @@ export const apiMarkNotificationRead=(id:string)=>apiFetch('/admin/notifications
 export const apiMarkAllNotificationsRead=()=>apiFetch('/admin/notifications/mark-all-read',{method:'POST'});
 export const apiGetCounselingRequests=(status?:string)=>apiFetch<{requests:CounselingRequest[];total:number}>('/admin/counseling/requests?'+qs({status}));
 /** Ask for counseling; with a slot from apiGetCounselingSlots, the admin sees it as the student's pick. */
+/** A student's or counselor's own notification, written by the server when something concerns them. */
+export interface MyNotification{notification_id:string;category:'counseling'|'schedule'|'system';title:string;body:string|null;target_path:string|null;entity_type:string|null;entity_id:string|null;read_at:string|null;created_at:string}
+export const apiGetMyNotifications=(page_size=30)=>apiFetch<{notifications:MyNotification[];unread:number}>('/notifications?'+qs({page_size}));
+export const apiMarkMyNotificationRead=(id:string)=>apiFetch('/notifications/'+encodeURIComponent(id)+'/read',{method:'PATCH'});
+export const apiMarkAllMyNotificationsRead=()=>apiFetch<{updated:number}>('/notifications/mark-all-read',{method:'POST'});
 export const apiCreateCounselingRequest=(body:{preferred_context?:string;preferred_counselor_id?:string;preferred_starts_at?:string;preferred_ends_at?:string})=>apiFetch<{request:MyCounselingRequest}>('/counseling/requests',{method:'POST',body:JSON.stringify(body)});
 export const apiGetCounselingSlots=(counselor_id:string,date_from:string,date_to:string)=>apiFetch<{slots:CounselingSlot[];session_minutes:number}>('/counseling/slots?'+qs({counselor_id,date_from,date_to}));
 export const apiGetMyCounselingRequests=()=>apiFetch<{requests:MyCounselingRequest[];total:number}>('/counseling/requests');
