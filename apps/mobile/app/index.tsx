@@ -103,6 +103,8 @@ export default function LoginScreen() {
             label="Kata sandi"
             placeholder="Minimal 8 karakter"
             secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
             autoComplete="password"
             textContentType="password"
             returnKeyType="go"
