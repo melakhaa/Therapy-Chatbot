@@ -33,14 +33,16 @@ to one of them, and a new seam gets added here (with its trade-off) before the t
 | Seam | Tier | Catches | Misses |
 |------|------|---------|--------|
 | FastAPI route contract (`/auth`, `/assessment`, `/journal`, `/chat`, `/booking`) | unit (stubbed `core.db`) | request/response shape, role gates, validation | real SQL, triggers, RLS |
-| `core/dass21.py` — `score_dass21`, `classify_dass21` | unit | scoring, bands, category mapping | persistence, wiring |
+| `core/dass21.py` — `score_dass21`, `classify_dass21`, `normalize_subscales` | unit | scoring, bands, category mapping, whole-subscale variants | persistence, wiring |
 | `/realtime` WebSocket (`routes/realtime.py`), `publish()` standing in for the DB listener | unit (stubbed `core.db`) | token-in-first-message handshake, staff-only gate, table→area map, expiry close | the LISTEN thread, the triggers |
 | `lib/realtime/notice.ts` (dashboard) | unit | which socket messages are trusted, reconnect pacing, refused sessions not retried | socket lifecycle, page refetch |
+| `core/mailer.py` — `send_reset_otp` (smtplib replaced) | unit | the reset mail's recipient and content, the SMTP handshake, the dev log fallback, a failure that never logs the code | real delivery, spam filtering |
 | `services/chatbot/guardrail.py` — `is_crisis`, `strip_profanity` | unit | deterministic crisis detection | model tone and routing |
 | `services/chatbot/` history assembly | unit | prompt budget, crisis filtering, ordering | real model output |
-| The live API over HTTP and `/realtime` (incl. `db/test_rls.sql`) | integration | real SQL, triggers, change notices, encryption at rest, RLS, Ollama | anything in the UI |
+| The live API over HTTP and `/realtime` (incl. `db/test_rls.sql`) | integration | real SQL, triggers (incl. who is notified of what), change notices, encryption at rest, RLS, Ollama | anything in the UI |
 | `features/<domain>/model.ts` (dashboard) | unit | directory filters, draft validation, publish gate, priority ordering | rendering, fetch |
-| `nearestSession`, `calendarDates`, `packages/utils` exports | unit | time/TZ math, stress score, reactions | app screens |
+| `lib/notifications/model.ts` (dashboard) | unit | admin/counselor rows as one item, moved admin paths, badge, relative time | the panel, fetch |
+| `nearestSession`, `reminderPlan`, `freshAlerts`, `notificationTips`, `calendarDates`, `packages/utils` exports | unit | time/TZ math, session reminders, which inbox items get a banner, per-brand delivery advice, stress score, reactions | app screens, the OS scheduling and drawing them |
 | Dashboard journeys (`e2e/scenarios`) | e2e | sign-in, routing, a page rendering with real data | everything not asserted |
 
 Two seams are honest gaps rather than choices: `lib/api/client` has no tier because Node
