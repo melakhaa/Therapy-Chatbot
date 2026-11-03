@@ -12,6 +12,7 @@ from services.chatbot.guardrail import (
 from services.chatbot.conversational import conversational_route, build_messages as conversational_messages
 from services.chatbot.history import load_history
 from services.chatbot.llm import llm
+from services.chatbot.provenance import provenance_route, provenance_reply, PROVENANCE_ROUTE
 from services.chatbot.rag import (
     rag_route,
     build_messages as rag_messages,
@@ -25,7 +26,7 @@ from services.chatbot.rag import (
 encoder = OllamaEncoder(name=EMBED_MODEL)
 
 _router = SemanticRouter(
-    routes=[guardrail_route, conversational_route, rag_route],
+    routes=[guardrail_route, conversational_route, rag_route, provenance_route],
     encoder=encoder,
     auto_sync="local"
 )
@@ -61,6 +62,12 @@ def chat_stream(
 
     if route == "guardrail":
         yield HARDCODED_RESPONSE
+        return
+
+    # Deterministic: asked where its knowledge comes from, the model invented sources and a
+    # clinical background. The corpus is the only honest answer, and it is a database read.
+    if route == PROVENANCE_ROUTE:
+        yield provenance_reply()
         return
 
     # After the crisis gate: strip ID/JV curses so the model never mirrors them back
