@@ -121,7 +121,8 @@ def notifications(category:Optional[str]=None,unread_only:bool=False,page:int=Qu
     total=query("select count(*) total from admin_notifications "+w,p,user_id=admin.id)[0]["total"]
     rows=query("select admin_notification_id,category,title,context,entity_type,entity_id,target_path,read_at,created_at from admin_notifications "+w+
                " order by created_at desc limit %s offset %s",p+(page_size,(page-1)*page_size),user_id=admin.id)
-    return {"notifications":rows,"total":total,"page":page,"page_size":page_size}
+    unread=query("select count(*) total from admin_notifications where admin_user_id=%s and read_at is null",(admin.id,),user_id=admin.id)[0]["total"]
+    return {"notifications":rows,"total":total,"unread":unread,"page":page,"page_size":page_size}
 
 @admin_router.patch("/notifications/{admin_notification_id}/read")
 def notification_read(admin_notification_id:UUID,admin=Depends(admin_access)):

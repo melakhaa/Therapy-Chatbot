@@ -17,6 +17,7 @@ from routes.iteration4 import admin_router as iteration4_admin_router, assessmen
 from routes.backend_enablement import admin_router as backend_enablement_admin_router, counselor_router as backend_enablement_counselor_router
 from routes.counselor import admin_router as counselor_admin_router, router as counselor_router
 from routes.realtime import lifespan as realtime_lifespan, router as realtime_router
+from routes.notifications import router as notifications_router
 
 from routes.chat import (
     guardrail_router,
@@ -56,6 +57,7 @@ app.add_middleware(
 )
 
 app.include_router(assessment_router)
+app.include_router(notifications_router)
 app.include_router(hotline_router)
 app.include_router(guardrail_router)
 app.include_router(router_router)

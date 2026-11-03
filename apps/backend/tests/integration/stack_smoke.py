@@ -218,6 +218,54 @@ if shown_before:
     sql("update assessment_instruments set updated_by = %s, updated_at = %s where instrument_id = %s",
         (shown_before[0][1], shown_before[0][2], shown_before[0][0]))
 
+print("== notifications ==")
+# Migration 011's triggers tell the people a change concerns, never the person who made it.
+from datetime import date as _date, timedelta as _timedelta
+day = _date.today() + _timedelta(days=21)
+wib = lambda hour: f"{day.isoformat()}T{hour:02d}:00:00+07:00"
+s, r = call("POST", "/admin/counseling/availability",
+            {"counselor_id": kon_id, "day_of_week": day.isoweekday() % 7, "start_time": "08:00", "end_time": "16:00"}, admin_tok)
+check("admin opens the konselor's hours", s == 201, (s, r))
+s, r = call("POST", "/counseling/requests", {"preferred_context": f"notif {SFX}"}, stu_tok)
+req_id = r.get("request", {}).get("counseling_request_id")
+s, r = call("GET", "/notifications", token=stu_tok)
+check("asking for counseling notifies nobody back (own action)", s == 200 and r["unread"] == 0, (s, r))
+s, r = call("POST", f"/admin/counseling/requests/{req_id}/assign",
+            {"counselor_id": kon_id, "starts_at": wib(9), "ends_at": wib(10)}, admin_tok)
+appt_id = r.get("appointment", {}).get("counseling_appointment_id")
+check("admin schedules the session", s == 201 and appt_id, (s, r))
+titles = lambda tok: [n["title"] for n in call("GET", "/notifications", token=tok)[1]["notifications"]]
+s, r = call("GET", "/notifications", token=stu_tok)
+check("student hears the session is scheduled, with the time in WIB",
+      s == 200 and r["unread"] == 1 and r["notifications"][0]["title"] == "Sesi konseling dijadwalkan"
+      and "09.00 WIB" in r["notifications"][0]["body"] and "Kon" in r["notifications"][0]["body"], (s, r))
+student_notice = r["notifications"][0]["notification_id"] if s == 200 and r["notifications"] else None
+check("konselor hears about the new session", "Sesi konseling baru" in titles(kon_tok), titles(kon_tok))
+s, r = call("PATCH", f"/admin/counseling/appointments/{appt_id}", {"starts_at": wib(11), "ends_at": wib(12)}, admin_tok)
+s, r = call("GET", "/notifications", token=stu_tok)
+check("moving the session tells the student the new time",
+      s == 200 and r["notifications"][0]["title"] == "Jadwal sesi konseling diubah"
+      and r["notifications"][0]["body"].startswith("Sekarang") and "11.00 WIB" in r["notifications"][0]["body"], (s, r))
+call("PATCH", f"/admin/counseling/appointments/{appt_id}", {"status": "cancelled"}, admin_tok)
+check("cancelling tells both sides", "Sesi konseling dibatalkan" in titles(stu_tok) and "Sesi konseling dibatalkan" in titles(kon_tok),
+      (titles(stu_tok), titles(kon_tok)))
+s, r = call("PATCH", f"/notifications/{student_notice}/read", token=kon_tok)
+check("nobody can touch someone else's notification", s == 404, (s, r))
+s, r = call("POST", "/counselor/exception-requests",
+            {"date": (day + _timedelta(days=1)).isoformat(), "full_day": True, "reason": f"Seminar {SFX}"}, kon_tok)
+exc_id = r.get("exception", {}).get("counselor_exception_request_id")
+check("konselor asks for an exception", s == 201 and exc_id, (s, r))
+s, r = call("GET", "/admin/notifications?category=schedule", token=admin_tok)
+check("admins are told about the exception request",
+      s == 200 and "unread" in r and any(n["entity_id"] == exc_id and n["title"] == "Pengajuan izin konselor" for n in r["notifications"]), (s, r))
+call("POST", f"/admin/counseling/exception-requests/{exc_id}/reject", {"decision_note": "Bentrok dengan jadwal kampus"}, admin_tok)
+s, r = call("GET", "/notifications", token=kon_tok)
+check("konselor hears the decision with its reason",
+      s == 200 and r["notifications"][0]["title"] == "Pengajuan izinmu ditolak" and "Bentrok" in r["notifications"][0]["body"], (s, r))
+s, r = call("POST", "/notifications/mark-all-read", token=stu_tok)
+s, r = call("GET", "/notifications", token=stu_tok)
+check("mark all read empties the student's badge", s == 200 and r["unread"] == 0 and len(r["notifications"]) == 3, (s, r))
+
 print("== journals ==")
 s, r = call("POST", "/journal", {"content": "hari ini berat", "mood": "anxious"}, stu_tok)
 check("create journal", s == 201 and r["journal"]["content"] == "hari ini berat", (s, r))
@@ -399,6 +447,8 @@ s, r = call("GET", "/assessment/history", token=other_tok)
 check("student B sees zero of A's assessments", s == 200 and len(r["assessments"]) == 0, (s, r))
 s, r = call("GET", "/booking/saya", token=other_tok)
 check("student B sees zero of A's bookings", s == 200 and len(r["bookings"]) == 0, (s, r))
+s, r = call("GET", "/notifications", token=other_tok)
+check("student B sees zero of A's notifications", s == 200 and r["notifications"] == [] and r["unread"] == 0, (s, r))
 
 print("== cleanup ==")
 TEST_USERS = "(select user_id from users where email like %s)"
@@ -411,8 +461,14 @@ PATTERN = f"%{SFX}@example.com"
 sql("delete from admin_notifications where entity_id in ("
     "select assessment_id from assessments where user_id in " + TEST_USERS +
     " union select guardrail_log_id from guardrail_logs where user_id in " + TEST_USERS +
-    " union select counseling_booking_id from counseling_bookings where student_id in " + TEST_USERS + ")",
-    (PATTERN, PATTERN, PATTERN))
+    " union select counseling_booking_id from counseling_bookings where student_id in " + TEST_USERS +
+    " union select counseling_request_id from counseling_requests where student_id in " + TEST_USERS +
+    " union select counselor_exception_request_id from counselor_exception_requests where counselor_id in " + TEST_USERS + ")",
+    (PATTERN, PATTERN, PATTERN, PATTERN, PATTERN))
+# Counseling rows name their people ON DELETE RESTRICT, so they go before the users do
+sql("delete from counselor_case_assignments where counselor_id in " + TEST_USERS, (PATTERN,))
+sql("delete from counseling_appointments where student_id in " + TEST_USERS + " or counselor_id in " + TEST_USERS, (PATTERN, PATTERN))
+sql("delete from counselor_exception_requests where counselor_id in " + TEST_USERS, (PATTERN,))
 sql("delete from guardrail_logs where user_id in " + TEST_USERS, (PATTERN,))
 sql("delete from counseling_bookings where student_id in " + TEST_USERS +
     " or counseling_slot_id in (select counseling_slot_id from counseling_slots where counselor_id in " + TEST_USERS + ")",

@@ -76,6 +76,9 @@ class RealtimeTests(unittest.TestCase):
             "counseling_appointments": "schedule",
             "counselor_blocked_periods": "schedule",
             "counselor_exception_requests": "schedule",
+            # the bell refetches its own list; the notice says only that some list changed
+            "notifications": "notifications",
+            "admin_notifications": "notifications",
         }
         with client.websocket_connect("/realtime") as ws:
             ws.send_json({"type": "auth", "token": token(COUNSELOR)})

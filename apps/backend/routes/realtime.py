@@ -42,6 +42,9 @@ TOPICS = {
     "counseling_appointments": "schedule",
     "counselor_blocked_periods": "schedule",
     "counselor_exception_requests": "schedule",
+    # Each bell refetches its own list; the notice never says whose list changed
+    "notifications": "notifications",
+    "admin_notifications": "notifications",
 }
 
 # websocket -> (the event loop serving it, so publish() works from any thread; token expiry)
