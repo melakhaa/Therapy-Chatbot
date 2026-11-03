@@ -84,7 +84,7 @@ utterances, not new branching logic.
 
 - **guardrail** (`guardrail.py`) — self-harm / harm-to-others phrases. Handler returns the
   fixed `HARDCODED_RESPONSE` with hotlines. Never route this to an LLM.
-- **conversational** (`conversational.py`) — greetings and emotional support. Persona "Hana",
+- **conversational** (`conversational.py`) — greetings and emotional support. Persona "Sajiwa",
   warm Bahasa Indonesia `SYSTEM_PROMPT`.
 - **rag** (`rag.py`) — factual mental-health questions; see
   [ollama-conventions.md](ollama-conventions.md) for retrieval + generation.

@@ -1,4 +1,4 @@
-"""Deterministic answers about where Hana's knowledge comes from.
+"""Deterministic answers about where Sajiwa's knowledge comes from.
 
 Left to the model, this question produced inventions: "aku telah membaca banyak buku
 pengembangan diri", "punya pengalaman menangani klien", "dari APA dan situs kesehatan".
@@ -52,5 +52,5 @@ def _sources() -> str:
 
 
 def provenance_reply() -> str:
-    """What is actually in the corpus, and what Hana is not."""
+    """What is actually in the corpus, and what Sajiwa is not."""
     return PROVENANCE_REPLY.format(sources=_sources())
