@@ -7,3 +7,4 @@ export * from './Icon';
 export * from './Input';
 export * from './PageShell';
 export * from './tabs';
+export * from './TimeInput';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Button, Drawer, InlineAlert, Input } from '@/components/ui';
+import { Button, Drawer, InlineAlert, Input, TimeField } from '@/components/ui';
 import type { Messages } from '@/lib/i18n/messages';
 import { ApiError } from '@/lib/api/client';
 import { createBlockedPeriod } from './api';
@@ -38,7 +38,7 @@ export function ExceptionDrawer({ open, counselors, appointments, initialCounsel
       <label>{copy.fields.counselor}<select value={counselor} onChange={(event) => setCounselor(event.target.value)}><option value="">{copy.drawer.chooseCounselor}</option>{counselors.map((item) => <option value={item.user_id} key={item.user_id}>{item.name}</option>)}</select></label>
       <Input label={copy.fields.date} type="date" value={date} onChange={(event) => setDate(event.target.value)} />
       <label className="check-row"><input type="checkbox" checked={fullDay} onChange={(event) => setFullDay(event.target.checked)} /><span>{copy.exceptions.fullDay}</span></label>
-      {!fullDay && <div className="time-fields"><Input label={copy.drawer.start} type="time" value={start} onChange={(event) => setStart(event.target.value)} /><Input label={copy.drawer.end} type="time" value={end} onChange={(event) => setEnd(event.target.value)} /></div>}
+      {!fullDay && <div className="time-fields"><TimeField label={copy.drawer.start} value={start} onChange={setStart} /><TimeField label={copy.drawer.end} value={end} onChange={setEnd} /></div>}
       <Input label={copy.fields.reason} value={reason} maxLength={250} onChange={(event) => setReason(event.target.value)} />
     </div>
   </Drawer>;

@@ -2,7 +2,7 @@
 
 import {useCallback, useMemo, useState} from 'react';
 import {useLanguage} from '@/components/providers/LanguageProvider';
-import {Badge, Button, Drawer, EmptyState, ErrorState, InlineAlert, Input, LoadingState, PageShell} from '@/components/ui';
+import {Badge, Button, Drawer, EmptyState, ErrorState, InlineAlert, Input, LoadingState, PageShell, TimeField} from '@/components/ui';
 import {counselorMessages} from '@/lib/i18n/counselorMessages';
 import {getCounselorWorkspace, requestException} from './api';
 import {formatDateTime, jakartaDate, statusTone, timeRange} from './format';
@@ -51,7 +51,7 @@ export function CounselorAvailabilityPage() {
       <div className="counselor-form">
         <Input type="date" label={copy.availability.date} value={draft.date} onChange={(event) => setDraft({...draft, date: event.target.value})}/>
         <label className="checkbox-field"><input type="checkbox" checked={draft.full_day} onChange={(event) => setDraft({...draft, full_day: event.target.checked})}/>{copy.availability.fullDay}</label>
-        {!draft.full_day && <><div className="form-grid"><Input type="time" label={copy.availability.start} value={draft.start_time} onChange={(event) => setDraft({...draft, start_time: event.target.value})}/><Input type="time" label={copy.availability.end} value={draft.end_time} onChange={(event) => setDraft({...draft, end_time: event.target.value})}/></div>{overlaps.length > 0 && <InlineAlert tone="warning">{copy.availability.overlap.replace('{count}', String(overlaps.length))}<ul>{overlaps.map((row) => <li key={row.counseling_appointment_id}>{row.student_name} · {timeRange(row.starts_at, row.ends_at, language)}</li>)}</ul></InlineAlert>}</>}
+        {!draft.full_day && <><div className="form-grid"><TimeField label={copy.availability.start} value={draft.start_time} onChange={(start_time) => setDraft({...draft, start_time})}/><TimeField label={copy.availability.end} value={draft.end_time} onChange={(end_time) => setDraft({...draft, end_time})}/></div>{overlaps.length > 0 && <InlineAlert tone="warning">{copy.availability.overlap.replace('{count}', String(overlaps.length))}<ul>{overlaps.map((row) => <li key={row.counseling_appointment_id}>{row.student_name} · {timeRange(row.starts_at, row.ends_at, language)}</li>)}</ul></InlineAlert>}</>}
         <Input label={copy.availability.reason} value={draft.reason} onChange={(event) => setDraft({...draft, reason: event.target.value})}/>
         <label className="field"><span>{copy.availability.note}</span><textarea value={draft.note} onChange={(event) => setDraft({...draft, note: event.target.value})}/></label>
       </div>

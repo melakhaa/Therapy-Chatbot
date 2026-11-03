@@ -814,3 +814,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-accent);
   .login-card { width: 100%; }
 }
 
+/* 24-hour time picker (components/ui/TimeInput): hour and minute selects side by side */
+.time-input { display: flex; align-items: center; gap: .35rem; }
+.time-input select { flex: 1; min-width: 4.5rem; }
+.time-input > span { font-weight: 700; color: var(--color-text-muted); }
