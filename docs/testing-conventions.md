@@ -38,6 +38,8 @@ to one of them, and a new seam gets added here (with its trade-off) before the t
 | `lib/realtime/notice.ts` (dashboard) | unit | which socket messages are trusted, reconnect pacing, refused sessions not retried | socket lifecycle, page refetch |
 | `core/mailer.py` — `send_reset_otp` (smtplib replaced) | unit | the reset mail's recipient and content, the SMTP handshake, the dev log fallback, a failure that never logs the code | real delivery, spam filtering |
 | `services/chatbot/guardrail.py` — `is_crisis`, `strip_profanity` | unit | deterministic crisis detection | model tone and routing |
+| `services/chatbot/rag.py` — `build_messages`, `_source_label` | unit | the citation reaching the prompt, filename fallback for an uncited chunk | retrieval quality, whether the model obeys the instruction |
+| `services/chatbot/provenance.py` — `provenance_reply` | unit | which documents get named, the "AI, not a psychologist, no clients" claim, the empty-corpus fallback | fuzzy routing into this route, model behaviour on a miss |
 | `services/chatbot/` history assembly | unit | prompt budget, crisis filtering, ordering | real model output |
 | The live API over HTTP and `/realtime` (incl. `db/test_rls.sql`) | integration | real SQL, triggers (incl. who is notified of what), change notices, encryption at rest, RLS, Ollama | anything in the UI |
 | `features/<domain>/model.ts` (dashboard) | unit | directory filters, draft validation, publish gate, priority ordering | rendering, fetch |

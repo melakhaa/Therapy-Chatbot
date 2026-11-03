@@ -57,6 +57,18 @@ chunks at `size=500 / overlap=50`, embeds, and inserts into `documents` (`metada
 `core/db.py` — see [postgresql-conventions.md](postgresql-conventions.md).
 
 - Pin model names; all call sites share `EMBED_MODEL` from `services/chatbot/rag.py`.
+- Every chunk carries `metadata.citation` — the label a student sees, written by
+  `scripts/embed.py` from its `CITATIONS` map (`"Buku Depresi REVISI FINAL.docx"` →
+  `"Petunjuk Teknis Layanan Depresi (Kemenkes RI, 2021)"`). The raw filename is internal and
+  must not reach the model. A new document with no entry is ingested with `null` and the prompt
+  falls back to its filename — add the entry when you add the file.
+- `build_messages` prefixes each chunk with `[<citation>]` and `RAG_SYSTEM_PROMPT` requires the
+  answer to open with it. That is what makes a follow-up "sumbernya dari mana?" answerable from
+  conversation history. Changing a citation is metadata-only: backfill with
+  `update documents set metadata = metadata || jsonb_build_object('citation', …)` — no
+  re-embed, because the vectors do not change.
+- `scripts/embed.py` **inserts, it does not replace**: re-running it against a populated
+  database duplicates every chunk. Clear or scope `documents` first.
 - `nomic-embed-text-v2-moe` requires task prefixes and does not add them itself: documents are
   embedded as `"search_document: "`, queries as `"search_query: "`. The `QUERY_PREFIX` /
   `DOCUMENT_PREFIX` constants in `rag.py` are the single source of truth — keep the pair matched

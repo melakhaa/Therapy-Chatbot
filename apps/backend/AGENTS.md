@@ -24,4 +24,5 @@ Setup and gotchas: [root development doc](../../docs/development-conventions.md)
 - Conventions: [python](../../docs/python-conventions.md), [fastapi](../../docs/fastapi-conventions.md),
   [pydantic](../../docs/pydantic-conventions.md), [postgresql](../../docs/postgresql-conventions.md).
 - Chat/AI services (`services/chatbot/`): [ollama](../../docs/ollama-conventions.md),
-  [semantic-router](../../docs/semantic-router-conventions.md).
+  [semantic-router](../../docs/semantic-router-conventions.md). Crisis and provenance are fixed
+  replies — never send them to the model. RAG answers must open with the chunk's citation.
