@@ -31,6 +31,10 @@ class ResetOtpMailTests(unittest.TestCase):
         message = server.send_message.call_args.args[0]
         self.assertEqual(message["To"], "mahasiswa@students.undip.ac.id")
         self.assertEqual(message["From"], "Sajiwa <sajiwa@example.com>")
+        # Regression: with one fixed subject Gmail stacked every resend into one thread, and
+        # students typed an older, already replaced code. The code in the subject keeps each
+        # mail its own row, newest on top.
+        self.assertIn("634428", message["Subject"])
         # Plain text for clients that show no HTML; both carry the code and its lifetime
         for kind in ("plain", "html"):
             body = message.get_body((kind,)).get_content()

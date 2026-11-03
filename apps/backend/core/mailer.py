@@ -12,7 +12,6 @@ from email.message import EmailMessage
 from email.utils import make_msgid
 from pathlib import Path
 
-RESET_SUBJECT = "Kode reset kata sandi Sajiwa"
 # The banner (mascot in a light circle on navy) rides inside the mail as a cid attachment: Gmail
 # ignores data: URIs and hides remote images until the reader allows them, and there is no public host
 BANNER = Path(__file__).resolve().parent.parent / "assets" / "email-banner.png"
@@ -25,6 +24,8 @@ def _reset_body(otp: str) -> str:
         f"Kode untuk mengatur ulang kata sandi Sajiwa kamu: {otp}\n\n"
         "Kode ini berlaku 15 menit dan hanya bisa dipakai sekali. Masukkan di aplikasi pada layar "
         "Lupa kata sandi.\n\n"
+        "Kalau kamu meminta kode lebih dari sekali, pakai kode dari email terbaru; kode sebelumnya "
+        "otomatis tidak berlaku.\n\n"
         "Kalau kamu tidak meminta reset, abaikan email ini; kata sandimu tidak berubah.\n\n"
         "Salam,\nSajiwa"
     )
@@ -53,7 +54,7 @@ def _reset_html(otp: str, banner_cid: str) -> str:
     </td></tr>
     <tr><td align="center" style="padding:0 32px;">
       <div style="background:#EEF2FB;border:2px dashed {NAVY};border-radius:16px;padding:16px 8px;color:{NAVY};font-size:34px;font-weight:800;letter-spacing:10px;font-family:Consolas,Menlo,monospace;">{otp}</div>
-      <div style="color:#6B7280;font-size:13px;margin-top:10px;">Berlaku 15 menit dan hanya bisa dipakai sekali.</div>
+      <div style="color:#6B7280;font-size:13px;margin-top:10px;">Berlaku 15 menit dan hanya bisa dipakai sekali.<br>Minta kode lagi? Pakai kode dari email terbaru.</div>
     </td></tr>
     <tr><td style="padding:24px 32px 28px;">
       <div style="background:#FFF7ED;border-radius:14px;padding:14px 16px;color:#7C2D12;font-size:13px;line-height:20px;">
@@ -78,7 +79,9 @@ def send_reset_otp(to: str, otp: str) -> bool:
     message = EmailMessage()
     message["From"] = os.getenv("SMTP_FROM") or os.getenv("SMTP_USER", "")
     message["To"] = to
-    message["Subject"] = RESET_SUBJECT
+    # The code in the subject keeps every resend its own inbox row, newest on top; one fixed
+    # subject let Gmail stack them into a thread where students typed an older, replaced code
+    message["Subject"] = f"{otp} adalah kode reset kata sandi Sajiwa"
     message.set_content(_reset_body(otp))
     banner_cid = make_msgid(domain="sajiwa")[1:-1]
     message.add_alternative(_reset_html(otp, banner_cid), subtype="html")

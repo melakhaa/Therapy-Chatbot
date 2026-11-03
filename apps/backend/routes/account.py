@@ -110,6 +110,10 @@ def login(request: LoginRequest):
     }
 
 
+# Shown in the app as is. Each new request replaces the last code, which is the usual cause
+RESET_REJECTED = "Kode OTP salah, kedaluwarsa, atau sudah diganti kode baru. Pakai kode dari email terbaru."
+
+
 @router.post("/auth/reset-password/request")
 def request_password_reset(request: ResetPasswordRequest, background: BackgroundTasks):
     rows = query("select user_id from auth_lookup(%s)", (request.email,))
@@ -141,11 +145,11 @@ def confirm_password_reset(request: ConfirmPasswordResetRequest):
         or rec["expires_at"] < datetime.now(timezone.utc)
         or not _verify(request.otp, rec["otp_hash"])
     ):
-        raise HTTPException(status_code=400, detail="OTP salah atau kedaluwarsa")
+        raise HTTPException(status_code=400, detail=RESET_REJECTED)
 
     users = query("select user_id from auth_lookup(%s)", (request.email,))
     if not users:
-        raise HTTPException(status_code=400, detail="OTP salah atau kedaluwarsa")
+        raise HTTPException(status_code=400, detail=RESET_REJECTED)
 
     user_id = str(users[0]["user_id"])
     query("select set_password(%s, %s)", (user_id, _hash(request.new_password)))
