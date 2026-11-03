@@ -14,6 +14,7 @@ import { useTheme, useAuth, Neu, Spacing } from '@prototype/ui-shared';
 import { moodOf } from '../constants/moods';
 import { PressableScale, clockTime } from '../components/ui';
 import { useUpcomingSession } from '../hooks/useUpcomingSession';
+import { NotificationSettings } from '../components/NotificationSettings';
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 
@@ -158,6 +159,8 @@ export default function ProfileScreen() {
             </PressableScale>
           </FadeIn>
         )}
+
+        <FadeIn><NotificationSettings /></FadeIn>
 
         {/* The one destination the bottom nav does not reach */}
         <FadeIn>
