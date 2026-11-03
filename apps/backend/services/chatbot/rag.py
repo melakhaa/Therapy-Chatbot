@@ -36,11 +36,22 @@ def retrieve_docs(text: str, k: int = 5):
         (str(query_embedding), 0.3, k),
     )
 
-RAG_SYSTEM_PROMPT = """Gunakan konteks berikut untuk menjawab pertanyaan dalam Bahasa Indonesia.
+RAG_SYSTEM_PROMPT = """Gunakan konteks berikut untuk menjawab dalam Bahasa Indonesia.
 Jika tidak ada di konteks, katakan kamu tidak tahu.
+
+WAJIB: awali jawaban dengan sumbernya, tepat seperti tertulis di dalam tanda [ ] pada
+konteks. Contoh: "Menurut Petunjuk Teknis Layanan Depresi (Kemenkes RI, 2021), ...".
+Jika ditanya dari mana jawaban itu berasal, sebutkan sumber yang sama. Jangan mengarang
+sumber lain.
 
 Konteks:
 {context}"""
+
+
+def _source_label(doc) -> str:
+    """What the student sees as the source, not the filename we ingested."""
+    metadata = doc.get("metadata") or {}
+    return metadata.get("citation") or metadata.get("source") or "dokumen"
 
 
 NO_CONTEXT_REPLY = "Maaf, saya tidak menemukan informasi terkait di dokumen."
@@ -57,7 +68,7 @@ def build_messages(user_message: str, history: list | None = None) -> list | Non
     if not docs:
         return None
 
-    context = "\n---\n".join([d["content"] for d in docs])
+    context = "\n---\n".join(f"[{_source_label(d)}]\n{d['content']}" for d in docs)
 
     return [
         SystemMessage(content=RAG_SYSTEM_PROMPT.format(context=context)),
