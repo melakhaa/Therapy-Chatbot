@@ -1,9 +1,9 @@
 """Provenance questions are answered from the corpus, never by the model.
 
-Asked "sumber informasi yang kamu gunakan dari mana?", Hana answered "aku telah membaca banyak
+Asked "sumber informasi yang kamu gunakan dari mana?", Sajiwa answered "aku telah membaca banyak
 buku pengembangan diri" and "punya pengalaman menangani klien" — both invented. Prompt rules
 were tried and the 8B model kept fabricating, so this is a deterministic route like guardrail:
-the reply names the documents actually in the corpus and states what Hana is not.
+the reply names the documents actually in the corpus and states what Sajiwa is not.
 
 Run from apps/backend: python -m unittest discover -s tests/unit -v
 """
