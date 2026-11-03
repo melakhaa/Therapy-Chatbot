@@ -267,7 +267,9 @@ export function useChat(initialSessionId?: string): UseChatReturn {
       apiChatStream(
         { message: trimmed, session_id: sessionId },
         (event) => {
-          setIsTyping(false);
+          // The backend opens with a metadata frame (route / is_high_risk) and only later
+          // starts streaming tokens. Clearing isTyping here hid the bubble and the berpikir
+          // face for the whole generation, leaving the screen blank while the model worked.
           if (event.is_high_risk || event.route === 'guardrail') {
             setExpression('tenang');
             setIsHighRisk(true);
@@ -275,9 +277,11 @@ export function useChat(initialSessionId?: string): UseChatReturn {
             setAlertTriggered(true);
           }
           if (event.token) {
+            setIsTyping(false);
             upsertAI(aiId, event.token, false, reaction);
           }
           if (event.error) {
+            setIsTyping(false);
             upsertAI(aiId, fallback, true, 'bingung');
           }
         },
