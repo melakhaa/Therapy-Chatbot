@@ -10,9 +10,10 @@ import { sendSampleCheckIn } from '../hooks/useCheckIn';
 import { notificationTips } from '../hooks/notificationTips';
 import { Button, useToast } from './ui';
 
-// Android reports the maker (e.g. "Xiaomi"); iOS has none to report
-const brand = (Platform.constants as { Brand?: string; Manufacturer?: string }).Brand
-  ?? (Platform.constants as { Manufacturer?: string }).Manufacturer ?? null;
+// Android reports the maker (e.g. "Xiaomi"); iOS has none to report, and on web the whole object is
+// missing. Read at import, so it must not throw there: the card itself only hides on web later.
+const constants = Platform.constants as { Brand?: string; Manufacturer?: string } | undefined;
+const brand = constants?.Brand ?? constants?.Manufacturer ?? null;
 
 export function NotificationSettings() {
   const { colors } = useTheme();
