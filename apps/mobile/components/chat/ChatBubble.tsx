@@ -19,7 +19,10 @@ const FADE = arrive(FadeInDown);
 export const fmtTime = (d: Date) =>
   d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-export const ChatBubble: React.FC<Props> = ({ message, endOfGroup = true }) => {
+// Memoised: a streaming reply replaces its own message object on every token, and the list
+// re-renders 400+ times per answer. Without this, every settled bubble pays for the shadow and
+// the entering animation again each time — "VirtualizedList: large list that is slow to update".
+export const ChatBubble = React.memo(function ChatBubble({ message, endOfGroup = true }: Props) {
   const isUser = message.sender === 'user';
   const { colors } = useTheme();
 
@@ -53,7 +56,7 @@ export const ChatBubble: React.FC<Props> = ({ message, endOfGroup = true }) => {
       </View>
     </Animated.View>
   );
-};
+});
 
 const s = StyleSheet.create({
   rowUser: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16 },
