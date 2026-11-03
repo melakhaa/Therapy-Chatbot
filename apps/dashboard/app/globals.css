@@ -97,7 +97,7 @@ button { color: inherit; }
 
 .page-shell { min-height: calc(100vh - var(--topbar-height)); padding: var(--space-page); }.page-header { min-height: 3rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }.page-header h1 { margin: 0; font-size: clamp(1.55rem, 2.2vw, 2.05rem); letter-spacing: -.035em; }.page-actions { display: flex; align-items: center; gap: .6rem; }.page-filters { margin-bottom: 1rem; }.page-content { min-width: 0; }.migration-placeholder { min-height: 24rem; display: grid; place-items: center; border: 1px dashed var(--color-border-strong); border-radius: var(--radius-lg); background: var(--color-surface); text-align: center; }.migration-placeholder > div { max-width: 34rem; padding: 2rem; }.migration-placeholder h2 { margin: .4rem 0 .6rem; }.migration-placeholder p { color: var(--color-text-muted); line-height: 1.6; }.eyebrow { margin: 0; color: var(--color-accent) !important; font-size: .72rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
 
-.login-page { min-height: 100vh; display: grid; grid-template-columns: minmax(22rem, 1fr) minmax(27rem, .9fr); }.login-brand { display: grid; place-items: center; padding: clamp(2rem, 6vw, 6rem); background: var(--color-accent-soft); }.login-brand-content { max-width: 34rem; }.brand-mark-large { width: 4rem; height: 4rem; font-size: 2rem; }.login-brand-name { margin: 1rem 0 .3rem; color: var(--color-accent); font-size: 1.4rem; font-weight: 850; }.login-brand h1 { max-width: 28rem; margin: 0; font-size: clamp(2rem, 4vw, 3.7rem); line-height: 1.08; letter-spacing: -.05em; }.login-brand p:last-child { max-width: 29rem; color: var(--color-text-muted); line-height: 1.7; }.login-panel { position: relative; display: grid; place-items: center; padding: 2rem; background: var(--color-background); }.login-toolbar { position: absolute; top: 1.2rem; right: 1.2rem; }.login-card { width: min(27rem, 100%); display: grid; gap: 1rem; padding: clamp(1.4rem, 3vw, 2.2rem); border: 1px solid var(--color-edge); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-surface); }.login-card h2 { margin: -.25rem 0 0; font-size: 1.8rem; }.login-description { margin: -.35rem 0 .35rem; color: var(--color-text-muted); }.login-submit { width: 100%; margin-top: .25rem; }.login-security { display: flex; align-items: flex-start; gap: .45rem; color: var(--color-text-muted); font-size: .8rem; line-height: 1.4; }.text-button { display: block; margin-top: .4rem; border: 0; padding: 0; background: transparent; color: var(--color-danger); font-weight: 800; text-decoration: underline; cursor: pointer; }.auth-state, .boundary-page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: 1rem; }.boundary-page > .state-panel { min-height: auto; }
+.text-button { display: block; margin-top: .4rem; border: 0; padding: 0; background: transparent; color: var(--color-danger); font-weight: 800; text-decoration: underline; cursor: pointer; }.auth-state, .boundary-page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: 1rem; }.boundary-page > .state-panel { min-height: auto; }
 
 .overview-stack { display: grid; gap: 1.25rem; }.overview-header-actions { display: flex; align-items: center; justify-content: flex-end; gap: .8rem; flex-wrap: wrap; }.today-context { color: var(--color-text-muted); font-size: .88rem; font-weight: 650; }
 .overview-filters { display:grid;grid-template-columns:minmax(16rem,1.5fr) repeat(2,minmax(10rem,.7fr));gap:.75rem;padding:.9rem 1rem;border-bottom:1px solid var(--color-border);background:var(--color-surface-muted); }.bulk-actions { display:flex;align-items:center;justify-content:flex-end;gap:.5rem;flex-wrap:wrap; }
@@ -150,7 +150,7 @@ button { color: inherit; }
   .app-shell { display: block; }.desktop-sidebar { display: none; }.mobile-menu-button { display: inline-flex; }.topbar { padding-inline: .8rem; }.mobile-drawer-brand { display: block; margin-bottom: .75rem; }.drawer .sidebar-nav { margin-top: .5rem; }.drawer .sidebar-footer { margin-top: 1.5rem; }.profile-name { display: none; }.overview-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }.monitoring-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }.filter-search, .academic-toggle { grid-column: auto; }.monitoring-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }.summary-item:nth-child(3) { border-right: 0; }.summary-item:nth-child(-n+3) { border-bottom: 1px solid var(--color-border); }.student-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }.student-search { grid-column: 1 / -1; }.student-quick-drawer { width: min(38rem, 94vw); min-width: 0; }
 }
 @media (max-width: 48rem) {
-  .topbar-context span { display: none; }.topbar-context span::after { display: none; }.topbar-actions { gap: .3rem; }.topbar-actions > .dropdown:nth-of-type(1) { display: none; }.language-switch button { min-width: 2.2rem; }.login-page { grid-template-columns: 1fr; }.login-brand { display: none; }.login-panel { padding: 4.5rem 1rem 1rem; }.page-shell { padding: 1rem; }.page-header { align-items: flex-start; flex-direction: column; }.page-actions { width: 100%; flex-wrap: wrap; }.overview-header-actions { width: 100%; justify-content: space-between; }.table-footer { align-items: flex-start; flex-direction: column; }.pagination { width: 100%; justify-content: space-between; }.academic-panel { grid-template-columns: 1fr; }.custom-dates { grid-template-columns: 1fr; }.monitoring-footer { align-items: flex-start; flex-direction: column; }.monitoring-footer .pagination { width: 100%; }.student-overview-grid { grid-template-columns: 1fr; }.student-overview-grid .profile-card:last-child:nth-child(odd) { grid-column: auto; }
+  .topbar-context span { display: none; }.topbar-context span::after { display: none; }.topbar-actions { gap: .3rem; }.topbar-actions > .dropdown:nth-of-type(1) { display: none; }.language-switch button { min-width: 2.2rem; }.page-shell { padding: 1rem; }.page-header { align-items: flex-start; flex-direction: column; }.page-actions { width: 100%; flex-wrap: wrap; }.overview-header-actions { width: 100%; justify-content: space-between; }.table-footer { align-items: flex-start; flex-direction: column; }.pagination { width: 100%; justify-content: space-between; }.academic-panel { grid-template-columns: 1fr; }.custom-dates { grid-template-columns: 1fr; }.monitoring-footer { align-items: flex-start; flex-direction: column; }.monitoring-footer .pagination { width: 100%; }.student-overview-grid { grid-template-columns: 1fr; }.student-overview-grid .profile-card:last-child:nth-child(odd) { grid-column: auto; }
 }
 @media (max-width: 87.5rem) and (min-width: 64.01rem) { .overview-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 36rem) { .overview-kpis { grid-template-columns: 1fr; }.metric-card { min-height: 0; }.today-context { width: 100%; }.overview-header-actions .button { width: 100%; }.bulk-selection { align-items: stretch; flex-direction: column; }.bulk-selection .button { width: 100%; }.monitoring-filters { grid-template-columns: 1fr; }.monitoring-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }.summary-item { border-right: 1px solid var(--color-border) !important; border-bottom: 1px solid var(--color-border); }.summary-item:nth-child(2n) { border-right: 0 !important; }.summary-item:nth-last-child(-n+2) { border-bottom: 0; }.student-filters { grid-template-columns: 1fr; }.student-search { grid-column: auto; }.student-quick-drawer, .student-edit-drawer { width: 100vw; max-width: none; }.definition-row { grid-template-columns: 1fr; gap: .2rem; } }
@@ -400,7 +400,6 @@ button { color: inherit; }
 .topbar::before { content: ""; position: absolute; inset: auto calc(-1 * var(--space-page)) 100%; height: calc(var(--shell-gap) + 1px); background: var(--color-background); }
 .sidebar-footer { border-top: 0; margin-inline: -.35rem; padding: .6rem .7rem; border-radius: var(--radius-md); box-shadow: var(--shadow-inset); }
 .brand-mark { border-radius: var(--radius-md); background: var(--color-surface-raised); box-shadow: var(--shadow-control); }
-.login-mascot { display: block; width: clamp(9rem, 16vw, 13.75rem); height: auto; margin-bottom: 1.25rem; }
 .state-mascot { width: 6rem; height: auto; }
 /* Neumorphic controls: raised at rest, sunk when selected, like the mobile BottomNav and IconButton */
 .topbar .icon-button, .dropdown-trigger { border-color: transparent; border-radius: var(--radius-md); background: var(--color-surface); box-shadow: var(--shadow-control); }
@@ -419,8 +418,6 @@ body { line-height: 1.5; }
 h1 { font-weight: 800; letter-spacing: -.03em; line-height: 1.2; }
 h2, h3 { font-weight: 700; letter-spacing: -.015em; }
 .page-header h1, .detail-title-line h1 { font-size: clamp(1.55rem, 2vw, 1.75rem); }
-.login-brand h1 { font-size: clamp(2rem, 3.2vw, 2.8rem); line-height: 1.12; letter-spacing: -.03em; }
-.login-brand p:last-child { margin-top: 1rem; }
 .metric-value { font-weight: 800; }
 .eyebrow, .sidebar-nav h2 { font-size: .6875rem; font-weight: 700; letter-spacing: .13em; }
 .sidebar-nav h2 { color: var(--color-text-muted); }
@@ -786,3 +783,34 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-accent);
   .case-statuses,.availability-windows{align-items:flex-start;flex-direction:column}
   .counselor-secondary-grid{grid-template-columns:1fr}
 }
+
+/* Login: one neumorphic surface for the whole page. The mascot stands in a pressed dish on a raised
+   disc and steps out of it at the top; the form is the raised card. Phones keep a compact brand
+   row above the form instead of losing the brand entirely. */
+.login-page { min-height: 100vh; min-height: 100dvh; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: center; gap: clamp(2rem, 5vw, 5rem); max-width: 76rem; margin: 0 auto; padding: clamp(1.5rem, 4vw, 4rem); }
+.login-brand { display: grid; justify-items: start; gap: clamp(1.75rem, 3vw, 2.5rem); }
+.login-stage { position: relative; width: clamp(11rem, 17vw, 15rem); aspect-ratio: 1; border-radius: 50%; background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface-muted)); box-shadow: var(--shadow-surface); }
+.login-stage::before { content: ''; position: absolute; inset: 11%; border-radius: 50%; background: var(--color-surface); box-shadow: var(--shadow-inset); }
+.login-mascot { position: absolute; left: 50%; bottom: 16%; width: auto; height: 112%; transform: translateX(-50%); filter: drop-shadow(0 10px 10px rgb(38 53 110 / 18%)); }
+.login-brand-name { margin: 0 0 .5rem; color: var(--color-accent); font-size: 1.05rem; font-weight: 800; letter-spacing: -.01em; }
+.login-brand h1 { max-width: 30ch; margin: 0; font-size: clamp(2rem, 2.9vw, 2.75rem); line-height: 1.12; letter-spacing: -.03em; }
+.login-brand-copy > p:last-child { max-width: 44ch; margin: 1rem 0 0; color: var(--color-text-muted); font-weight: 500; line-height: 1.65; }
+.login-panel { display: grid; justify-items: center; gap: 1rem; }
+.login-toolbar { position: fixed; top: 1.2rem; right: 1.2rem; }
+.login-card { width: min(27rem, 100%); display: grid; gap: 1rem; padding: clamp(1.4rem, 3vw, 2.2rem); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-surface); }
+.login-card h2 { margin: -.25rem 0 0; font-size: 1.8rem; letter-spacing: -.02em; }
+.login-description { margin: -.35rem 0 .35rem; color: var(--color-text-muted); }
+.login-submit { width: 100%; margin-top: .25rem; }
+.login-submit:active:not(:disabled) { transform: translateY(1px); }
+.login-security { display: flex; align-items: flex-start; gap: .45rem; color: var(--color-text-muted); font-size: .8rem; line-height: 1.4; }
+@media (max-width: 48rem) {
+  .login-page { grid-template-columns: 1fr; align-content: start; gap: 1.75rem; padding: 4.5rem 1rem 1.5rem; }
+  .login-brand { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 1.1rem; }
+  .login-stage { width: 5.5rem; }
+  .login-brand h1 { font-size: 1.2rem; max-width: none; }
+  .login-brand-name { margin-bottom: .2rem; }
+  .login-brand-copy > p:last-child { display: none; }
+  .login-panel { justify-items: stretch; }
+  .login-card { width: 100%; }
+}
+
