@@ -1,4 +1,4 @@
-import type { Category, DirectoryItem, Instrument, InstrumentDetail, InstrumentStatus, LocalInstrumentDraft, QuestionDraft } from './types';
+import type { Category, Dass21VariantDraft, DirectoryItem, Instrument, InstrumentDetail, InstrumentStatus, LocalInstrumentDraft, QuestionDraft } from './types';
 
 export const CATEGORIES: Category[] = ['depression', 'anxiety', 'stress'];
 export function latestVersion(instrument: Instrument) { return [...instrument.versions].sort((a,b)=>b.version_number-a.version_number)[0] ?? null; }
@@ -13,4 +13,8 @@ export function addQuestion(questions: QuestionDraft[]): QuestionDraft[] { retur
 export function validateDraft(questions: QuestionDraft[]) { const issues:string[]=[];const keys=new Set<string>();if(!questions.length)issues.push('questions');questions.forEach((q)=>{const key=q.item_key.trim().toLocaleLowerCase();if(!q.item_key.trim()||!q.wording.trim()||!/^[A-Za-z0-9_-]+$/.test(q.item_key))issues.push('question');if(keys.has(key))issues.push('duplicateKey');keys.add(key);if(q.options.length<2||q.options.some((o)=>!o.label.trim()||!Number.isInteger(o.score)||o.score<0||o.score>100))issues.push('options');});return [...new Set(issues)]; }
 export function newLocalDraft(): LocalInstrumentDraft { return {code:'',name:'',description:'',language:'id',dimensions:[],questions:[]}; }
 export function localDraftCompleteness(draft: LocalInstrumentDraft) { const codes=new Set(draft.dimensions);return {metadata:/^[A-Za-z0-9_-]{3,40}$/.test(draft.code)&&!!draft.name.trim()&&!!draft.description.trim(),dimensions:draft.dimensions.length>0&&codes.size===draft.dimensions.length&&draft.dimensions.every(x=>/^[a-z][a-z0-9_-]{0,59}$/.test(x)),questions:validateDraft(draft.questions).length===0&&draft.questions.every(q=>codes.has(q.category))}; }
+/** The app may only offer what the server can score on official norms: DASS-21 or a variant of it, published. */
+export function canShowInApp(instrument: Instrument) { return instrument.active&&instrument.instrument_kind==='standard'&&instrument.norms_enabled&&instrument.versions.some((v)=>v.status==='published'&&v.authoritative_config); }
+/** A variant offers whole subscales only, seven items each, so the official norms still hold. */
+export function variantDraftReady(draft: Dass21VariantDraft) { return {ready:draft.name.trim().length>=3&&/^[A-Za-z0-9_-]{3,40}$/.test(draft.code)&&draft.subscales.length>0,questionCount:7*draft.subscales.length}; }
 export function statusTone(status: InstrumentStatus): 'info'|'success'|'neutral' { return status==='draft'?'info':status==='published'?'success':'neutral'; }

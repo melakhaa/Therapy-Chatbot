@@ -23,7 +23,7 @@ export function CounselorDashboard() {
     ]);
     return {cases: sortCases(cases.cases), workspace, reviews: sortReviews(reviews.reviews, user?.user_id)};
   }, [user?.user_id]);
-  const {data, error, retry} = useCounselorData(load);
+  const {data, error, retry} = useCounselorData(load, {topics: ['signals', 'schedule']});
   if (error) return <ErrorState title={copy.dashboard.title} message={copy.errors.load} retry={retry} retryLabel={copy.common.retry}/>;
   if (!data) return <LoadingState label={copy.common.loading} fullPage/>;
 

@@ -20,6 +20,7 @@ import {
 import { MOODS, Mood, moodOf, MOOD_COMPANION, todayPrompt } from '../constants/moods';
 import { TRI, triRaised, triInset } from '../constants/palette';
 import { PressableScale } from '../components/ui';
+import { useInboxState } from '../hooks/useInbox';
 import { useUpcomingSession } from '../hooks/useUpcomingSession';
 
 // Home trials the role-based palette: navy = Sajiwa/chat, sage = journal, amber = counseling, coral = crisis
@@ -143,6 +144,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const toast = useToast();
+  const { unread } = useInboxState();
   const now = useMemo(moment, []);
 
   const [journals, setJournals] = useState<any[]>([]);
@@ -269,7 +271,7 @@ export default function HomeScreen() {
   const slides: Slide[] = [
     { kicker: 'Sajiwa siap mendengarkan', title: now.ask, face, cta: 'Mulai cerita baru', icon: 'chatbubble-ellipses', tint: TRI.navy, to: '/chat' },
     { kicker: 'Konseling kampus', title: 'Mau ngobrol langsung dengan konselor?', face: 'menyapa', cta: 'Pilih jadwal konseling', icon: 'calendar', tint: TRI.amber, to: '/schedule' },
-    { kicker: 'Asesmen DASS-21', title: 'Kenali kondisi emosimu lewat 21 pertanyaan singkat', face: 'berpikir', cta: 'Mulai asesmen', icon: 'clipboard', tint: TRI.sage, to: '/assessment' },
+    { kicker: 'Asesmen DASS-21', title: 'Kenali kondisi emosimu lewat beberapa pertanyaan singkat', face: 'berpikir', cta: 'Mulai asesmen', icon: 'clipboard', tint: TRI.sage, to: '/assessment' },
   ];
 
   return (
@@ -297,6 +299,15 @@ export default function HomeScreen() {
                   )}
                 </Text>
               </View>
+              <PressableScale
+                onPress={() => router.push('/notifications')}
+                accessibilityRole="button"
+                accessibilityLabel={unread ? `Notifikasi, ${unread} belum dibaca` : 'Notifikasi'}
+                style={({ pressed }) => [s.avatar, { boxShadow: pressed ? triInset(0.5) : triRaised(0.5) }]}
+              >
+                <Ionicons name={unread ? 'notifications' : 'notifications-outline'} size={21} color={TRI.navy} />
+                {unread > 0 && <View style={s.badge}><Text style={s.badgeText}>{unread > 9 ? '9+' : unread}</Text></View>}
+              </PressableScale>
               <PressableScale
                 onPress={() => router.push('/profile')}
                 accessibilityRole="button"
@@ -527,6 +538,8 @@ const s = StyleSheet.create({
   greetSoft: { color: TRI.sub, fontFamily: 'PlusJakartaSans_500Medium' },
   greetName: { color: TRI.ink, fontFamily: 'PlusJakartaSans_800ExtraBold' },
   avatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: TRI.bg, alignItems: 'center', justifyContent: 'center' },
+  badge: { position: 'absolute', top: -3, right: -3, minWidth: 19, height: 19, paddingHorizontal: 5, borderRadius: 10, backgroundColor: '#C2410C', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: TRI.bg },
+  badgeText: { color: '#fff', fontSize: 10, fontFamily: 'PlusJakartaSans_800ExtraBold' },
   avatarText: { color: TRI.navy, fontSize: 15, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: 0.2 },
 
   heroPager: { marginHorizontal: -GUTTER, marginVertical: -SHADOW },

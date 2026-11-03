@@ -19,7 +19,7 @@ export function CounselorReviewQueuePage() {
   const {user} = useAuth();
   const [filter, setFilter] = useState<Filter>('assigned');
   const load = useCallback((signal: AbortSignal) => getReviewQueue(undefined, signal), []);
-  const {data, error, retry} = useCounselorData(load);
+  const {data, error, retry} = useCounselorData(load, {});
   const rows = useMemo(() => sortReviews(data?.reviews ?? [], user?.user_id).filter((row) => filter === 'all' || (filter === 'assigned' ? row.reviewer_user_id === user?.user_id && row.status === 'pending' : filter === 'open' ? !row.reviewer_user_id && row.status === 'pending' : row.status === filter)), [data, filter, user?.user_id]);
   if (error) return <ErrorState title={copy.reviews.title} message={copy.errors.load} retry={retry} retryLabel={copy.common.retry}/>;
   if (!data) return <LoadingState label={copy.common.loading} fullPage/>;

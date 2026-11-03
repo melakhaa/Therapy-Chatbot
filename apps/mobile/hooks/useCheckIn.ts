@@ -4,6 +4,7 @@
 // Local notifications only: no push server, works in Expo Go. Not on web.
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from './notifications';
 import { router } from 'expo-router';
 import { useAuth } from '@prototype/ui-shared';
@@ -34,6 +35,15 @@ const ANSWERS = [
 
 const native = Platform.OS !== 'web';
 
+// How a greeting looks wherever the OS lets the app choose: brand tint on Android, an ordinary
+// (not time-sensitive) interruption on iOS. The layout itself is the phone's own.
+const LOOK = {
+  color: Notifications.ACCENT,
+  priority: Notifications.AndroidNotificationPriority.DEFAULT,
+  interruptionLevel: 'active' as const,
+  categoryIdentifier: KIND,
+};
+
 if (native) {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -50,6 +60,9 @@ async function plan(name: string) {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync(KIND, {
       name: 'Sapaan harian', importance: Notifications.AndroidImportance.DEFAULT,
+      lightColor: Notifications.ACCENT, vibrationPattern: [0, 120],
+      // A wellbeing check-in is nobody else's business: the lock screen shows only "Sajiwa"
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
     });
   }
   await Notifications.setNotificationCategoryAsync(
@@ -57,7 +70,10 @@ async function plan(name: string) {
     ANSWERS.map((a) => ({ identifier: a.id, buttonTitle: a.title, options: { opensAppToForeground: true } })),
   );
 
-  await Notifications.cancelAllScheduledNotificationsAsync();
+  // Only its own daily greetings: session reminders (useInbox) and the welcome share the schedule
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  await Promise.all(scheduled.filter((n) => n.content.data?.kind === KIND && !n.content.data?.welcome)
+    .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)));
   const now = new Date();
   for (let d = 0; d <= DAYS; d++) {
     const at = new Date(now);
@@ -67,10 +83,41 @@ async function plan(name: string) {
     // Keyed to the date, so re-planning never changes the greeting a day already has
     const prompt = PROMPTS[Math.floor(at.getTime() / 86_400_000) % PROMPTS.length](name);
     await Notifications.scheduleNotificationAsync({
-      content: { ...prompt, categoryIdentifier: KIND, data: { kind: KIND } },
+      content: { ...prompt, ...LOOK, data: { kind: KIND } },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at, channelId: KIND },
     });
   }
+}
+
+// The first sign-in on a phone gets its own hello a minute later, so a freshly installed app
+// asks how the student is doing on day one instead of waiting for the evening.
+const WELCOMED = 'checkin.welcomed';
+async function welcome(userId: string, name: string) {
+  const done = await AsyncStorage.getItem(WELCOMED).catch(() => null);
+  if (done?.split(',').includes(userId)) return;
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: name ? `Hai ${name}, selamat datang di Sajiwa` : 'Selamat datang di Sajiwa',
+      body: 'Gimana kabarmu hari ini? Pilih jawabanmu di bawah, atau ceritakan ke Sajiwa kapan saja.',
+      ...LOOK, data: { kind: KIND, welcome: true },
+    },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 60, channelId: KIND },
+  });
+  await AsyncStorage.setItem(WELCOMED, [done, userId].filter(Boolean).join(',')).catch(() => {});
+}
+
+/** Profil's "coba" button: today's greeting, now, so the student sees how it looks on their phone. */
+export async function sendSampleCheckIn(name: string) {
+  if (!native) return false;
+  await plan(name);
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status !== 'granted') return false;
+  const prompt = PROMPTS[Math.floor(Date.now() / 86_400_000) % PROMPTS.length](name);
+  await Notifications.scheduleNotificationAsync({
+    content: { ...prompt, ...LOOK, data: { kind: KIND } },
+    trigger: Platform.OS === 'android' ? { channelId: KIND } : null,
+  });
+  return true;
 }
 
 function open(response: Notifications.NotificationResponse) {
@@ -90,9 +137,9 @@ export function useCheckIn(ready: boolean) {
   // Plan on sign-in and each launch; a sign-out (or a non-student account) clears the plan
   useEffect(() => {
     if (!native || isLoading) return;
-    if (student) plan(name).catch(() => {});
+    if (student) plan(name).then(() => (user ? welcome(user.user_id, name) : undefined)).catch(() => {});
     else Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
-  }, [isLoading, student, name]);
+  }, [isLoading, student, name, user]);
 
   useEffect(() => {
     if (!native || !ready || !student) return;

@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Icon, type IconName } from '@/components/ui/Icon';
@@ -12,11 +13,11 @@ export function LoadingState({ label = 'Memuat…', fullPage = false }: { label?
 }
 
 export function ErrorState({ title, message, retry, retryLabel = 'Coba lagi' }: { title: string; message: string; retry?: () => void; retryLabel?: string }) {
-  return <div className="state-panel" role="alert"><span className="state-icon state-icon-danger"><Icon name="alert" size={24} /></span><h1>{title}</h1><p>{message}</p>{retry && <Button variant="secondary" onClick={retry}>{retryLabel}</Button>}</div>;
+  return <div className="state-panel" role="alert"><Image className="state-mascot" src="/character/bingung.png" alt="" width={96} height={96} /><h1>{title}</h1><p>{message}</p>{retry && <Button variant="secondary" onClick={retry}>{retryLabel}</Button>}</div>;
 }
 
 export function EmptyState({ title, message, action }: { title: string; message?: string; action?: ReactNode }) {
-  return <div className="state-panel"><span className="state-icon"><Icon name="info" size={24} /></span><h2>{title}</h2>{message && <p>{message}</p>}{action}</div>;
+  return <div className="state-panel"><Image className="state-mascot" src="/character/tenang.png" alt="" width={96} height={96} /><h2>{title}</h2>{message && <p>{message}</p>}{action}</div>;
 }
 
 export function Skeleton({ lines = 3 }: { lines?: number }) {

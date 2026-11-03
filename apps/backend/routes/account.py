@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from typing import Optional, Literal
 from datetime import datetime, timezone
@@ -10,6 +10,7 @@ from psycopg.errors import UniqueViolation
 
 from auth import require_role, get_current_user, create_token, EXPIRES_IN
 from core.db import db, query
+from core.mailer import send_reset_otp
 
 load_dotenv()
 
@@ -110,7 +111,7 @@ def login(request: LoginRequest):
 
 
 @router.post("/auth/reset-password/request")
-def request_password_reset(request: ResetPasswordRequest):
+def request_password_reset(request: ResetPasswordRequest, background: BackgroundTasks):
     rows = query("select user_id from auth_lookup(%s)", (request.email,))
     if rows:
         otp = f"{secrets.randbelow(1000000):06d}"
@@ -121,8 +122,8 @@ def request_password_reset(request: ResetPasswordRequest):
             "expires_at = excluded.expires_at, used = false",
             (request.email, _hash(otp)),
         )
-        # ponytail: no SMTP wired; OTP goes to the server log. Add email delivery before prod.
-        print(f"[reset-password] OTP untuk {request.email}: {otp}")
+        # Sent after the response, so a registered address answers as fast as an unknown one
+        background.add_task(send_reset_otp, request.email, otp)
 
     return {"message": "Jika email terdaftar, OTP telah dikirimkan."}
 

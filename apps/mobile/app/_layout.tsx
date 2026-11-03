@@ -15,13 +15,14 @@ import {
 
 import * as SplashScreen from 'expo-splash-screen';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { ThemeProvider } from '@prototype/ui-shared';
+import { ThemeProvider, useAuth } from '@prototype/ui-shared';
 import { SajiwaColors } from '@prototype/ui-shared';
 import { AnimatedSplashScreen } from '../components/AnimatedSplashScreen';
 import { ToastProvider } from '../components/ui/Toast';
 import { ConsentSheet } from '../components/ui/ConsentSheet';
 import { isSwipeTab, swipeTab, tabAnimation } from '../components/ui/BottomNav';
 import { useCheckIn } from '../hooks/useCheckIn';
+import { useInbox } from '../hooks/useInbox';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -44,6 +45,8 @@ export default function RootLayout() {
   const [splashAnimationFinished, setSplashAnimationFinished] = useState(false);
   // Daily check-in notification; a tap waits for the splash, by which time sign-in has redirected
   useCheckIn(fontsLoaded && splashAnimationFinished);
+  // Counseling news from the server, and reminders before each session
+  useInbox(fontsLoaded && splashAnimationFinished);
 
   // Swipe sideways on a tab screen to reach the neighbouring tab. It waits for a clearly
   // horizontal drag (40pt), longer than the calendar's month swipe (24pt) and a scroll
@@ -65,11 +68,16 @@ export default function RootLayout() {
     [pathname],
   );
 
+  // A rejected session (expired after 7 days, or its account gone) signs out everywhere, not
+  // just in storage: screens still holding the old user — the privacy sheet above all — would
+  // keep calling the API with it and report every 401 as a connection problem.
+  const { logout } = useAuth();
   useEffect(() => {
     setUnauthorizedCallback(() => {
+      logout().catch(() => {});
       router.replace('/');
     });
-  }, []);
+  }, [logout]);
 
   if (!fontsLoaded) return null;
 
@@ -107,6 +115,7 @@ export default function RootLayout() {
           <Stack.Screen name="journal" />
           <Stack.Screen name="assessment" options={TAB} />
           <Stack.Screen name="stats" />
+          <Stack.Screen name="notifications" />
           <Stack.Screen name="profile" options={TAB} />
           <Stack.Screen name="schedule" options={TAB} />
           <Stack.Screen name="journal-history" options={TAB} />

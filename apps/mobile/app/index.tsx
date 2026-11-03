@@ -165,7 +165,7 @@ const s = StyleSheet.create({
   // Hero
   heading: { alignItems: 'center', gap: 6, marginTop: 18, marginBottom: 24 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  logo: { width: 24, height: 24 },
+  logo: { width: 36, height: 36 },
   brandName: { fontSize: 15, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: 0.2 },
   heroTitle: { fontSize: 27, lineHeight: 34, fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -0.8, textAlign: 'center' },
 

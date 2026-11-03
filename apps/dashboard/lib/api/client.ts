@@ -16,7 +16,7 @@ export interface ApiRequestOptions extends Omit<RequestInit, 'body'> {
   body?: BodyInit | object | null;
 }
 
-function apiBaseUrl(): string {
+export function apiBaseUrl(): string {
   const configured = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
   if (configured) return configured;
   if (process.env.NODE_ENV !== 'production') return 'http://localhost:8000';

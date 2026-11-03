@@ -8,14 +8,16 @@
     "userInterfaceStyle": "light",
     "scheme": "sajiwa",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "id.ac.undip.sajiwa"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#E4E8EE"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "id.ac.undip.sajiwa"
     },
     "web": {
       "bundler": "metro",
@@ -24,7 +26,14 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#26356E",
+          "defaultChannel": "counseling"
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -32,7 +41,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#E4E8EE"
         }
-      ]
+      ],
+      "expo-status-bar"
     ]
   }
 }

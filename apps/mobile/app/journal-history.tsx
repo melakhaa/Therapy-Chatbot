@@ -271,7 +271,7 @@ export default function JournalHistoryScreen() {
           ListFooterComponent={
             pageCount > 1 ? (
               <Pagination page={current} count={pageCount} total={filtered.length} onChange={goToPage} />
-            ) : null
+            ) : undefined
           }
         />
       )}
