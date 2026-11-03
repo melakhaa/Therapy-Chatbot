@@ -31,8 +31,22 @@ class ResetOtpMailTests(unittest.TestCase):
         message = server.send_message.call_args.args[0]
         self.assertEqual(message["To"], "mahasiswa@students.undip.ac.id")
         self.assertEqual(message["From"], "Sajiwa <sajiwa@example.com>")
-        self.assertIn("634428", message.get_content())
-        self.assertIn("15 menit", message.get_content())
+        # Plain text for clients that show no HTML; both carry the code and its lifetime
+        for kind in ("plain", "html"):
+            body = message.get_body((kind,)).get_content()
+            self.assertIn("634428", body)
+            self.assertIn("15 menit", body)
+
+    def test_the_html_mail_carries_the_banner_inside_it(self):
+        # Gmail drops data: URIs and blocks remote images by default; an attached cid image shows
+        server = MagicMock()
+        with patch.dict(os.environ, SMTP_ENV), patch.object(mailer.smtplib, "SMTP") as smtp:
+            smtp.return_value.__enter__.return_value = server
+            mailer.send_reset_otp("mahasiswa@example.com", "634428")
+        message = server.send_message.call_args.args[0]
+        logo = next(part for part in message.walk() if part.get_content_type() == "image/png")
+        cid = logo["Content-ID"].strip("<>")
+        self.assertIn(f'src="cid:{cid}"', message.get_body(("html",)).get_content())
 
     def test_without_smtp_the_otp_goes_to_the_server_log_and_nothing_is_sent(self):
         env = {k: v for k, v in os.environ.items() if not k.startswith("SMTP_")}
