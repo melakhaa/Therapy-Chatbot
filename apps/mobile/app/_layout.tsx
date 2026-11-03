@@ -15,7 +15,7 @@ import {
 
 import * as SplashScreen from 'expo-splash-screen';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { ThemeProvider } from '@prototype/ui-shared';
+import { ThemeProvider, useAuth } from '@prototype/ui-shared';
 import { SajiwaColors } from '@prototype/ui-shared';
 import { AnimatedSplashScreen } from '../components/AnimatedSplashScreen';
 import { ToastProvider } from '../components/ui/Toast';
@@ -68,11 +68,16 @@ export default function RootLayout() {
     [pathname],
   );
 
+  // A rejected session (expired after 7 days, or its account gone) signs out everywhere, not
+  // just in storage: screens still holding the old user — the privacy sheet above all — would
+  // keep calling the API with it and report every 401 as a connection problem.
+  const { logout } = useAuth();
   useEffect(() => {
     setUnauthorizedCallback(() => {
+      logout().catch(() => {});
       router.replace('/');
     });
-  }, []);
+  }, [logout]);
 
   if (!fontsLoaded) return null;
 
