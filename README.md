@@ -12,7 +12,7 @@
 
 ### For Students (Mobile App)
 
-- **AI Chatbot**: Intelligent mental health companion using Semantic Router + RAG for context-aware support.
+- **AI Chatbot**: Intelligent mental health companion using Semantic Router + RAG for context-aware support. Answers about the corpus cite their source document; questions about the assistant itself are answered by a fixed reply, never generated.
 - **Automatic Stress Detection**: Real-time analysis of chat messages to detect emotional distress.
 - **Clinical Assessments**: Self-service PHQ-9, GAD-7, and SRQ assessments with immediate results.
 - **Self-Journaling**: Private mood tracking and daily reflections.

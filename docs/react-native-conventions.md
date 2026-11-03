@@ -28,4 +28,19 @@
 - Use `Pressable`/`TouchableOpacity` and `Text`/`View` — no HTML tags (`div`, `span`).
 - Keep animations on the UI thread with Reanimated worklets; don't animate with `setState` in a loop.
 
+## Streaming chat
+
+The reply arrives as SSE frames: one metadata frame first (`route`, `is_high_risk`), then one
+per token, then `[DONE]`. Two rules follow, both learned from bug reports:
+
+- **Clear `isTyping` on the first `token`, not on the first event.** The metadata frame lands in
+  ~80ms while the first token waits for retrieval and prompt processing (measured 4.3s warm, much
+  longer cold). Clearing on any event left the typing indicator and the `berpikir` face visible
+  for a blink, then a blank screen for the whole wait.
+- **Memoise message bubbles.** A streaming reply replaces its own message object on every token,
+  so the list re-renders hundreds of times per answer. Without `React.memo` every settled bubble
+  pays for its shadow and entering animation again each time — the
+  `VirtualizedList: … large list that is slow to update` warning. A slow emulator sharing CPU
+  with the local model makes that worse; check `ollama ps` before blaming the list.
+
 Related: [expo-conventions.md](expo-conventions.md), [react-conventions.md](react-conventions.md).

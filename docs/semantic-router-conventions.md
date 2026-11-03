@@ -88,9 +88,18 @@ utterances, not new branching logic.
   warm Bahasa Indonesia `SYSTEM_PROMPT`.
 - **rag** (`rag.py`) — factual mental-health questions; see
   [ollama-conventions.md](ollama-conventions.md) for retrieval + generation.
+- **provenance** (`provenance.py`) — "where did you get that?", "are you a psychologist?",
+  "do you have client experience?". Handler returns `provenance_reply()`, built from the
+  citations actually in `documents`; the model is never asked. Left to generation, it invented
+  a reading list and a client history.
 
 ## Conventions
 
+- **Two routes never reach the LLM**: `guardrail` (crisis) and `provenance` (where the
+  knowledge came from, and what the assistant is not). If an answer is something the model can
+  only guess at, make it a route with a fixed reply — a prompt rule was tried for provenance and
+  the 8B model rephrased the same invention ("aku telah membaca banyak buku pengembangan diri").
+  A fixed reply also answers instantly, without a 2-minute generation.
 - Keep one file per route; export the `Route` object and its handler.
 - `semantic_router` is a module-level singleton in `core.py` — don't rebuild per request.
 - `auto_sync="local"`; the router embeds every route utterance when it is constructed, so a dead
