@@ -1,5 +1,5 @@
 // The /realtime socket only ever says which area changed; pages refetch through the API.
-export const TOPICS = ['signals', 'requests', 'schedule'] as const;
+export const TOPICS = ['signals', 'requests', 'schedule', 'notifications'] as const;
 export type Topic = (typeof TOPICS)[number];
 export type Notice = { kind: 'ready' } | { kind: 'changed'; topic: Topic };
 

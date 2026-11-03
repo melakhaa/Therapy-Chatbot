@@ -5,6 +5,7 @@ import { readNotice, reconnectDelay, shouldReconnect } from './notice.ts';
 test('a change notice names one known area and nothing else is trusted', () => {
   assert.deepEqual(readNotice('{"type":"ready"}'), { kind: 'ready' });
   assert.deepEqual(readNotice('{"type":"changed","topic":"signals"}'), { kind: 'changed', topic: 'signals' });
+  assert.deepEqual(readNotice('{"type":"changed","topic":"notifications"}'), { kind: 'changed', topic: 'notifications' });
   assert.equal(readNotice('{"type":"changed","topic":"journals"}'), null);
   assert.equal(readNotice('{"type":"changed"}'), null);
   assert.equal(readNotice('not json'), null);

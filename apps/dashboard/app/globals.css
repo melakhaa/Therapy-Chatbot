@@ -548,6 +548,29 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-accent);
 .variant-subscales input { width: 1.1rem; height: 1.1rem; accent-color: var(--color-accent); }
 .variant-count { margin: 0; color: var(--color-text-muted); font-size: .85rem; }
 
+/* Notification bell: a count on the bell, a panel of recent items, unread ones marked */
+.notification-bell { position: relative; }
+.notification-bell > .icon-button { position: relative; }
+.notification-badge { position: absolute; top: -.2rem; right: -.25rem; min-width: 1.2rem; height: 1.2rem; padding: 0 .3rem; display: grid; place-items: center; border-radius: 999px; background: var(--color-danger); color: #fff; font-size: .68rem; font-weight: 800; line-height: 1; box-shadow: 0 0 0 2px var(--color-background); }
+.notification-panel { position: absolute; z-index: 70; top: calc(100% + .55rem); right: 0; width: min(24rem, calc(100vw - 2rem)); max-height: min(32rem, 70vh); display: flex; flex-direction: column; border: 1px solid var(--color-edge); border-radius: var(--radius-lg); background: var(--color-surface-raised); box-shadow: var(--shadow-surface); overflow: hidden; }
+.notification-panel header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .9rem 1rem .7rem; border-bottom: 1px solid var(--color-edge); }
+.notification-panel h2 { margin: 0; font-size: 1rem; }
+.notification-panel header small { color: var(--color-text-muted); font-size: .75rem; }
+.notification-panel .text-link-button { border: 0; padding: .3rem .2rem; background: transparent; color: var(--color-accent); font-weight: 700; font-size: .8rem; cursor: pointer; }
+.notification-panel ul { margin: 0; padding: .35rem; list-style: none; overflow-y: auto; }
+.notification-item { width: 100%; display: flex; align-items: flex-start; gap: .7rem; padding: .7rem .65rem; border: 0; border-radius: var(--radius-sm); background: transparent; text-align: left; cursor: pointer; color: var(--color-text-muted); }
+.notification-item:hover, .notification-item:focus-visible { background: var(--color-surface-muted); }
+.notification-item.unread { color: var(--color-text); }
+.notification-item.unread strong { font-weight: 800; }
+.notification-dot { flex: none; width: .55rem; height: .55rem; margin-top: .4rem; border-radius: 999px; background: transparent; }
+.notification-item.unread .notification-dot { background: var(--color-accent); }
+.notification-item.unread .notification-safety, .notification-item.unread .notification-assessment { background: var(--color-danger); }
+.notification-text { display: grid; gap: .15rem; min-width: 0; }
+.notification-text strong { font-size: .86rem; font-weight: 650; overflow-wrap: anywhere; }
+.notification-text span { font-size: .8rem; line-height: 1.4; overflow-wrap: anywhere; }
+.notification-text small { font-size: .72rem; color: var(--color-text-muted); }
+.notification-empty { margin: 0; padding: 1.4rem 1rem; color: var(--color-text-muted); font-size: .85rem; text-align: center; }
+
 @page { size:A4 portrait;margin:14mm; }
 @media print {
   :root,[data-theme="dark"]{color-scheme:light;--color-background:#fff;--color-surface:#fff;--color-surface-muted:#f3f6f6;--color-text:#1c2447;--color-text-muted:#4e5876;--color-edge:#ccd8d7;--shadow-inset:none;--color-border:#ccd8d7;--shadow-surface:none}
