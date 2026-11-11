@@ -107,7 +107,8 @@ the first.
 
 **E2E** — a browser journey a student or counselor would recognise, and only that. If a
 check can be made at a lower tier, it belongs there: a browser test is the slowest, flakiest
-thing you can write.
+thing you can write. Journeys live here but drive the standalone dashboard, which must be
+running from its own checkout on port 3000 against this repo's API.
 
 ## Where each tier lives
 
@@ -157,6 +158,9 @@ gets its own line.
 - The dashboard has no integration tier: its modules import through the `@/` alias, which
   Node cannot resolve without an extra loader. Its boundary is covered by the browser tier
   instead.
-- Mobile has no browser tier. `react-native-web` is not the native app, and the student
-  journeys are covered at the API boundary; add one only when a mobile-only bug slips past.
+- Mobile has no browser tier. Expo web (`npm run web` in `apps/mobile`) is available for
+  manual end-to-end checks against the backend, but `react-native-web` is not the native
+  app and no browser suite runs it. Student journeys stay covered at the API boundary; add
+  a browser tier only when a mobile-only bug slips past. Manual web checks did catch a
+  web-only `Platform.constants` crash, so guard native-only APIs when touching shared UI.
 - No CI, by design. If that changes, the three tier commands above are the whole pipeline.

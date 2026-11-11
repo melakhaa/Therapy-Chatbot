@@ -21,6 +21,15 @@ Core React Native rules live in [react-native-conventions.md](react-native-conve
 | `@expo/vector-icons` | icons |
 | `expo-haptics`, `expo-linking` | haptics, deep links |
 
+## Web build
+
+`npm run web` runs the same React Native screens through `react-native-web`. It is a
+manual verification surface against the backend, not a release target and not a test tier.
+Guard APIs that exist only on native (for example `Platform.constants` in
+`components/NotificationSettings.tsx`) so a web check can render the app instead of
+crashing at import. Set `EXPO_PUBLIC_API_URL` as for native, using an origin the browser
+can reach.
+
 ## `app.json` config
 
 - Plugins and deep-link configuration are defined by `apps/mobile/app.json`.
