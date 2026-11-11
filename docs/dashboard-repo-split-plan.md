@@ -33,7 +33,8 @@ Next: review draft PR #49, start the shared backend/database, verify both client
 - After Docker restarted, the complete integration suite passed all 102 assertions, including real Ollama chat streaming and the separate RLS self-check. The earlier streaming `generation_failed` was transient during the stack restart, not reproduced. Fixed the smoke runner's secondary crash when a first-token timestamp is missing so a future timeout reports FAIL instead of a `TypeError`.
 - Browser proof: signed in as admin, opened the real dashboard WebSocket, then submitted a severe PHQ-9 as the seeded student through the API. The socket received `ready`, a `notifications` change and a `signals` change. Temporary assessment, guardrail log and notification were deleted afterwards.
 - Mobile runs the same API client and was covered at the API boundary. A native device/emulator run was unavailable, and Expo web crashed in pre-existing `components/NotificationSettings.tsx` because `Platform.constants` is undefined on web. That web-only failure was not patched inside this repository split.
-- Remaining checks: native mobile ↔ dashboard UI journey, live browser reconnect/polling recovery, and deployed WSS/TLS proxy behavior. The dashboard security fix is merged. Merge PR #49 after reviewing these residuals.
+- Reconnect proof: while the monitoring page stayed open, the API was stopped and restarted. The page kept its heading and refetched its monitoring data after recovery, proving socket reconnect/resync or polling fallback. Unit tests also cover reconnect pacing and refused-session behavior.
+- Remaining checks: native mobile ↔ dashboard UI journey (no device/emulator available) and deployed WSS/TLS proxy behavior. The dashboard security fix and verification docs are merged. Merge PR #49 after accepting those residuals.
 
 ## Goal
 
