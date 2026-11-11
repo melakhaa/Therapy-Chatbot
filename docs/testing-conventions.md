@@ -35,20 +35,18 @@ to one of them, and a new seam gets added here (with its trade-off) before the t
 | FastAPI route contract (`/auth`, `/assessment`, `/journal`, `/chat`, `/booking`) | unit (stubbed `core.db`) | request/response shape, role gates, validation | real SQL, triggers, RLS |
 | `core/dass21.py` — `score_dass21`, `classify_dass21`, `normalize_subscales` | unit | scoring, bands, category mapping, whole-subscale variants | persistence, wiring |
 | `/realtime` WebSocket (`routes/realtime.py`), `publish()` standing in for the DB listener | unit (stubbed `core.db`) | token-in-first-message handshake, staff-only gate, table→area map, expiry close | the LISTEN thread, the triggers |
-| `lib/realtime/notice.ts` (dashboard) | unit | which socket messages are trusted, reconnect pacing, refused sessions not retried | socket lifecycle, page refetch |
 | `core/mailer.py` — `send_reset_otp` (smtplib replaced) | unit | the reset mail's recipient and content, the SMTP handshake, the dev log fallback, a failure that never logs the code | real delivery, spam filtering |
 | `services/chatbot/guardrail.py` — `is_crisis`, `strip_profanity` | unit | deterministic crisis detection | model tone and routing |
 | `services/chatbot/rag.py` — `build_messages`, `_source_label` | unit | the citation reaching the prompt, filename fallback for an uncited chunk | retrieval quality, whether the model obeys the instruction |
 | `services/chatbot/provenance.py` — `provenance_reply` | unit | which documents get named, the "AI, not a psychologist, no clients" claim, the empty-corpus fallback | fuzzy routing into this route, model behaviour on a miss |
 | `services/chatbot/` history assembly | unit | prompt budget, crisis filtering, ordering | real model output |
 | The live API over HTTP and `/realtime` (incl. `db/test_rls.sql`) | integration | real SQL, triggers (incl. who is notified of what), change notices, encryption at rest, RLS, Ollama | anything in the UI |
-| `features/<domain>/model.ts` (dashboard) | unit | directory filters, draft validation, publish gate, priority ordering | rendering, fetch |
-| `lib/notifications/model.ts` (dashboard) | unit | admin/counselor rows as one item, moved admin paths, badge, relative time | the panel, fetch |
 | `nearestSession`, `reminderPlan`, `freshAlerts`, `notificationTips`, `calendarDates`, `packages/utils` exports | unit | time/TZ math, session reminders, which inbox items get a banner, per-brand delivery advice, stress score, reactions | app screens, the OS scheduling and drawing them |
 | Dashboard journeys (`e2e/scenarios`) | e2e | sign-in, routing, a page rendering with real data | everything not asserted |
 
-Two seams are honest gaps rather than choices: `lib/api/client` has no tier because Node
-cannot resolve the dashboard's `@/` alias, and the mobile screens have no browser tier (see
+Dashboard unit seams and test rules live in
+[sajiwa-dashboard/docs/testing-conventions.md](https://github.com/melakhaa/sajiwa-dashboard/blob/main/docs/testing-conventions.md).
+One seam here is an honest gap: the mobile screens have no browser tier (see
 [Known gaps](#known-gaps)).
 
 ## Rules that bite in this repo
@@ -155,9 +153,6 @@ gets its own line.
 
 - `packages/api-client` and `packages/ui-shared` have no unit tier. `storage.ts` imports
   React Native, so it needs a module shim before it can run under plain Node.
-- The dashboard has no integration tier: its modules import through the `@/` alias, which
-  Node cannot resolve without an extra loader. Its boundary is covered by the browser tier
-  instead.
 - Mobile has no browser tier. Expo web (`npm run web` in `apps/mobile`) is available for
   manual end-to-end checks against the backend, but `react-native-web` is not the native
   app and no browser suite runs it. Student journeys stay covered at the API boundary; add

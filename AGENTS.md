@@ -3,10 +3,10 @@
 **Sajiwa** — AI mental health support for university students and counselors. Students use an
 Expo app (AI chat, stress detection, PHQ-9/GAD-7/SRQ + the versioned DASS-21 instrument,
 journaling); counselors/admins use a Next.js dashboard (risk monitoring, analytics, booking,
-instrument authoring) in the separate `melakhaa/sajiwa-dashboard` repository. This npm-workspace
-monorepo holds the mobile app, the FastAPI backend
-(Python 3.12), and the shared TypeScript packages; Docker runs PostgreSQL 17 + pgvector, Ollama
-provides the local LLM/embeddings.
+instrument authoring) in the separate `melakhaa/sajiwa-dashboard` repository. This
+npm-workspace monorepo holds the mobile app, the FastAPI backend (Python 3.12), and the
+shared TypeScript packages; Docker runs PostgreSQL 17 + pgvector, Ollama provides the local
+LLM/embeddings.
 
 **Work test-first.** Every change to behaviour starts with a failing test, at the lowest
 applicable tier, at one of the agreed seams. The `tdd` skill (`.agents/skills/tdd/`) is
@@ -43,4 +43,4 @@ Each app, package, and `db/` also has a local `AGENTS.md` — read it when worki
 - Docker / local infra → [docs/docker-conventions.md](docs/docker-conventions.md)
 - Git, commits, PRs → [docs/git-conventions.md](docs/git-conventions.md) — Conventional Commits, atomic per-feature commits, no AI co-author trailers.
 - Security: JWT, RBAC, encryption, secrets → [docs/security-conventions.md](docs/security-conventions.md)
-- Next.js dashboard (separate repo) → [docs/nextjs-conventions.md](docs/nextjs-conventions.md), [sajiwa-dashboard](https://github.com/melakhaa/sajiwa-dashboard)
+- Next.js dashboard (separate repo) → [sajiwa-dashboard docs](https://github.com/melakhaa/sajiwa-dashboard/tree/main/docs), [repository](https://github.com/melakhaa/sajiwa-dashboard)
