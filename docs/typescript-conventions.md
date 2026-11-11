@@ -4,7 +4,7 @@ All frontend/package code is **TypeScript 5.9** with `"strict": true`.
 
 ## Config
 
-- `apps/mobile/tsconfig.json` extends `expo/tsconfig.base`; `apps/dashboard/tsconfig.json` is
+- `apps/mobile/tsconfig.json` extends `expo/tsconfig.base`; the standalone dashboard's `tsconfig.json` is
   standalone Next.js config (`jsx: react-jsx`, `moduleResolution: bundler`).
 - `@/*` resolves relative to the app root (e.g. `@/components/themed-text`, `@/constants/theme`).
 - Shared packages have **no tsconfig and no build step**: `main` points at `src/index.ts`
@@ -21,4 +21,4 @@ All frontend/package code is **TypeScript 5.9** with `"strict": true`.
 - `import type { ... }` for type-only imports.
 - Files: components `PascalCase.tsx`, hooks/utilities `camelCase.ts`, barrels `index.ts`.
 - Avoid `enum`; use string-literal unions to match Pydantic `Literal`s on the backend.
-- Dashboard lint: ESLint 9 flat config with `eslint-config-next`, run via `npm run dashboard:lint`.
+- Dashboard lint: ESLint 9 flat config with `eslint-config-next`, run via `npm run lint` in `sajiwa-dashboard`.

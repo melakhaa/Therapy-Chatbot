@@ -21,7 +21,7 @@
 - Presentational components in `components/`; feature folders (`components/chat/`, `components/home/`)
   re-export via `index.ts`.
 - Mobile screens own data-fetching (via `@prototype/api-client`); dashboard features fetch through
-  `apps/dashboard/lib/api/client.ts`. Pass props down.
+  `lib/api/client.ts` in the standalone `sajiwa-dashboard` repository. Pass props down.
 - Prefer composition/props over inheritance or render-prop gymnastics; no class components.
 
 Related: [react-native-conventions.md](react-native-conventions.md), [react-native-ui-conventions.md](react-native-ui-conventions.md).

@@ -114,11 +114,16 @@ thing you can write.
 | Tier | Location | Runner |
 |------|----------|--------|
 | Unit (backend) | `apps/backend/tests/unit/*.py` | `unittest discover -s tests/unit` |
-| Unit (dashboard) | `apps/dashboard/{lib,features}/**/*.test.ts` | `node --test` + type stripping |
+| Unit (dashboard, separate repo) | `sajiwa-dashboard/{lib,features}/**/*.test.ts` | `npm test` in that repository |
 | Unit (mobile, packages) | `*.test.ts` beside the source | `node --test` + type stripping |
 | Integration (API) | `apps/backend/tests/integration/stack_smoke.py` | `tests/integration/run.sh` |
 | Integration (RLS) | `db/test_rls.sql` | same script, via `docker exec psql` |
 | E2E (dashboard) | `e2e/scenarios/*.mjs` | `e2e/run.mjs` → `betterwright run` |
+
+The dashboard now lives in [sajiwa-dashboard](https://github.com/melakhaa/sajiwa-dashboard).
+Run its unit tests there; this repository's `npm test` covers mobile, shared packages, and
+backend only. Browser journeys remain here and target the independently running dashboard
+on port 3000 and backend on port 8000; no sibling source checkout is required by unit tests.
 
 Every workspace exposes `test:unit`, so the root command is
 `npm run test:unit --workspaces --if-present && npm run backend:test:unit`. A new workspace

@@ -1,7 +1,8 @@
 # Next.js conventions
 
-The admin dashboard is **Next.js 16 (App Router)** in `apps/dashboard` (workspace
-`@sajiwa/dashboard`): React 19, TypeScript 5.9, Tailwind CSS 4, ESLint 9 (`eslint-config-next`).
+The admin dashboard is **Next.js 16 (App Router)** in the separate
+[melakhaa/sajiwa-dashboard](https://github.com/melakhaa/sajiwa-dashboard) repository
+(package `@sajiwa/dashboard`): React 19, TypeScript 5.9, Tailwind CSS 4, ESLint 9 (`eslint-config-next`).
 No React Native or Expo here.
 
 ## Structure
@@ -19,14 +20,14 @@ types/               shared types
 
 ## Commands
 
-Run from the repo root:
+Run from the standalone dashboard repository root (not Therapy-Chatbot):
 
 ```bash
-npm run dashboard:dev
-npm run dashboard:typecheck
-npm run dashboard:lint
-npm run dashboard:test
-npm run dashboard:build
+npm run dev
+npm run typecheck
+npm run lint
+npm test
+npm run build
 ```
 
 Tests are node's built-in runner on colocated `*.test.ts` — no test framework. Gates before
