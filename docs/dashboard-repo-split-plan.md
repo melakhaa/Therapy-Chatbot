@@ -24,6 +24,15 @@ Status: standalone extraction and original-repository cleanup complete on `chore
 
 Next: review draft PR #49, start the shared backend/database, verify both client directions and realtime recovery, and address deployment blockers before merge/deployment. The new repository's README contains setup and manual acceptance steps.
 
+## Pre-merge follow-up
+
+- Dashboard security fix: [sajiwa-dashboard PR #1](https://github.com/melakhaa/sajiwa-dashboard/pull/1), commit `ed86d9b`. Next.js/eslint-config-next 16.4.6; `npm audit --omit=dev` reports zero vulnerabilities (7 moderate dev-only findings remain).
+- Added a production-header regression test, observed failing before the CSP fix. The configured API's exact WS/WSS origin is now allowed without production socket wildcards. All 100 dashboard unit tests, clean install, typecheck, lint, and build pass. Chromium rendered the production login page and verified its actual HTTPS/WSS CSP header.
+- Docker became available and the local API was started. Live smoke passed 69 assertions, including student assessments reaching staff realtime notices and staff scheduling changes reaching student notifications. These are API-level checks, not proof of native mobile UI behavior.
+- Both existing dashboard browser journeys passed (login and monitoring). The separate database RLS self-check passed.
+- Full integration is **failing**, not skipped: AI streaming returned `generation_failed`; the existing smoke runner then crashed formatting a `None` first-token time. Its test data was explicitly cleaned up and all instrument/user/orphan cleanup checks passed.
+- Remaining merge/deployment checks: native mobile ↔ dashboard UI journeys, live browser reconnect/polling recovery, and deployed WSS/TLS proxy behavior. Merge the companion security PR before deployment. Do not mark the migration fully verified yet.
+
 ## Goal
 
 Move the Next.js dashboard into an independently installable and runnable repository, while keeping the mobile app working in the current repository.
