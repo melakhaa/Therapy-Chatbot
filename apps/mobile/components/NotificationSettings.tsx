@@ -11,8 +11,9 @@ import { notificationTips } from '../hooks/notificationTips';
 import { Button, useToast } from './ui';
 
 // Android reports the maker (e.g. "Xiaomi"); iOS has none to report
-const brand = (Platform.constants as { Brand?: string; Manufacturer?: string }).Brand
-  ?? (Platform.constants as { Manufacturer?: string }).Manufacturer ?? null;
+// Platform.constants is undefined on web, where this card renders nothing.
+const brand = (Platform.constants as { Brand?: string; Manufacturer?: string } | undefined)?.Brand
+  ?? (Platform.constants as { Manufacturer?: string } | undefined)?.Manufacturer ?? null;
 
 export function NotificationSettings() {
   const { colors } = useTheme();
