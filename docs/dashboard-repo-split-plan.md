@@ -30,8 +30,10 @@ Next: review draft PR #49, start the shared backend/database, verify both client
 - Added a production-header regression test, observed failing before the CSP fix. The configured API's exact WS/WSS origin is now allowed without production socket wildcards. All 100 dashboard unit tests, clean install, typecheck, lint, and build pass. Chromium rendered the production login page and verified its actual HTTPS/WSS CSP header.
 - Docker became available and the local API was started. Live smoke passed 69 assertions, including student assessments reaching staff realtime notices and staff scheduling changes reaching student notifications. These are API-level checks, not proof of native mobile UI behavior.
 - Both existing dashboard browser journeys passed (login and monitoring). The separate database RLS self-check passed.
-- Full integration is **failing**, not skipped: AI streaming returned `generation_failed`; the existing smoke runner then crashed formatting a `None` first-token time. Its test data was explicitly cleaned up and all instrument/user/orphan cleanup checks passed.
-- Remaining merge/deployment checks: native mobile ↔ dashboard UI journeys, live browser reconnect/polling recovery, and deployed WSS/TLS proxy behavior. Merge the companion security PR before deployment. Do not mark the migration fully verified yet.
+- After Docker restarted, the complete integration suite passed all 102 assertions, including real Ollama chat streaming and the separate RLS self-check. The earlier streaming `generation_failed` was transient during the stack restart, not reproduced. Fixed the smoke runner's secondary crash when a first-token timestamp is missing so a future timeout reports FAIL instead of a `TypeError`.
+- Browser proof: signed in as admin, opened the real dashboard WebSocket, then submitted a severe PHQ-9 as the seeded student through the API. The socket received `ready`, a `notifications` change and a `signals` change. Temporary assessment, guardrail log and notification were deleted afterwards.
+- Mobile runs the same API client and was covered at the API boundary. A native device/emulator run was unavailable, and Expo web crashed in pre-existing `components/NotificationSettings.tsx` because `Platform.constants` is undefined on web. That web-only failure was not patched inside this repository split.
+- Remaining checks: native mobile ↔ dashboard UI journey, live browser reconnect/polling recovery, and deployed WSS/TLS proxy behavior. The dashboard security fix is merged. Merge PR #49 after reviewing these residuals.
 
 ## Goal
 

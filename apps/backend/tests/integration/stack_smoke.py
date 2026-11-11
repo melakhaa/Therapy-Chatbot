@@ -389,7 +389,7 @@ check("stream terminates with [DONE]", bool(frames) and frames[-1] == "[DONE]",
       frames[-1] if frames else None)
 check("tokens keep arriving after the first",
       first_ms is not None and total_ms and (total_ms - first_ms) > 1000,
-      f"first={first_ms:.0f}ms total={total_ms:.0f}ms")
+      f"first={first_ms}ms total={total_ms}ms")
 rows = sql("select count(*) from messages where session_id = %s", (f"stream-{SFX}",))
 check("streamed turn persisted after completion", rows[0][0] >= 2, rows)
 
