@@ -15,7 +15,7 @@ CRISIS_PHRASES = (
     # ending life
     "bunuh diri", "bunuhdiri", "bunuh diriku", "membunuh diriku", "bunuh diri ku",
     "akhiri hidup", "akhiri hidupku", "mengakhiri hidup", "mengakhiri semuanya",
-    "akhiri semuanya", "akhir segalanya", "sudahi hidupku",
+    "akhiri semuanya", "menyudahi semuanya", "akhir segalanya", "sudahi hidupku",
     "mati aja", "mau mati", "ingin mati", "pengen mati", "pengin mati", "pgn mati",
     "mau meninggal", "ingin meninggal", "pengen meninggal",
     "mending mati", "mendingan mati", "lebih baik mati", "lebih baik aku mati",
@@ -26,12 +26,14 @@ CRISIS_PHRASES = (
     "gantung diri", "menggantung diri",
     "loncat dari gedung", "melompat dari gedung", "loncat dari jembatan",
     "lompat dari gedung", "terjun dari gedung",
+    "loncat dari balkon", "lompat dari balkon", "loncat dari atap", "terjun dari atap",
     # active self-harm
     "menyakiti diri", "menyakiti diriku", "melukai diri", "melukai diriku",
     "nyakitin diri", "nyakiti diri", "sakiti diri", "nyakitin diri sendiri",
     "self harm", "selfharm", "nyayat", "menyayat", "mengiris tangan", "nyayat tangan",
     "pegang pisau", "memegang pisau", "pegang gunting", "pegang silet", "pegang obat",
     "minum obat banyak", "minum obat berlebihan", "minum obat sekaligus",
+    "minum semua obat", "minum semua pil", "minum seluruh obat",
     "overdosis", "overdose", "minum racun",
     # harm to others
     "membunuh orang", "mau membunuh", "ingin membunuh", "membunuh seseorang",
@@ -39,6 +41,13 @@ CRISIS_PHRASES = (
     # colloquial / slang (variants collapse in _normalize, one form each is enough)
     "cabut nyawa", "kebelet mati", "capek hidup", "cape hidup", "ujung tanduk",
     "nggak mau bangun lagi", "udah nyerah",
+    # implicit ideation: no explicit act, but the wish to be gone is the same
+    "hidupku tidak ada artinya", "hidup tidak ada artinya", "tidak ada artinya hidup",
+    "hidup tidak berarti", "hidupku tidak berarti", "tidak berarti hidup",
+    "hidup ini tidak berarti", "hidup ini tidak ada artinya",
+    "mending aku tidak ada", "mendingan aku tidak ada", "lebih baik aku tidak ada",
+    "pengen ngilang", "ingin ngilang", "pengen menghilang", "ingin menghilang",
+    "tidak bangun lagi", "tidak mau bangun lagi",
 )
 
 # Leet/alay folds, applied before phrase matching ("bunuh d1r1" → "bunuh diri").
@@ -109,8 +118,22 @@ def strip_profanity(text: str) -> str:
     Pure-curse input becomes "" (the caller replies PROFANITY_REPLY); mixed input keeps
     its content minus the cursing so the model cannot mirror it back. Whole-token
     matching only — everyday words that merely contain a token are untouched.
+
+    Text with nothing to drop is returned exactly as typed. This function runs before
+    retrieval on every turn, so the crisis `_normalize()` (run-collapsing, slang) must
+    not rewrite ordinary words: it turned "gangguan" into "ganguan" and "SSRI" into
+    "sri", changing what RAG searched for.
     """
-    return " ".join(word for word in _normalize(text).split() if word not in _DROP)
+    tokens = text.split()
+    kept = []
+    for token in tokens:
+        word = token.strip(".,!?;:\"'()[]{}")
+        leet = word.lower().translate(_LEET)
+        if {word.lower(), leet, re.sub(r"(.)\1+", r"\1", leet)} & _DROP:
+            continue
+        kept.append(word)
+    # Return the original string unless a token was actually removed.
+    return text if len(kept) == len(tokens) else " ".join(kept)
 
 guardrail_route = Route(
     name="guardrail",
@@ -125,7 +148,6 @@ guardrail_route = Route(
         "saya mau menghilang selamanya",
         "saya ingin membunuh seseorang",
         "saya mau menyakiti orang lain",
-        "saya ingin melukai keluarga saya",
         "saya sedang memegang pisau",
         "saya sudah minum obat banyak",
         "tolong saya mau mati sekarang",
@@ -139,11 +161,13 @@ guardrail_route = Route(
         "aku pengen nyakitin diri sendiri",
         "saya berencana mengakhiri semuanya",
         "aku gak mau hidup lagi",
-        # colloquial
+        # colloquial. "capek hidup" and "melukai keluarga" are deliberately absent as
+        # route utterances: the deterministic gate already catches them, and as utterances
+        # they pulled ordinary messages ("capek menghadapi tugas", "ingin pulang bertemu
+        # keluarga") into the crisis route at ~0.51-0.56.
         "gw pengen mati aja",
         "udah gak kuat idup",
         "rasanya mau nyakitin diri",
-        "aku capek hidup",
         "mau cabut nyawa",
         "gw udah nyerah semuanya",
         "nggak mau bangun lagi",

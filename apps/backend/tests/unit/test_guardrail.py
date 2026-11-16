@@ -42,6 +42,25 @@ class ProfanityStripTests(unittest.TestCase):
         # stripping runs after the crisis gate; the hotline card must still fire
         self.assertTrue(is_crisis("anjing, gw mau mati"))
 
+    def test_clean_text_and_medical_terms_survive_untouched(self):
+        # The strip runs on every chat turn, before retrieval. Rewriting "SSRI" to "sri"
+        # or "gangguan" to "ganguan" silently changes what RAG searches for.
+        for text in [
+            "berapa dosis SSRI untuk minggu pertama?",
+            "apa fungsi kuesioner PHQ-9?",
+            "jelaskan gangguan kecemasan menyeluruh",
+            "aku makan bakso",
+            "",
+        ]:
+            with self.subTest(text=text):
+                self.assertEqual(strip_profanity(text), text)
+
+    def test_drops_curses_without_touching_the_rest_of_the_words(self):
+        self.assertEqual(
+            strip_profanity("gangguan tidur, anjing, makin parah"),
+            "gangguan tidur makin parah",
+        )
+
 
 class CrisisDetectionTests(unittest.TestCase):
     def test_detects_explicit_crisis(self):
@@ -77,6 +96,26 @@ class CrisisDetectionTests(unittest.TestCase):
         ]:
             with self.subTest(text=text):
                 self.assertTrue(is_crisis(text))
+
+    def test_detects_implicit_wish_to_disappear(self):
+        # No explicit "bunuh diri" wording, but the meaning is the same. Missing these is
+        # the failure mode docs/semantic-router-conventions.md warns about.
+        for text in [
+            "Hidupku gak ada artinya, mending aku gak ada.",
+            "Hidup ini gak berarti buatku.",
+            "aku pengen ngilang aja",
+            "aku ingin menghilang selamanya",
+            "Aku pengen nggak bangun lagi besok.",
+            "Rasanya aku mau loncat dari balkon kos.",
+            "Aku udah minum semua obat di lemari.",
+        ]:
+            with self.subTest(text=text):
+                self.assertTrue(is_crisis(text))
+
+    def test_ordinary_exhaustion_is_not_a_crisis(self):
+        for text in ["aku capek banget", "aku capek ngerjain tugas", "lagi sedih hari ini"]:
+            with self.subTest(text=text):
+                self.assertFalse(is_crisis(text))
 
     def test_does_not_fire_on_everyday_phrases(self):
         # A false positive shows the crisis sheet over an ordinary chat, so these matter
