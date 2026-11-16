@@ -108,6 +108,8 @@ class CrisisDetectionTests(unittest.TestCase):
             "Aku pengen nggak bangun lagi besok.",
             "Rasanya aku mau loncat dari balkon kos.",
             "Aku udah minum semua obat di lemari.",
+            "Aku sudah menyiapkan tali di kamar.",
+            "Aku pengen nyudahi semuanya sekarang.",
         ]:
             with self.subTest(text=text):
                 self.assertTrue(is_crisis(text))

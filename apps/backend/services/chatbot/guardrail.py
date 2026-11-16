@@ -15,7 +15,8 @@ CRISIS_PHRASES = (
     # ending life
     "bunuh diri", "bunuhdiri", "bunuh diriku", "membunuh diriku", "bunuh diri ku",
     "akhiri hidup", "akhiri hidupku", "mengakhiri hidup", "mengakhiri semuanya",
-    "akhiri semuanya", "menyudahi semuanya", "akhir segalanya", "sudahi hidupku",
+    "akhiri semuanya", "menyudahi semuanya", "nyudahi semuanya", "akhir segalanya",
+    "sudahi hidupku",
     "mati aja", "mau mati", "ingin mati", "pengen mati", "pengin mati", "pgn mati",
     "mau meninggal", "ingin meninggal", "pengen meninggal",
     "mending mati", "mendingan mati", "lebih baik mati", "lebih baik aku mati",
@@ -23,7 +24,7 @@ CRISIS_PHRASES = (
     "gak pengen hidup", "gak ingin hidup", "tidak ingin hidup",
     "tidak kuat hidup", "gak kuat hidup", "nggak kuat hidup", "udah gak kuat hidup",
     "tidak sanggup hidup", "gak sanggup hidup", "gak sanggup lagi",
-    "gantung diri", "menggantung diri",
+    "gantung diri", "menggantung diri", "menyiapkan tali", "siapkan tali",
     "loncat dari gedung", "melompat dari gedung", "loncat dari jembatan",
     "lompat dari gedung", "terjun dari gedung",
     "loncat dari balkon", "lompat dari balkon", "loncat dari atap", "terjun dari atap",

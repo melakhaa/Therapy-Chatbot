@@ -434,6 +434,15 @@ for msg in ("halo apa kabar", "aku capek banget sama tugas kuliah"):
     s, r = call("POST", "/guardrail/check", {"message": msg}, stu_tok)
     check(f"no false positive: {msg[:34]}", s == 200 and r.get("is_high_risk") is False, (s, r))
 
+print("== report to team (crisis sheet) ==")
+s, r = call("POST", "/chat/report", {"session_id": f"rep-{SFX}"}, stu_tok)
+check("report endpoint accepts the crisis-sheet request", s == 200 and r.get("status") == "reported", (s, r))
+report = sql("select triggered_input from guardrail_logs where session_id = %s and user_id = %s",
+             (f"rep-{SFX}", stu_id))
+check("report logged with the fixed text and no chat content",
+      bool(report) and report[0][0] == "[LAPORAN PENGGUNA] Minta dihubungi tim dari modal krisis",
+      report)
+
 print("== RLS isolation between two students ==")
 other_email = f"stu2{SFX}@example.com"
 s, r = call("POST", "/auth/register", {"email": other_email, "password": stu_pw, "name": "Stu2"})
