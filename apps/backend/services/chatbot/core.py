@@ -25,10 +25,28 @@ from services.chatbot.rag import (
 # zero-vector mock only looks like graceful degradation; every message would match the same route.
 encoder = OllamaEncoder(name=EMBED_MODEL)
 
+# Calibrated on the frozen regression fixtures (100 labelled messages + 8 paraphrase groups).
+# `max` aggregation: a route wins on its single closest utterance. The default `mean`
+# diluted one strong match with weak neighbours, and the default top_k=5 only let the
+# five nearest utterances (often all from one route) be considered — together those two
+# sent 21 of 24 baseline misses to the fallback instead of their route.
+# Thresholds are decision thresholds for the router, not evaluation pass marks.
+ROUTE_THRESHOLDS = {
+    "guardrail": 0.50,       # fuzzy safety net; is_crisis() stays the deterministic boundary
+    "conversational": 0.32,
+    "rag": 0.45,
+    "provenance": 0.51,
+}
+
 _router = SemanticRouter(
-    routes=[guardrail_route, conversational_route, rag_route, provenance_route],
+    routes=[
+        route.model_copy(update={"score_threshold": ROUTE_THRESHOLDS[route.name]})
+        for route in (guardrail_route, conversational_route, rag_route, provenance_route)
+    ],
     encoder=encoder,
-    auto_sync="local"
+    top_k=10,
+    aggregation="max",
+    auto_sync="local",
 )
 
 

@@ -10,6 +10,7 @@ import os
 import sys
 import types
 import unittest
+import unittest.mock
 
 os.environ.setdefault("JWT_SECRET", "isolated-rag-citation-test-key-not-for-real")
 
@@ -30,8 +31,11 @@ import services.chatbot.rag as rag  # noqa: E402
 
 class RagCitationTests(unittest.TestCase):
     def _system_prompt(self, metadata):
-        rag.retrieve_docs = lambda *a, **k: [{"content": "GEJALA MAYOR DAN MINOR", "metadata": metadata}]
-        messages = build_messages("apa itu depresi?")
+        # Patch only for this call: leaving a stub behind used to poison every later test.
+        with unittest.mock.patch.object(
+            rag, "retrieve_docs", lambda *a, **k: [{"content": "GEJALA MAYOR DAN MINOR", "metadata": metadata}]
+        ):
+            messages = build_messages("apa itu depresi?")
         self.assertIsNotNone(messages, "retrieval returned a chunk, so a prompt must exist")
         return messages[0].content
 
@@ -51,3 +55,38 @@ class RagCitationTests(unittest.TestCase):
     def test_tells_the_model_to_name_the_source_when_answering(self):
         prompt = self._system_prompt({"source": "a.docx", "chunk": 0, "citation": "Laporan A (2024)"})
         self.assertIn("sumber", prompt.lower())
+
+
+class RetrieveDocsTests(unittest.TestCase):
+    """Retrieval must keep a sentence that crossed a chunk boundary reachable."""
+
+    def test_returns_the_hit_chunk_with_a_slice_of_its_neighbours(self):
+        rows = [{
+            "id": 7, "similarity": 0.61, "metadata": {"source": "a.docx", "chunk": 3},
+            "before": "kalimat sebelumnya.", "content": "ISI YANG DICARI",
+            "after": "kalimat sesudahnya.",
+        }]
+        rag.query = lambda *a, **k: rows
+        docs = rag.retrieve_docs("pertanyaan")
+        self.assertEqual(len(docs), 1)
+        self.assertIn("ISI YANG DICARI", docs[0]["content"])
+        self.assertIn("kalimat sebelumnya.", docs[0]["content"])
+        self.assertIn("kalimat sesudahnya.", docs[0]["content"])
+        # The contract the API and prompt rely on is unchanged.
+        self.assertEqual(docs[0]["similarity"], 0.61)
+        self.assertEqual(docs[0]["metadata"], {"source": "a.docx", "chunk": 3})
+
+    def test_a_missing_neighbour_is_not_an_error(self):
+        rag.query = lambda *a, **k: [{
+            "id": 1, "similarity": 0.5, "metadata": {"source": "a.docx", "chunk": 0},
+            "before": None, "content": "ISI", "after": None,
+        }]
+        self.assertEqual(rag.retrieve_docs("pertanyaan")[0]["content"], "ISI")
+
+    def test_neighbour_slices_are_bounded(self):
+        rag.query = lambda *a, **k: [{
+            "id": 1, "similarity": 0.5, "metadata": {"source": "a.docx", "chunk": 1},
+            "before": "b" * 1000, "content": "ISI", "after": "a" * 1000,
+        }]
+        content = rag.retrieve_docs("pertanyaan")[0]["content"]
+        self.assertLessEqual(len(content), len("ISI") + 2 * rag.NEIGHBOUR_WING + 2)

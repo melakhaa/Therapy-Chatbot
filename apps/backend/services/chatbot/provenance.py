@@ -28,6 +28,14 @@ provenance_route = Route(
         "kamu psikolog?",
         "apa kamu psikolog atau dokter?",
         "kamu manusia atau ai?",
+        # Same intent, asked about a topic: embedding matches the topic word otherwise.
+        "bagaimana kamu memperoleh pengetahuan tentang kesehatan mental",
+        "dari mana kamu tahu tentang depresi",
+        "apakah kamu pernah menangani pasien sungguhan",
+        "pedoman apa yang kamu jadikan acuan",
+        "rujukan apa yang kamu gunakan untuk menjawab",
+        "kamu terapis?",
+        "kamu punya lisensi profesi?",
     ],
 )
 
