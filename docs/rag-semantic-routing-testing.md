@@ -1,233 +1,216 @@
-# Running RAG and semantic-routing tests
+# Running the RAG and semantic-routing tests
 
-This guide covers the executable checks and their limits. Historical results live in
-[C500](C500_Sajiwa_Pengujian_Produk.md), Tables 2.7 and 2.10; the current measured results and
-what is still open are in the [remediation plan](rag-semantic-routing-remediation-plan.md).
-The checks are also part of `npm run test:integration` — the commands below are for running
-them alone.
+How to run the checks that guard the chatbot's routing, crisis gate, retrieval, citations and
+ingestion — and what their results do and do not prove. Historical C500 results stay in
+[C500](C500_Sajiwa_Pengujian_Produk.md); the current measured numbers and the remaining gaps are
+at the bottom of this page.
 
-## 1. Setup
+## 1. What exists
 
-Use Python 3.12 and the backend virtual environment. From the repository root, once:
+| Tier | Runner | Needs |
+| --- | --- | --- |
+| Unit | `npm test` (or the per-file commands below) | Python 3.12 venv only |
+| Integration: API + DB + RLS | `npm run test:integration` → `stack_smoke.py`, `db/test_rls.sql` | Docker (Postgres), uvicorn, Ollama |
+| Integration: router quality | `rag_router_eval.py` (inside the same command) | Ollama + embedding model |
+| Integration: retrieval quality | `rag_retrieval_eval.py` (inside the same command) | Ollama + Postgres + stored corpus |
+
+`npm run test:integration` runs all of them in that order. Each evaluator skips **loudly with
+exit 2** when its own dependency is missing (Ollama down, model not pulled, corpus empty); the
+shell runner reports the skip and continues. A gate failure exits 1 and stops the run.
+
+## 2. Setup
+
+Once, from the repository root:
 
 ```bash
+npm install                    # workspaces + git hooks
 cd apps/backend
-python3.12 -m venv venv
+python3.12 -m venv venv        # semantic-router has no 3.13+ wheels
 venv/bin/python -m pip install -r requirements.txt
+cp .env.example .env           # fill DATABASE_URL, JWT_SECRET, ENCRYPTION_KEY
 ```
 
-For general setup see [development conventions](development-conventions.md).
-The unit tests below do not require PostgreSQL, Ollama, an API server, or real credentials.
+Full install/infra notes: [development conventions](development-conventions.md).
 
-## 2. Focused unit tests (no live stack)
-
-Start from the repository root. Run each file in a fresh process because existing tests modify
-module-level dependencies and `sys.modules`:
+## 3. Unit tier (no database, no model)
 
 ```bash
-cd apps/backend
-for test in \
-  test_rag_citation \
-  test_provenance \
-  test_guardrail \
-  test_chat_history \
-  test_chat_stream \
-  test_chat_sessions
-do
+# From the repository root — every workspace plus the backend
+npm test
+
+# Backend only
+npm run backend:test:unit
+```
+
+The files that matter for this area, run individually from `apps/backend`:
+
+```bash
+for test in test_rag_citation test_embed_chunking test_provenance test_guardrail \
+            test_chat_history test_chat_stream test_chat_sessions; do
   venv/bin/python -m unittest discover -s tests/unit -p "${test}.py" -v || exit 1
 done
 ```
 
-| File under `apps/backend/tests/unit/` | Tests | What it establishes |
+| File | Tests | What it pins |
 | --- | ---: | --- |
-| `test_rag_citation.py` | 3 | Citation reaches prompt, filename fallback, source instruction |
-| `test_provenance.py` | 4 | Corpus-based fixed reply, AI/credential disclaimer, empty corpus fallback, example utterance membership |
-| `test_guardrail.py` | 8 | Deterministic crisis normalization and profanity handling |
-| `test_chat_history.py` | 6 | History ordering, scope, budget, crisis exclusion and incomplete-turn handling |
-| `test_chat_stream.py` | 4 | HTTP SSE framing/termination and persistence failures with stubbed chatbot |
-| `test_chat_sessions.py` | 5 | Session listing/scoping, previews, encrypted persistence |
+| `test_rag_citation.py` | 6 | Citation reaching the prompt, filename fallback, missing/null/multi-source metadata, prompt order, neighbour slice in `retrieve_docs` |
+| `test_embed_chunking.py` | 6 | 500/50 chunk contract, empty input, DOCX paragraph/table order, no ingestion on import |
+| `test_provenance.py` | 4 | Corpus-based fixed reply, "AI, not a psychologist" claim, empty-corpus fallback, sample utterances |
+| `test_guardrail.py` | 12 | Crisis normalization (explicit, slang/leet, implicit), no false positive on everyday phrases, profanity strip keeping medical terms |
+| `test_chat_history.py` | 6 | Prompt budget, crisis rows filtered in SQL, ordering, unanswered-turn handling |
+| `test_chat_stream.py` | 5 | SSE framing, `[DONE]`, error frame without `[DONE]`, persistence failures |
+| `test_chat_sessions.py` | 5 | Session scoping, previews, encrypted persistence |
 
-These 30 tests passed when preparing this guide. They do **not** establish embedding routing
-accuracy, live retrieval quality, generated-answer citations, or real dispatcher bypass behavior.
-The provenance utterance-membership check is not a classifier evaluation.
+These do not measure embedding accuracy, retrieval quality, generated-answer grounding, or the
+real dispatcher's route decisions — that is what the integration evaluators are for.
 
-Run one file by replacing the pattern above, for example:
+## 4. Integration tier
+
+### Prepare the stack
+
+These write real rows and clean up after themselves. Use a **dedicated local database**, never
+production or a shared student database.
 
 ```bash
-# From apps/backend
-venv/bin/python -m unittest discover -s tests/unit -p 'test_rag_citation.py' -v
+docker compose up -d                 # Postgres 17 + pgvector, migrations run on boot
+docker compose ps                     # sajiwa-db must be healthy
 ```
 
-Run the complete regression tier after implementation changes:
+Ollama, in another terminal:
 
 ```bash
-# From repository root
-npm test
-# Backend-only alternative:
-npm run backend:test:unit
+ollama serve
+ollama pull nomic-embed-text-v2-moe   # router + retrieval embeddings
 ```
 
-The full `npm test` additionally needs installed npm workspaces and the repository's Node version.
-
-## 3. Live integration tests
-
-### Prepare a disposable local stack
-
-These tests write accounts, chat history, assessments and other records, and perform cleanup.
-Use a dedicated local database, **never production or a shared student database**. Interrupted
-runs can leave fixtures; cleanup targets synthetic test accounts and related records.
-
-1. Configure `apps/backend/.env` using `.env.example` without overwriting existing settings.
-   Set `DATABASE_URL` to the non-superuser application role `sajiwa_app`, plus local
-   `JWT_SECRET` and `ENCRYPTION_KEY`. Do not commit secrets.
-2. Start PostgreSQL/migrations from the repository root:
-
-   ```bash
-   docker compose up -d
-   docker compose ps
-   ```
-
-3. Start Ollama in a separate terminal if it is not already running:
-
-   ```bash
-   ollama serve
-   ```
-
-   In another terminal:
-
-   ```bash
-   ollama pull nomic-embed-text-v2-moe
-   ollama list
-   ```
-
-   Install the configured generation model following
-   [Ollama conventions](ollama-conventions.md#run). The default is the team's
-   `llama3-8b-instruct:Q4_K_M`; substituting `OLLAMA_CHAT_MODEL` changes the evaluation baseline
-   and must be recorded. The router embeds utterances at backend startup: unavailable Ollama
-   or a missing model can prevent the API from starting.
-
-4. Ingest the corpus **once into an empty/disposable corpus**:
-
-   ```bash
-   # From repository root, in a separate shell
-   cd apps/backend
-   venv/bin/python scripts/embed.py
-   ```
-
-   Requires the DOCX files in `apps/backend/docs/`, PostgreSQL and Ollama.
-   **This script inserts; rerunning duplicates chunks. Do not import it as a test helper:**
-   its ingestion loop runs at module import. Inspect the corpus before deciding to run it;
-   do not wipe an existing database to satisfy this guide.
-
-5. Start the API in another terminal:
-
-   ```bash
-   # From repository root
-   cd apps/backend
-   venv/bin/uvicorn main:app --reload
-   ```
-
-### Execute
+Generation model (needed by `stack_smoke.py`'s chat checks, not by the two evaluators):
 
 ```bash
-# From repository root
+# Team fine-tune is imported from GGUF, not pulled — see ollama-conventions.md
+ollama list   # expect llama3-8b-instruct:Q4_K_M (or set OLLAMA_CHAT_MODEL)
+```
+
+Ingest the corpus **once** if `documents` is empty:
+
+```bash
+cd apps/backend
+venv/bin/python scripts/embed.py            # dry run: chunk count and lengths, writes nothing
+venv/bin/python scripts/embed.py --apply    # atomic per-source replace, backup path printed
+```
+
+Start the API in another terminal:
+
+```bash
+cd apps/backend
+venv/bin/uvicorn main:app --reload
+```
+
+### Run everything
+
+```bash
+# From the repository root
 npm run test:integration
 ```
 
-This runs `apps/backend/tests/integration/run.sh`: the live `stack_smoke.py`, the router
-quality gate (`rag_router_eval.py`), the retrieval gate (`rag_retrieval_eval.py`), and
-`db/test_rls.sql`. Each evaluator prints its own matrix/counters; a failure exits nonzero, and
-a missing Ollama/model/corpus skips loudly (exit 2) instead of passing silently.
-It creates its own test identities; manually seeding dev users is not required for this runner.
+That executes, in order:
 
-Run one evaluator directly:
+1. `apps/backend/tests/integration/stack_smoke.py` — API over HTTP, real SQL/triggers/RLS,
+   chat, crisis battery, streaming, report-to-team, cleanup.
+2. `tests/integration/rag_router_eval.py` — router quality gates.
+3. `tests/integration/rag_retrieval_eval.py` — retrieval gates against the stored corpus.
+4. `db/test_rls.sql` — RLS/auth self-check (one transaction, rolled back).
+
+If Docker is down the whole tier prints `SKIP integration: …` and exits 0 — a skip is not a
+pass.
+
+### Run the evaluators alone
 
 ```bash
-# From repository root
 cd apps/backend
-venv/bin/python tests/integration/rag_router_eval.py     # needs Ollama embeddings only
-venv/bin/python tests/integration/rag_retrieval_eval.py  # needs Ollama + the stored corpus
+venv/bin/python tests/integration/rag_router_eval.py
+venv/bin/python tests/integration/rag_retrieval_eval.py
 ```
 
-Gates inside them were fixed before the fixes landed: macro precision and recall >= 85%,
-paraphrase consistency **and** correctness, out-of-domain questions must not reach
-`rag`/`provenance`, Hit Rate@5 >= 80%, no context for out-of-domain retrieval, and < 3 s per
-retrieval query. Do not lower a pass mark to make a run green.
-
-Relevant existing checks include:
-
-- Crisis and ordinary conversational replies over `/chat`.
-- `/rag/context` returns HTTP 200 and a `context` field (not asserted nonempty/relevant).
-- Educational chat SSE metadata, multiple tokens, `[DONE]`, and persistence.
-  The test does not require the reported route to be `rag` or verify the citation.
-- Crisis streaming, a crisis-phrase battery, and ordinary-distress negative cases.
-- Encrypted chat storage, history scoping and cross-student isolation.
-
-For the HTTP/DB smoke script alone (omits the separate RLS SQL self-check):
+Both accept `--fixtures <file>`:
 
 ```bash
-# From repository root
-cd apps/backend
-venv/bin/python tests/integration/stack_smoke.py
+venv/bin/python tests/integration/rag_router_eval.py \
+  --fixtures tests/integration/fixtures/rag_router_cases_frozen.json
+venv/bin/python tests/integration/rag_retrieval_eval.py \
+  --fixtures tests/integration/fixtures/rag_retrieval_cases_frozen.json
 ```
 
-`API_BASE` overrides the HTTP URL (default `http://localhost:8000`). `SMOKE_DB_URL` is a
-privileged **test-only** connection used for bootstrap and DB verification; supply a matching
-local test DB through your shell if not using the Compose defaults. Never use that privileged
-connection as the API's `DATABASE_URL`. The shell runner's RLS step still targets the local
-`sajiwa-db` container and its configured local database; it does not follow `SMOKE_DB_URL`.
+Exit codes: `0` all gates pass, `1` a gate failed, `2` dependencies unavailable (SKIP).
 
-**Read output, not only exit status:** the runner can print `SKIP integration` and return 0
-when Docker/API/DB are unavailable. A skipped HTTP smoke followed by a passing RLS check is
-still not a passing RAG/router evaluation. Require actual relevant `PASS` lines and no `FAIL`
-or `SKIP`; failed assertions return nonzero.
+## 5. Fixtures: regression vs frozen
 
-## 4. Existing RAG performance probe (diagnostic only)
+| File | Role | Rule |
+| --- | --- | --- |
+| `fixtures/rag_router_cases.json` | `regression` (100 messages, 8 paraphrase groups) + `heldout_v1`/`heldout_v2` | Used for calibration. Its numbers are **training-set** numbers. |
+| `fixtures/rag_router_cases_frozen.json` | 100 messages + 8 paraphrase groups, written before any run | Run it to see the honest number. Do **not** tune on it; if you must, say so and write a new frozen set. |
+| `fixtures/rag_retrieval_cases.json` | 15 in-domain + 5 out-of-domain | Same rule; phrase oracle must exist in the source DOCX. |
+| `fixtures/rag_retrieval_cases_frozen.json` | Same shape, written before any run | Same rule. |
 
-With PostgreSQL, populated corpus and Ollama available (HTTP server is not required):
+Fixtures are checked in, so a change is visible in history. `--fixtures` exists so the frozen
+set can be run without touching the regression file.
 
-```bash
-# From repository root
-cd apps/backend
-venv/bin/python scripts/test_rag_performance.py
-```
+## 6. Gates (fixed in the evaluators, not in the fixtures)
 
-It queries five fixed messages with **k=3**, printing latency, similarity and content previews.
-It does not implement C500's 20-query/k=5 evaluation, Hit Rate@5, p95, or a <3s assertion.
-It catches per-query exceptions and prints them without failing the process; its average uses
-all five queries as denominator even if some failed. Thus exit 0 and the printed average are
-**not acceptance evidence**. Inspect every result/error, and do not publish sensitive previews.
+| Gate | Value | Where |
+| --- | --- | --- |
+| Macro precision / recall (router) | ≥ 0.85 each | `rag_router_eval.py` |
+| Paraphrase consistency **and** correctness | all groups | `rag_router_eval.py` |
+| Out-of-domain → not `rag`/`provenance` | all | `rag_router_eval.py` |
+| Hit Rate@5 | ≥ 0.80 | `rag_retrieval_eval.py` |
+| Out-of-domain retrieval → no context | all | `rag_retrieval_eval.py` |
+| Per-query retrieval latency | < 3 s | `rag_retrieval_eval.py` |
+| Results/score/citation shape | k entries, > 0.3, citation present | `rag_retrieval_eval.py` |
 
-## 5. Optional interactive routing smoke
+Never lower a pass mark, relabel a fixture, or add a test sentence to the utterance list to make
+a run green. Record the date, commit and configuration whenever you quote a number.
 
-With the same live model/DB setup, from `apps/backend`:
+## 7. Reading a failure
 
-```bash
-venv/bin/python -m services.chatbot.core
-venv/bin/python -m services.chatbot.rag
-```
+- `SKIP … the sajiwa-db container is not up` / `docker is not running` — the tier did nothing.
+- `SKIP router evaluation: Ollama is not reachable` — start Ollama or pull the model.
+- `SKIP retrieval evaluation: database is not reachable` — `DATABASE_URL` or the stack is wrong.
+- `MISS expected=… got=…` — the router put a labelled message on another route; check whether it
+  is a crisis miss (safety, fix first) or a quality miss.
+- `GATE FAILED Hit Rate…` — retrieval regressed; check the corpus fingerprint before re-tuning.
+- `generation_failed` in `stack_smoke` — generation, not routing; see the API log (the route and
+  session are now logged with the traceback).
 
-These execute built-in sample messages and print replies. They can invoke generation and take
-minutes; neither has correctness assertions. The RAG module's sample block calls the shared
-chat dispatcher, so it does not force every sample through RAG. These are manual probes, not
-extra passing tests.
+## 8. Current results (16 November 2026)
 
-## 6. What still cannot be run
+| Check | Regression (tuned) | Frozen (untouched, run once) |
+| --- | ---: | ---: |
+| Router macro precision / recall | 100% / 100% | **96,1% / 96,0%** |
+| Router accuracy | 100% | **96,0%** |
+| Paraphrases consistent / correct | 8/8 / 8/8 | **8/8 / 8/8** |
+| Hit Rate@5 | 13/15 (86,7%) | **13/15 (86,7%)** |
+| Out-of-domain without context | 5/5 | **5/5** |
+| Retrieval latency (max) | 0,075 s | **0,061 s** |
+| Answer citation | 4/4 | **4/4** |
+| Prompt injection | — | **6/8** |
 
-- **Generated-answer grounding**: answers can be produced and their citation presence checked,
-  but no automated check proves the claims are supported by the retrieved text. That needs
-  human review.
-- **Generation latency gate (<40 s)**: deliberately out of scope (Tahap 4 of the remediation
-  plan). The streaming checks prove an answer completes, not that it completes fast.
-- **Independent fixture review and literal self-checks** for the metric formulas (Tahap 0).
-- **Process-level outage tests** (Ollama down mid-request, DB down during retrieval) — the
-  error frames are unit-tested; a real outage run is not.
+`npm test` (172 backend tests + workspace suites) and `npm run test:integration` (no skips)
+both pass on that date.
 
-For future measured runs, save the commit, model/version, corpus/fixture identity, hardware,
-thresholds, cold/warm status, per-case results and failures. Keep retrieval time, classification
-time, time-to-first-token and full RAG response time separate. Never replace C500's historical
-numbers with results from different models/corpora without labeling the new baseline.
+## 9. Known gaps
 
-Validation for this documentation: `npm test` passed (172 backend tests plus the workspace
-suites) and `npm run test:integration` passed without skips, including both evaluators, the RLS
-self-check, and the streaming checks.
+- **Prompt injection:** attacks that ask the model to repeat its system prompt verbatim, or to
+  translate the instructions, still leak them (2 of 8). The response text is the only defence
+  today; a server-side check would be a behaviour change, not a test.
+- **Negation:** a message that quotes or negates a crisis phrase ("aku nggak akan bunuh diri")
+  still shows the crisis card. The project accepts this bias on purpose; changing it needs a
+  reviewed policy, not a test tweak.
+- **Educational crisis questions:** "kapan pasien dengan ide bunuh diri perlu dirawat?" is
+  routed to guardrail for the same reason.
+- **Generation latency:** the <40 s target is not enforced. On the CPU-only reference machine a
+  RAG answer measured 111–209 s; `stack_smoke` only proves an answer completes.
+- **Grounding:** citation presence is checked; whether the claims are supported is not. That
+  needs human review.
+- **Bias:** the frozen set was written by the same agent that wrote the fix, the labels have no
+  independent review, the retrieval oracle is phrase-based, and samples are small (15 retrieval
+  cases ≈ 62–96% at 95% CI). Treat the percentages as regression evidence, not a generalisation
+  claim.

@@ -20,7 +20,7 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "rag_retrieval_cases.json")
-# Gates fixed before the fixes landed (docs/rag-semantic-routing-remediation-plan.md).
+# Gate values are documented in docs/rag-semantic-routing-testing.md.
 HIT_RATE = 0.80
 MAX_SECONDS = 3.0
 

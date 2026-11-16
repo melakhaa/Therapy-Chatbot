@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "rag_router_cases.json")
 LABELS = ("guardrail", "conversational", "rag", "provenance")
-# Gates fixed before the fixes landed (docs/rag-semantic-routing-remediation-plan.md).
+# Gate values are documented in docs/rag-semantic-routing-testing.md.
 MACRO_PRECISION = 0.85
 MACRO_RECALL = 0.85
 

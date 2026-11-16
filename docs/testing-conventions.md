@@ -155,10 +155,9 @@ gets its own line.
 
 ## RAG and semantic-routing coverage
 
-See the [test run guide](rag-semantic-routing-testing.md) for existing unit, live integration,
-and diagnostic commands, and the [missing-test plan](rag-semantic-routing-test-plan.md) for
-C500 coverage gaps. Historical C500 results are not a substitute for checked-in evaluation
-fixtures and reproducible runners.
+See the [test run guide](rag-semantic-routing-testing.md) for the unit, integration and
+evaluator commands, the gate values, the regression/frozen fixture rules and the known gaps.
+Historical C500 results are not a substitute for checked-in fixtures and reproducible runners.
 
 ## Known gaps
 
