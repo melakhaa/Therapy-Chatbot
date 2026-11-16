@@ -10,6 +10,7 @@ is missed. Retrieval and generation are covered in `stack_smoke.py`, not here.
 Exit codes: 0 all gates pass, 1 a gate failed, 2 the stack is not available (SKIP).
 """
 
+import argparse
 import json
 import os
 import sys
@@ -104,14 +105,24 @@ def evaluate(case_set: dict, name: str, router, is_crisis, gates: bool) -> bool:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Semantic-router quality gate.")
+    parser.add_argument("--fixtures", default=FIXTURES,
+                        help="fixture file; a flat set (labels + paraphrases) runs as one gated set")
+    args = parser.parse_args()
+
     problem = ollama_problem()
     if problem:
         skip(problem)
     from services.chatbot.core import semantic_router  # builds the real router
     from services.chatbot.guardrail import is_crisis
 
-    with open(FIXTURES, encoding="utf-8") as handle:
+    with open(args.fixtures, encoding="utf-8") as handle:
         cases = json.load(handle)
+
+    if "regression" not in cases:
+        passed = evaluate(cases, os.path.basename(args.fixtures), semantic_router, is_crisis, gates=True)
+        print("\nALL PASSED" if passed else "\nFAILED")
+        return 0 if passed else 1
 
     regression = dict(cases["regression"], paraphrases=cases["regression_paraphrases"])
     passed = evaluate(regression, "regression (calibration set)", semantic_router, is_crisis, gates=True)

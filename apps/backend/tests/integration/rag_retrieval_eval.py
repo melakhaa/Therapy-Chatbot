@@ -9,6 +9,7 @@ pgvector) over `fixtures/rag_retrieval_cases.json`.
 Exit codes: 0 all gates pass, 1 a gate failed, 2 the stack is not available (SKIP).
 """
 
+import argparse
 import json
 import os
 import statistics
@@ -50,6 +51,10 @@ def normalize(text: str) -> str:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="RAG retrieval gate.")
+    parser.add_argument("--fixtures", default=FIXTURES)
+    args = parser.parse_args()
+
     problem = stack_problem()
     if problem:
         skip(problem)
@@ -57,7 +62,7 @@ def main() -> int:
     from core.db import query
     from services.chatbot.rag import NO_CONTEXT_REPLY, build_messages, retrieve_docs
 
-    with open(FIXTURES, encoding="utf-8") as handle:
+    with open(args.fixtures, encoding="utf-8") as handle:
         cases = json.load(handle)
 
     corpus = query(
