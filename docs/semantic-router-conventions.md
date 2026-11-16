@@ -29,14 +29,39 @@ twice; `route=None` routes internally. The HTTP layer turns the generator into S
 
 ```python
 semantic_router = SemanticRouter(
-    routes=[guardrail_route, conversational_route, rag_route],
+    routes=[guardrail_route, conversational_route, rag_route, provenance_route],
     encoder=OllamaEncoder(name="nomic-embed-text-v2-moe"),
+    top_k=10,
+    aggregation="max",
     auto_sync="local",
 )
 ```
 
 Speech-to-intent calls are `semantic_router(message)` → `.name` is the matched route
 (falls back to `"conversational"` when `None`).
+
+## Router tuning: `max` aggregation, per-route thresholds
+
+`core.ROUTE_THRESHOLDS` holds one decision threshold per route, set on the `Route` objects;
+the library default (0.5 everywhere, `mean` aggregation, `top_k=5`) meant only the five
+nearest utterances — often all from one route — were considered, and the mean diluted one
+strong match with four weak neighbours. On the frozen fixtures that sent 21 of 24 misses to
+the fallback instead of their route. With `aggregation="max"`, `top_k=10` and the calibrated
+thresholds the labelled sets pass both macro gates.
+
+Rules:
+
+- Thresholds are **decision** thresholds; the evaluation pass marks live in
+  `tests/integration/rag_router_eval.py` (`MACRO_PRECISION` / `MACRO_RECALL` = 0.85).
+  Never lower a pass mark to make a run green.
+- Calibrate on `fixtures/rag_router_cases.json` → `regression`, then check `heldout_*`.
+  Adding utterances to the sets you just measured is overfitting, not generalisation.
+- `is_crisis()` stays the safety boundary. A route utterance that duplicates a deterministic
+  phrase ("capek hidup", "melukai keluarga") pulls ordinary messages into the crisis route on
+  embedding distance alone; keep those phrases in `CRISIS_PHRASES` and out of the route.
+- Every tuning change must keep `rag_router_eval.py` green, including the paraphrase
+  **correctness** count and the out-of-domain checks — consistency alone can be consistently
+  wrong.
 
 ## Crisis detection is NOT left to the router
 

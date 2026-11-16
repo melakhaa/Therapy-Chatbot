@@ -52,9 +52,17 @@ dropped, so a killed stream's question is not sent twice when it is retried; and
 ## RAG ingestion & retrieval
 
 `apps/backend/scripts/embed.py` reads `apps/backend/docs/*.docx`, extracts paragraphs + tables,
-chunks at `size=500 / overlap=50`, embeds, and inserts into `documents` (`metadata.source`,
-`metadata.chunk`). Retrieval is `select * from match_documents(%s::vector, 0.3, k)` through
-`core/db.py` — see [postgresql-conventions.md](postgresql-conventions.md).
+chunks at `size=500 / overlap=50`, embeds, and writes `documents` (`metadata.source`,
+`metadata.chunk`). It is a **dry run by default**; `--apply` replaces each source atomically:
+all chunks are embedded and validated (768 dimensions) before the old rows are deleted, the
+replacement happens in one transaction, and the old rows are first dumped to a JSON file whose
+path is printed. Importing the module does nothing — the ingestion loop lives in `main()`.
+
+Retrieval is `select * from match_documents(%s::vector, 0.3, k)` plus a bounded slice of each
+hit's neighbouring chunks (`rag.NEIGHBOUR_WING`), because table rows and list items in the
+guide cross chunk boundaries. The returned entries keep the old shape (`content`, `metadata`,
+`similarity`) and stay at `k` or fewer. See [postgresql-conventions.md](postgresql-conventions.md).
+The measured gates are `tests/integration/rag_retrieval_eval.py`.
 
 - Pin model names; all call sites share `EMBED_MODEL` from `services/chatbot/rag.py`.
 - Every chunk carries `metadata.citation` — the label a student sees, written by
@@ -67,8 +75,14 @@ chunks at `size=500 / overlap=50`, embeds, and inserts into `documents` (`metada
   conversation history. Changing a citation is metadata-only: backfill with
   `update documents set metadata = metadata || jsonb_build_object('citation', …)` — no
   re-embed, because the vectors do not change.
-- `scripts/embed.py` **inserts, it does not replace**: re-running it against a populated
-  database duplicates every chunk. Clear or scope `documents` first.
+- Deletion during ingestion is gated by migration 012's `documents_replace_for_ingest`
+  policy: it only fires when the transaction sets `app.embedding_ingest = 'on'`, which only
+  the script does. Application requests cannot delete corpus rows.
+- Chunking was evaluated, not guessed: sentence-packed, one-unit-per-chunk and word-boundary
+  windows were all measured against the 15 retrieval fixtures and did not beat the plain
+  500/50 window (the word-backoff variant also pushed an out-of-domain query above the 0.3
+  threshold). The remaining retrieval misses are handled by neighbour slices in
+  `retrieve_docs`, not by re-cutting the corpus.
 - `nomic-embed-text-v2-moe` requires task prefixes and does not add them itself: documents are
   embedded as `"search_document: "`, queries as `"search_query: "`. The `QUERY_PREFIX` /
   `DOCUMENT_PREFIX` constants in `rag.py` are the single source of truth — keep the pair matched

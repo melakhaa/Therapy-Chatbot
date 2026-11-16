@@ -37,7 +37,11 @@ to one of them, and a new seam gets added here (with its trade-off) before the t
 | `/realtime` WebSocket (`routes/realtime.py`), `publish()` standing in for the DB listener | unit (stubbed `core.db`) | token-in-first-message handshake, staff-only gate, table→area map, expiry close | the LISTEN thread, the triggers |
 | `core/mailer.py` — `send_reset_otp` (smtplib replaced) | unit | the reset mail's recipient and content, the SMTP handshake, the dev log fallback, a failure that never logs the code | real delivery, spam filtering |
 | `services/chatbot/guardrail.py` — `is_crisis`, `strip_profanity` | unit | deterministic crisis detection | model tone and routing |
-| `services/chatbot/rag.py` — `build_messages`, `_source_label` | unit | the citation reaching the prompt, filename fallback for an uncited chunk | retrieval quality, whether the model obeys the instruction |
+| `services/chatbot/rag.py` — `build_messages`, `_source_label`, `retrieve_docs` | unit (stubbed `query`) | the citation reaching the prompt, filename fallback, the hit chunk keeping its neighbour slice | real similarity, whether the model obeys the instruction |
+| `services/chatbot/core.py` — `semantic_router`, `chat_stream` | unit (stubbed `core.db`, encoder and `llm`) | crisis bypassing embedding/generation, fixed provenance and no-context replies, route fallback | whether the real embeddings put a message on the right route |
+| `scripts/embed.py` — `chunk_text`, `extract_text_docx` | unit (no DB, import must stay side-effect free) | the 500/50 chunk contract, DOCX paragraph/table order, no ingestion at import | chunk quality — measured live by the retrieval evaluator |
+| Router quality evaluator (`tests/integration/rag_router_eval.py`) | integration (real Ollama embeddings) | macro/per-class precision and recall, paraphrase consistency **and** correctness, out-of-domain leakage | model generation, the UI |
+| Retrieval evaluator (`tests/integration/rag_retrieval_eval.py`) | integration (real pgvector corpus) | Hit Rate@5, no-context behaviour, per-query latency, stored vector dimensions | whether the generated answer is grounded |
 | `services/chatbot/provenance.py` — `provenance_reply` | unit | which documents get named, the "AI, not a psychologist, no clients" claim, the empty-corpus fallback | fuzzy routing into this route, model behaviour on a miss |
 | `services/chatbot/` history assembly | unit | prompt budget, crisis filtering, ordering | real model output |
 | The live API over HTTP and `/realtime` (incl. `db/test_rls.sql`) | integration | real SQL, triggers (incl. who is notified of what), change notices, encryption at rest, RLS, Ollama | anything in the UI |
@@ -148,6 +152,13 @@ gets its own line.
   match by default, so `Kata sandi` also matched the show-password button — pass
   `{ exact: true }`.
 - Assert the redirect or the rendered heading, not a sleep.
+
+## RAG and semantic-routing coverage
+
+See the [test run guide](rag-semantic-routing-testing.md) for existing unit, live integration,
+and diagnostic commands, and the [missing-test plan](rag-semantic-routing-test-plan.md) for
+C500 coverage gaps. Historical C500 results are not a substitute for checked-in evaluation
+fixtures and reproducible runners.
 
 ## Known gaps
 
