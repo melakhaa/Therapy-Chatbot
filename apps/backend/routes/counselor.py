@@ -12,8 +12,8 @@ from pydantic import BaseModel, Field, model_validator
 from auth import require_role
 from core.db import db, query
 
-router = APIRouter(prefix="/counselor", tags=["Counselor Workspace"])
-admin_router = APIRouter(prefix="/admin", tags=["Counselor Exceptions"])
+router = APIRouter(prefix="/counselor")
+admin_router = APIRouter(prefix="/admin", tags=["Admin: Counseling"])
 counselor_access = require_role("konselor")
 admin_access = require_role("admin")
 
@@ -105,7 +105,7 @@ def _affected(conn, counselor_id, starts_at, ends_at):
     return [r["counseling_appointment_id"] for r in rows]
 
 
-@router.get("/profile")
+@router.get("/profile", tags=["Counselor: Profile"])
 def profile(counselor=Depends(counselor_access)):
     rows = query(
         "select u.user_id,u.name,u.email,cp.title,cp.specialization,coalesce(cp.active,true) active "
@@ -116,13 +116,13 @@ def profile(counselor=Depends(counselor_access)):
     return rows[0]
 
 
-@router.get("/cases")
+@router.get("/cases", tags=["Counselor: Cases"])
 def cases(counselor=Depends(counselor_access)):
     rows = _cases(counselor.id)
     return {"cases": rows, "total": len(rows)}
 
 
-@router.get("/cases/{student_id}")
+@router.get("/cases/{student_id}", tags=["Counselor: Cases"])
 def case_detail(student_id: UUID, counselor=Depends(counselor_access)):
     rows = _cases(counselor.id, student_id)
     # Unrelated and nonexistent students look the same: no hint that the student exists
@@ -152,7 +152,7 @@ def case_detail(student_id: UUID, counselor=Depends(counselor_access)):
     return {"case": rows[0], "support_summary": support_summary, "assessments": assessments, "sessions": sessions}
 
 
-@router.get("/calendar")
+@router.get("/calendar", tags=["Counselor: Calendar"])
 def calendar(date_from: date, date_to: date, counselor=Depends(counselor_access)):
     # 120 days covers the widest dashboard view (availability: 30 days back, 90 ahead)
     if date_from > date_to or (date_to - date_from).days > 120:
@@ -207,7 +207,7 @@ class ExceptionBody(BaseModel):
         return datetime.combine(self.date, self.start_time, WIB), datetime.combine(self.date, self.end_time, WIB)
 
 
-@router.post("/exception-requests", status_code=201)
+@router.post("/exception-requests", status_code=201, tags=["Counselor: Exception Requests"])
 def request_exception(body: ExceptionBody, counselor=Depends(counselor_access)):
     starts_at, ends_at = body.interval()
     if ends_at <= datetime.now(timezone.utc):

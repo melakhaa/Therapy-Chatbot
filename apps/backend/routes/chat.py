@@ -16,7 +16,7 @@ from services.chatbot.rag import retrieve_docs
 load_dotenv()
 
 guardrail_router = APIRouter(prefix="/guardrail", tags=["Guardrail"])
-router_router = APIRouter(prefix="/router", tags=["Router"])
+router_router = APIRouter(prefix="/router", tags=["Intent Router"])
 rag_router = APIRouter(prefix="/rag", tags=["RAG"])
 chat_router = APIRouter(prefix="/chat", tags=["Chat"])
 

@@ -14,7 +14,8 @@ from core.mailer import send_reset_otp
 
 load_dotenv()
 
-router = APIRouter(tags=["Account"])
+auth_router = APIRouter(tags=["Auth"])
+accounts_router = APIRouter(tags=["Accounts"])
 
 
 def _hash(pw: str) -> str:
@@ -52,7 +53,7 @@ class ConfirmPasswordResetRequest(BaseModel):
     new_password: str
 
 
-@router.post("/auth/register", status_code=status.HTTP_201_CREATED)
+@auth_router.post("/auth/register", status_code=status.HTTP_201_CREATED)
 def register(request: CreateAccountRequest):
     user_id = str(uuid.uuid4())
     try:
@@ -77,7 +78,7 @@ def register(request: CreateAccountRequest):
     }
 
 
-@router.post("/auth/login")
+@auth_router.post("/auth/login")
 def login(request: LoginRequest):
     rows = query(
         "select user_id, email, name, nim, role, password_hash "
@@ -110,7 +111,7 @@ def login(request: LoginRequest):
     }
 
 
-@router.post("/auth/reset-password/request")
+@auth_router.post("/auth/reset-password/request")
 def request_password_reset(request: ResetPasswordRequest, background: BackgroundTasks):
     rows = query("select user_id from auth_lookup(%s)", (request.email,))
     if rows:
@@ -128,7 +129,7 @@ def request_password_reset(request: ResetPasswordRequest, background: Background
     return {"message": "Jika email terdaftar, OTP telah dikirimkan."}
 
 
-@router.post("/auth/reset-password/confirm")
+@auth_router.post("/auth/reset-password/confirm")
 def confirm_password_reset(request: ConfirmPasswordResetRequest):
     rows = query(
         "select otp_hash, expires_at, used from password_resets where email = %s",
@@ -157,7 +158,7 @@ def confirm_password_reset(request: ConfirmPasswordResetRequest):
     return {"message": "Password berhasil diubah. Silakan login kembali."}
 
 
-@router.get("/auth/me")
+@auth_router.get("/auth/me")
 def get_my_profile(user=Depends(get_current_user)):
     rows = query("select * from users where user_id = %s", (user.id,), user_id=user.id)
     if not rows:
@@ -166,14 +167,14 @@ def get_my_profile(user=Depends(get_current_user)):
     return rows[0]
 
 
-@router.get("/auth/consent")
+@auth_router.get("/auth/consent")
 def get_privacy_consent(user=Depends(get_current_user)):
     """When this account accepted the privacy walkthrough, or null: the app shows it once per account."""
     rows = query("select accepted_at from privacy_consents where user_id = %s", (user.id,), user_id=user.id)
     return {"accepted_at": rows[0]["accepted_at"] if rows else None}
 
 
-@router.post("/auth/consent")
+@auth_router.post("/auth/consent")
 def accept_privacy_consent(user=Depends(get_current_user)):
     # The first acceptance is the one on record; accepting again keeps it.
     with db(user.id) as conn:
@@ -185,7 +186,7 @@ def accept_privacy_consent(user=Depends(get_current_user)):
     return {"accepted_at": row["accepted_at"]}
 
 
-@router.get("/accounts")
+@accounts_router.get("/accounts")
 def get_account_list(admin=Depends(require_role("admin", "pemangku_jabatan"))):
     try:
         rows = query(
@@ -201,14 +202,14 @@ def get_account_list(admin=Depends(require_role("admin", "pemangku_jabatan"))):
         raise HTTPException(status_code=500, detail=f"Gagal mengambil daftar akun: {e}")
 
 
-@router.get("/accounts/konselor")
+@accounts_router.get("/accounts/konselor")
 def get_konselor_list(user=Depends(get_current_user)):
     """Counselor directory for the booking screen (public fields only, via list_konselor())."""
     rows = query("select user_id, name, role from list_konselor()", user_id=user.id)
     return {"users": rows, "total": len(rows)}
 
 
-@router.post("/accounts", status_code=status.HTTP_201_CREATED)
+@accounts_router.post("/accounts", status_code=status.HTTP_201_CREATED)
 def create_account(request: CreateAccountRequest, admin=Depends(require_role("admin", "pemangku_jabatan"))):
     user_id = str(uuid.uuid4())
     try:
@@ -237,7 +238,7 @@ def create_account(request: CreateAccountRequest, admin=Depends(require_role("ad
     }
 
 
-@router.put("/accounts/{user_id}")
+@accounts_router.put("/accounts/{user_id}")
 def update_account(
     user_id: str,
     request: UpdateAccountRequest,
@@ -264,7 +265,7 @@ def update_account(
         raise HTTPException(status_code=400, detail=f"Gagal memperbarui akun: {e}")
 
 
-@router.delete("/accounts/{user_id}", status_code=status.HTTP_200_OK)
+@accounts_router.delete("/accounts/{user_id}", status_code=status.HTTP_200_OK)
 def delete_account(user_id: str, admin=Depends(require_role("admin", "pemangku_jabatan"))):
     try:
         rows = query(

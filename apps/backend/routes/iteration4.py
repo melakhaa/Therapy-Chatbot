@@ -12,8 +12,8 @@ from auth import get_current_user, require_role
 from core.db import db, query
 from core.dass21 import CATEGORY_ITEMS, normalize_subscales, score_dass21, validate_dass21_definition
 
-admin_router = APIRouter(prefix="/admin", tags=["Admin Iteration 4"])
-assessment_router = APIRouter(prefix="/assessment", tags=["Assessment Instruments"])
+admin_router = APIRouter(prefix="/admin")
+assessment_router = APIRouter(prefix="/assessment", tags=["Assessment"])
 admin_access = require_role("admin")
 student_access = require_role("mahasiswa")
 
@@ -105,7 +105,7 @@ def _version_detail(version_id: str, admin_id: str):
     return {"version": versions[0], "questions": questions, "dimensions": dimensions, "reviews": reviews}
 
 
-@admin_router.get("/assessment-instruments")
+@admin_router.get("/assessment-instruments", tags=["Admin: Assessment Instruments"])
 def list_instruments(admin=Depends(admin_access)):
     rows = query(
         "select i.instrument_id,i.code,i.name,i.description,i.active,i.language,i.instrument_kind,"
@@ -121,12 +121,12 @@ def list_instruments(admin=Depends(admin_access)):
     return {"instruments": rows, "total": len(rows)}
 
 
-@admin_router.get("/assessment-instruments/versions/{version_id}")
+@admin_router.get("/assessment-instruments/versions/{version_id}", tags=["Admin: Assessment Instruments"])
 def get_instrument_version(version_id: UUID, admin=Depends(admin_access)):
     return _version_detail(str(version_id), admin.id)
 
 
-@admin_router.post("/assessment-instruments/{instrument_id}/drafts", status_code=201)
+@admin_router.post("/assessment-instruments/{instrument_id}/drafts", status_code=201, tags=["Admin: Assessment Instruments"])
 def create_instrument_draft(instrument_id: UUID, admin=Depends(admin_access)):
     with db(admin.id) as conn:
         instrument = conn.execute(
@@ -150,7 +150,7 @@ def create_instrument_draft(instrument_id: UUID, admin=Depends(admin_access)):
     return _version_detail(str(row["instrument_version_id"]), admin.id)
 
 
-@admin_router.post("/assessment-instruments/{instrument_id}/derived", status_code=201)
+@admin_router.post("/assessment-instruments/{instrument_id}/derived", status_code=201, tags=["Admin: Assessment Instruments"])
 def create_derived_instrument(instrument_id: UUID, body: DerivedInstrumentRequest, admin=Depends(admin_access)):
     """Create an editable custom instrument without inheriting standard DASS norms."""
     try:
@@ -201,7 +201,7 @@ def create_derived_instrument(instrument_id: UUID, body: DerivedInstrumentReques
         raise HTTPException(409, "Kode instrumen sudah digunakan")
 
 
-@admin_router.post("/assessment-instruments/dass21-variants", status_code=201)
+@admin_router.post("/assessment-instruments/dass21-variants", status_code=201, tags=["Admin: Assessment Instruments"])
 def create_dass21_variant(body: Dass21VariantRequest, admin=Depends(admin_access)):
     """Publish a DASS-21 that offers only the chosen subscales, each whole, with its official norm.
 
@@ -266,7 +266,7 @@ def create_dass21_variant(body: Dass21VariantRequest, admin=Depends(admin_access
         raise HTTPException(409, "Kode instrumen sudah digunakan")
 
 
-@admin_router.put("/assessment-instruments/{instrument_id}/shown-in-app")
+@admin_router.put("/assessment-instruments/{instrument_id}/shown-in-app", tags=["Admin: Assessment Instruments"])
 def show_instrument_in_app(instrument_id: UUID, admin=Depends(admin_access)):
     """Make this the instrument the mobile app asks students to fill in."""
     with db(admin.id) as conn:
@@ -290,7 +290,7 @@ def show_instrument_in_app(instrument_id: UUID, admin=Depends(admin_access)):
     return {"instrument_id": str(instrument_id), "shown_in_app": True}
 
 
-@admin_router.put("/assessment-instruments/versions/{version_id}/draft")
+@admin_router.put("/assessment-instruments/versions/{version_id}/draft", tags=["Admin: Assessment Instruments"])
 def save_instrument_draft(version_id: UUID, body: DraftDefinition, admin=Depends(admin_access)):
     positions = [question.position for question in body.questions]
     keys = [question.item_key.lower() for question in body.questions]
@@ -393,14 +393,14 @@ def _publish_issues(conn, version_id: str) -> List[str]:
     return issues
 
 
-@admin_router.post("/assessment-instruments/versions/{version_id}/validate")
+@admin_router.post("/assessment-instruments/versions/{version_id}/validate", tags=["Admin: Assessment Instruments"])
 def validate_instrument_version(version_id: UUID, admin=Depends(admin_access)):
     with db(admin.id) as conn:
         issues = _publish_issues(conn, str(version_id))
     return {"publishable": not issues, "issues": issues}
 
 
-@admin_router.post("/assessment-instruments/versions/{version_id}/publish")
+@admin_router.post("/assessment-instruments/versions/{version_id}/publish", tags=["Admin: Assessment Instruments"])
 def publish_instrument_version(version_id: UUID, admin=Depends(admin_access)):
     try:
         with db(admin.id) as conn:
@@ -535,7 +535,7 @@ def submit_instrument_assessment(body: InstrumentSubmission, student=Depends(stu
     }
 
 
-@admin_router.get("/analytics/comparison")
+@admin_router.get("/analytics/comparison", tags=["Admin: Analytics"])
 def comparison_analytics(
     date_from: date,
     date_to: date,
@@ -641,7 +641,7 @@ def comparison_analytics(
     return {"mode": mode, "date_from": date_from, "date_to": date_to, "selected_scopes": selected_scopes, "assessment_trend": trends, "unique_assessed_students": assessed_students, "severity_distribution": severity, "severity_trend": severity_trends, "category_trends": category, "category_severity_distribution": category_severity, "counseling_utilization": counseling, "attention_counts": attention}
 
 
-@admin_router.get("/counseling/calendar/multi")
+@admin_router.get("/counseling/calendar/multi", tags=["Admin: Counseling"])
 def multi_counselor_calendar(
     date_from: date,
     date_to: date,

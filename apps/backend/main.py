@@ -6,9 +6,9 @@ import os
 load_dotenv()
 
 from routes.assessment import router as assessment_router
-from routes.account import router as account_router
+from routes.account import auth_router, accounts_router
 from routes.dashboard import router as dashboard_router
-from routes.jadwal import router as jadwal_router
+from routes.jadwal import jadwal_router, booking_router
 from routes.journal import router as journal_router
 from routes.admin import router as admin_router
 from routes.admin_operations import router as admin_operations_router
@@ -39,13 +39,50 @@ def get_emergency_hotline():
 app = FastAPI(
     title="Sajiwa — Mental Health Chatbot API",
     description=(
-        "Backend API untuk aplikasi Sajiwa. Mencakup CB-01..CB-14: "
-        "asesmen, chatbot, guardrail, auth, dashboard, dan manajemen akun."
+        "Backend API untuk aplikasi Sajiwa: autentikasi, asesmen dan instrumen, "
+        "chatbot beserta guardrail, router intent dan RAG, jurnal, notifikasi, "
+        "konseling, serta operasi admin dan workspace konselor."
     ),
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=realtime_lifespan,
+    openapi_tags=[
+        {"name": "Assessment", "description": "Asesmen mandiri, riwayat, dan instrumen aktif."},
+        {"name": "Notifications", "description": "Notifikasi milik pengguna yang sedang masuk."},
+        {"name": "Guardrail", "description": "Deteksi krisis dan daftar hotline darurat."},
+        {"name": "Intent Router", "description": "Klasifikasi intent percakapan."},
+        {"name": "RAG", "description": "Pengambilan konteks dari basis pengetahuan."},
+        {"name": "Chat", "description": "Percakapan, streaming, riwayat, dan eskalasi ke tim."},
+        {"name": "Auth", "description": "Registrasi, sesi, reset kata sandi, dan persetujuan privasi."},
+        {"name": "Accounts", "description": "Manajemen akun oleh admin."},
+        {"name": "Dashboard", "description": "Data ringkasan dashboard."},
+        {"name": "Jadwal (legacy)", "description": "Slot konsultasi lama; dipertahankan untuk kompatibilitas."},
+        {"name": "Booking (legacy)", "description": "Pemesanan slot lama; dipertahankan untuk kompatibilitas."},
+        {"name": "Journal", "description": "Jurnal harian milik mahasiswa."},
+        {"name": "Admin: Assessments", "description": "Penelusuran asesmen lintas mahasiswa."},
+        {"name": "Admin: Users", "description": "Detail pengguna dan riwayatnya."},
+        {"name": "Admin: Attention", "description": "Sinyal perhatian dari guardrail."},
+        {"name": "Admin: Schedules", "description": "Jadwal organisasi konselor."},
+        {"name": "Admin: Hotlines", "description": "Daftar hotline darurat."},
+        {"name": "Admin: Analytics", "description": "Analitik agregat, ter-scope, dan perbandingan."},
+        {"name": "Admin: Faculties", "description": "Data fakultas."},
+        {"name": "Admin: Academic Units", "description": "Data program studi."},
+        {"name": "Admin: Students", "description": "Direktori dan profil akademik mahasiswa."},
+        {"name": "Admin: Notifications", "description": "Kotak masuk notifikasi admin."},
+        {"name": "Admin: Counseling", "description": "Permintaan, penjadwalan, sumber daya, dan pengecualian konseling."},
+        {"name": "Admin: Counselors", "description": "Daftar dan profil konselor."},
+        {"name": "Admin: Reports", "description": "Data laporan dan catatan audit."},
+        {"name": "Counseling", "description": "Permintaan konseling dan janji temu milik mahasiswa."},
+        {"name": "Admin: Assessment Instruments", "description": "Penulisan, validasi, dan publikasi instrumen."},
+        {"name": "Counselor: Instrument Reviews", "description": "Antrean dan keputusan review instrumen."},
+        {"name": "Counselor: Profile", "description": "Profil konselor."},
+        {"name": "Counselor: Cases", "description": "Kasus mahasiswa yang ditangani."},
+        {"name": "Counselor: Calendar", "description": "Kalender konselor."},
+        {"name": "Counselor: Exception Requests", "description": "Permintaan pengecualian jadwal."},
+        {"name": "Health", "description": "Status layanan."},
+        {"name": "Realtime", "description": "Notifikasi perubahan lewat WebSocket."},
+    ],
 )
 
 app.add_middleware(
@@ -63,9 +100,11 @@ app.include_router(guardrail_router)
 app.include_router(router_router)
 app.include_router(rag_router)
 app.include_router(chat_router)
-app.include_router(account_router)
+app.include_router(auth_router)
+app.include_router(accounts_router)
 app.include_router(dashboard_router)
 app.include_router(jadwal_router)
+app.include_router(booking_router)
 app.include_router(journal_router)
 app.include_router(admin_router)
 app.include_router(admin_operations_router)

@@ -12,8 +12,8 @@ from psycopg.types.json import Jsonb
 from auth import require_role
 from core.db import db, query
 
-admin_router = APIRouter(prefix="/admin", tags=["Backend Enablement B1"])
-counselor_router = APIRouter(prefix="/counselor", tags=["Counselor Instrument Review"])
+admin_router = APIRouter(prefix="/admin")
+counselor_router = APIRouter(prefix="/counselor", tags=["Counselor: Instrument Reviews"])
 admin_access = require_role("admin")
 counselor_access = require_role("konselor")
 
@@ -95,7 +95,7 @@ def _serialize_scoring(body: InstrumentCreate):
     return {"strategy": body.scoring.strategy, "dimensions": [{"code": d.code, "multiplier": float(d.multiplier), "interpretation_bands": [b.model_dump(mode="json") for b in d.interpretation_bands]} for d in body.dimensions]}
 
 
-@admin_router.post("/assessment-instruments", status_code=201)
+@admin_router.post("/assessment-instruments", status_code=201, tags=["Admin: Assessment Instruments"])
 def create_custom_instrument(body: InstrumentCreate, admin=Depends(admin_access)):
     _validate_definition(body.dimensions, body.questions)
     try:
@@ -121,7 +121,7 @@ def create_custom_instrument(body: InstrumentCreate, admin=Depends(admin_access)
         raise HTTPException(409, "Kode instrumen sudah digunakan")
 
 
-@admin_router.post("/assessment-instruments/versions/{version_id}/submit-review", status_code=201)
+@admin_router.post("/assessment-instruments/versions/{version_id}/submit-review", status_code=201, tags=["Admin: Assessment Instruments"])
 def submit_review(version_id: UUID, expected_revision: int = Query(ge=1), admin=Depends(admin_access)):
     with db(admin.id) as conn:
         version = conn.execute("select v.definition_revision,v.status,i.instrument_kind from assessment_instrument_versions v join assessment_instruments i on i.instrument_id=v.instrument_id where v.instrument_version_id=%s for update", (str(version_id),)).fetchone()
@@ -222,7 +222,7 @@ class StudentProfileUpdate(BaseModel):
     disability_details: Optional[str] = Field(default=None, max_length=1000)
 
 
-@admin_router.put("/students/{student_id}/profile")
+@admin_router.put("/students/{student_id}/profile", tags=["Admin: Students"])
 def update_student_profile(student_id: UUID, body: StudentProfileUpdate, admin=Depends(admin_access)):
     if body.academic_unit_id and not body.faculty_id:
         raise HTTPException(422, "Fakultas wajib dipilih bersama unit akademik")
@@ -250,13 +250,13 @@ class ResourceBody(BaseModel):
     active: bool = True
 
 
-@admin_router.get("/counseling/resources")
+@admin_router.get("/counseling/resources", tags=["Admin: Counseling"])
 def resources(admin=Depends(admin_access)):
     rows = query("select counseling_resource_id,name,resource_type,capacity,location_or_url,active,created_at,updated_at from counseling_resources order by name", user_id=admin.id)
     return {"resources": rows, "total": len(rows)}
 
 
-@admin_router.post("/counseling/resources", status_code=201)
+@admin_router.post("/counseling/resources", status_code=201, tags=["Admin: Counseling"])
 def create_resource(body: ResourceBody, admin=Depends(admin_access)):
     try:
         row = query("insert into counseling_resources(name,resource_type,capacity,location_or_url,active,created_by) values(%s,%s,%s,%s,%s,%s) returning *", (body.name.strip(), body.resource_type, body.capacity, body.location_or_url, body.active, admin.id), user_id=admin.id)[0]
@@ -277,7 +277,7 @@ def _utc(value):
     return value.astimezone(timezone.utc)
 
 
-@admin_router.post("/counseling/resources/{counseling_resource_id}/blocks", status_code=201)
+@admin_router.post("/counseling/resources/{counseling_resource_id}/blocks", status_code=201, tags=["Admin: Counseling"])
 def block_resource(counseling_resource_id: UUID, body: ResourceBlock, admin=Depends(admin_access)):
     start, end = _utc(body.starts_at), _utc(body.ends_at)
     if end <= start:
@@ -305,7 +305,7 @@ class ReplaceAvailability(BaseModel):
     windows: List[AvailabilityWindow] = Field(default_factory=list, max_length=40)
 
 
-@admin_router.put("/counseling/counselors/{counselor_id}/availability")
+@admin_router.put("/counseling/counselors/{counselor_id}/availability", tags=["Admin: Counseling"])
 def replace_availability(counselor_id: UUID, body: ReplaceAvailability, admin=Depends(admin_access)):
     for item in body.windows:
         if item.end_time <= item.start_time or (item.effective_from and item.effective_to and item.effective_to < item.effective_from):

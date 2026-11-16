@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from auth import require_role
 from core.db import query
 
-router = APIRouter(prefix="/admin", tags=["Admin Operations"])
+router = APIRouter(prefix="/admin")
 admin_access = require_role("admin")
 
 
@@ -44,7 +44,7 @@ class HotlineUpdate(BaseModel):
     verification_note: Optional[str] = Field(default=None, max_length=1000)
 
 
-@router.get("/attention")
+@router.get("/attention", tags=["Admin: Attention"])
 def attention_signals(
     signal: Optional[Literal["assessment", "safety", "request"]] = None,
     unread_only: bool = False,
@@ -92,7 +92,7 @@ def attention_signals(
     return {"signals": rows, "summary": summary_rows, "total": total, "page": page, "page_size": page_size}
 
 
-@router.patch("/attention/{guardrail_log_id}/read")
+@router.patch("/attention/{guardrail_log_id}/read", tags=["Admin: Attention"])
 def mark_attention_read(guardrail_log_id: UUID, admin=Depends(admin_access)):
     rows = query(
         "update guardrail_logs set is_read = true where guardrail_log_id = %s returning guardrail_log_id",
@@ -103,7 +103,7 @@ def mark_attention_read(guardrail_log_id: UUID, admin=Depends(admin_access)):
     return {"message": "Sinyal ditandai sudah ditinjau"}
 
 
-@router.get("/schedules")
+@router.get("/schedules", tags=["Admin: Schedules"])
 def organization_schedules(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
@@ -129,7 +129,7 @@ def organization_schedules(
     return {"schedules": rows, "total": len(rows)}
 
 
-@router.post("/schedules", status_code=status.HTTP_201_CREATED)
+@router.post("/schedules", status_code=status.HTTP_201_CREATED, tags=["Admin: Schedules"])
 def create_organization_schedule(request: ScheduleCreate, admin=Depends(admin_access)):
     if request.end_time <= request.start_time:
         raise HTTPException(422, "Jam selesai harus setelah jam mulai")
@@ -149,7 +149,7 @@ def create_organization_schedule(request: ScheduleCreate, admin=Depends(admin_ac
     return {"schedule": rows[0]}
 
 
-@router.patch("/schedules/{schedule_id}")
+@router.patch("/schedules/{schedule_id}", tags=["Admin: Schedules"])
 def update_organization_schedule(schedule_id: UUID, request: ScheduleUpdate, admin=Depends(admin_access)):
     rows = query(
         "update counseling_slots set status = %s where counseling_slot_id = %s returning counseling_slot_id",
@@ -160,7 +160,7 @@ def update_organization_schedule(schedule_id: UUID, request: ScheduleUpdate, adm
     return {"message": "Status jadwal diperbarui"}
 
 
-@router.get("/hotlines")
+@router.get("/hotlines", tags=["Admin: Hotlines"])
 def list_hotlines(admin=Depends(admin_access)):
     rows = query(
         "select hotline_id,name,phone,description,verification_status,verified_at,verified_by,verification_note,created_at,updated_at,updated_by from hotlines order by created_at,name",
@@ -169,7 +169,7 @@ def list_hotlines(admin=Depends(admin_access)):
     return {"hotlines": rows, "total": len(rows)}
 
 
-@router.post("/hotlines", status_code=status.HTTP_201_CREATED)
+@router.post("/hotlines", status_code=status.HTTP_201_CREATED, tags=["Admin: Hotlines"])
 def create_hotline(request: HotlineCreate, admin=Depends(admin_access)):
     rows = query(
         "insert into hotlines (name,phone,description,verification_status,verified_at,verified_by,verification_note,updated_by) values (%s,%s,%s,%s,case when %s='active' then now() end,case when %s='active' then %s::uuid end,%s,%s) "
@@ -179,7 +179,7 @@ def create_hotline(request: HotlineCreate, admin=Depends(admin_access)):
     return {"hotline": rows[0]}
 
 
-@router.put("/hotlines/{hotline_id}")
+@router.put("/hotlines/{hotline_id}", tags=["Admin: Hotlines"])
 def update_hotline(hotline_id: UUID, request: HotlineUpdate, admin=Depends(admin_access)):
     if request.name is None and request.phone is None and request.description is None and request.verification_status is None and request.verification_note is None:
         raise HTTPException(422, "Tidak ada data yang diubah")
@@ -203,7 +203,7 @@ def update_hotline(hotline_id: UUID, request: HotlineUpdate, admin=Depends(admin
     return {"hotline": rows[0]}
 
 
-@router.delete("/hotlines/{hotline_id}")
+@router.delete("/hotlines/{hotline_id}", tags=["Admin: Hotlines"])
 def delete_hotline(hotline_id: UUID, admin=Depends(admin_access)):
     rows = query(
         "update hotlines set verification_status='inactive',verified_at=null,verified_by=null,updated_at=now(),updated_by=%s where hotline_id=%s returning hotline_id",
@@ -214,7 +214,7 @@ def delete_hotline(hotline_id: UUID, admin=Depends(admin_access)):
     return {"message": "Hotline dinonaktifkan"}
 
 
-@router.get("/analytics")
+@router.get("/analytics", tags=["Admin: Analytics"])
 def analytics(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,

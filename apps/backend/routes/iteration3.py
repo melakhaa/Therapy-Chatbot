@@ -9,8 +9,8 @@ from psycopg.types.json import Jsonb
 from auth import get_current_user, require_role
 from core.db import db, query
 
-admin_router=APIRouter(prefix="/admin",tags=["Admin Iteration 3C"])
-student_router=APIRouter(prefix="/counseling",tags=["Counseling Requests"])
+admin_router=APIRouter(prefix="/admin")
+student_router=APIRouter(prefix="/counseling",tags=["Counseling"])
 admin_access=require_role("admin")
 
 class FacultyBody(BaseModel):
@@ -52,7 +52,7 @@ def utc(v):
     if v.tzinfo is None: raise HTTPException(422,"Tanggal dan waktu harus menyertakan zona waktu")
     return v.astimezone(timezone.utc)
 
-@admin_router.get("/academic/faculties")
+@admin_router.get("/academic/faculties",tags=["Admin: Faculties"])
 def faculties(include_inactive:bool=False,admin=Depends(admin_access)):
     rows=query("select f.faculty_id,f.code,f.name,f.active,f.source_url,count(distinct au.academic_unit_id) unit_count,"
                "count(distinct sap.user_id) student_count from faculties f left join academic_units au on au.faculty_id=f.faculty_id "
@@ -60,21 +60,21 @@ def faculties(include_inactive:bool=False,admin=Depends(admin_access)):
                "group by f.faculty_id order by f.name",(include_inactive,),user_id=admin.id)
     return {"faculties":rows,"total":len(rows)}
 
-@admin_router.post("/academic/faculties",status_code=201)
+@admin_router.post("/academic/faculties",status_code=201,tags=["Admin: Faculties"])
 def faculty_create(b:FacultyBody,admin=Depends(admin_access)):
     try: row=query("insert into faculties(name,code,active) values(%s,%s,%s) returning faculty_id,code,name,active,source_url",
                   (b.name.strip(),clean(b.code),b.active),user_id=admin.id)[0]
     except UniqueViolation: raise HTTPException(409,"Fakultas dengan nama atau kode tersebut sudah ada")
     return {"faculty":row}
 
-@admin_router.put("/academic/faculties/{faculty_id}")
+@admin_router.put("/academic/faculties/{faculty_id}",tags=["Admin: Faculties"])
 def faculty_update(faculty_id:UUID,b:FacultyBody,admin=Depends(admin_access)):
     rows=query("update faculties set name=%s,code=%s,active=%s where faculty_id=%s returning faculty_id,code,name,active,source_url",
                (b.name.strip(),clean(b.code),b.active,str(faculty_id)),user_id=admin.id)
     if not rows: raise HTTPException(404,"Fakultas tidak ditemukan")
     return {"faculty":rows[0]}
 
-@admin_router.get("/academic/units")
+@admin_router.get("/academic/units",tags=["Admin: Academic Units"])
 def units(faculty_id:Optional[UUID]=None,include_inactive:bool=False,admin=Depends(admin_access)):
     fid=str(faculty_id) if faculty_id else None
     rows=query("select au.academic_unit_id,au.faculty_id,f.name faculty_name,au.code,au.name,au.unit_type,au.degree_level,au.active,"
@@ -95,17 +95,17 @@ def save_unit(unit_id,b,admin_id):
     if not rows: raise HTTPException(404,"Unit akademik tidak ditemukan")
     return rows[0]
 
-@admin_router.post("/academic/units",status_code=201)
+@admin_router.post("/academic/units",status_code=201,tags=["Admin: Academic Units"])
 def unit_create(b:UnitBody,admin=Depends(admin_access)):
     try: return {"academic_unit":save_unit(None,b,admin.id)}
     except ForeignKeyViolation: raise HTTPException(422,"Fakultas tidak valid")
     except UniqueViolation: raise HTTPException(409,"Unit akademik tersebut sudah ada")
 
-@admin_router.put("/academic/units/{unit_id}")
+@admin_router.put("/academic/units/{unit_id}",tags=["Admin: Academic Units"])
 def unit_update(unit_id:UUID,b:UnitBody,admin=Depends(admin_access)):
     return {"academic_unit":save_unit(unit_id,b,admin.id)}
 
-@admin_router.put("/students/{student_id}/academic-profile")
+@admin_router.put("/students/{student_id}/academic-profile",tags=["Admin: Students"])
 def profile_update(student_id:UUID,b:ProfileBody,admin=Depends(admin_access)):
     fid=str(b.faculty_id) if b.faculty_id else None; uid=str(b.academic_unit_id) if b.academic_unit_id else None
     if uid and not fid: raise HTTPException(422,"Fakultas wajib dipilih bersama unit akademik")
@@ -115,7 +115,7 @@ def profile_update(student_id:UUID,b:ProfileBody,admin=Depends(admin_access)):
     except ForeignKeyViolation: raise HTTPException(422,"Mahasiswa, fakultas, atau unit akademik tidak valid")
     return {"academic_profile":row}
 
-@admin_router.get("/notifications")
+@admin_router.get("/notifications",tags=["Admin: Notifications"])
 def notifications(category:Optional[str]=None,unread_only:bool=False,page:int=Query(1,ge=1),page_size:int=Query(30,ge=1,le=100),admin=Depends(admin_access)):
     p=(admin.id,category,category,unread_only); w="where admin_user_id=%s and (%s::text is null or category=%s) and (%s=false or read_at is null)"
     total=query("select count(*) total from admin_notifications "+w,p,user_id=admin.id)[0]["total"]
@@ -124,14 +124,14 @@ def notifications(category:Optional[str]=None,unread_only:bool=False,page:int=Qu
     unread=query("select count(*) total from admin_notifications where admin_user_id=%s and read_at is null",(admin.id,),user_id=admin.id)[0]["total"]
     return {"notifications":rows,"total":total,"unread":unread,"page":page,"page_size":page_size}
 
-@admin_router.patch("/notifications/{admin_notification_id}/read")
+@admin_router.patch("/notifications/{admin_notification_id}/read",tags=["Admin: Notifications"])
 def notification_read(admin_notification_id:UUID,admin=Depends(admin_access)):
     rows=query("update admin_notifications set read_at=coalesce(read_at,now()) where admin_notification_id=%s and admin_user_id=%s "
                "returning admin_notification_id,read_at",(str(admin_notification_id),admin.id),user_id=admin.id)
     if not rows: raise HTTPException(404,"Notifikasi tidak ditemukan")
     return {"notification":rows[0]}
 
-@admin_router.post("/notifications/mark-all-read")
+@admin_router.post("/notifications/mark-all-read",tags=["Admin: Notifications"])
 def notifications_read(admin=Depends(admin_access)):
     rows=query("update admin_notifications set read_at=now() where admin_user_id=%s and read_at is null returning admin_notification_id",(admin.id,),user_id=admin.id)
     return {"updated":len(rows)}
@@ -180,7 +180,7 @@ def request_create(b:RequestBody,student=Depends(get_current_user)):
                          (student.id,clean(b.preferred_context),counselor,start,end)).fetchone()
     return {"request":row}
 
-@admin_router.get("/counseling/requests")
+@admin_router.get("/counseling/requests",tags=["Admin: Counseling"])
 def requests(state:Optional[str]=Query(None,alias="status"),page:int=Query(1,ge=1),page_size:int=Query(30,ge=1,le=100),admin=Depends(admin_access)):
     p=(state,state); src=("from counseling_requests cr join users u on u.user_id=cr.student_id left join student_academic_profiles sap on sap.user_id=u.user_id "
        "left join faculties f on f.faculty_id=sap.faculty_id left join academic_units au on au.academic_unit_id=sap.academic_unit_id "
@@ -218,7 +218,7 @@ def validate_slot(conn,student,counselor,start_value,end_value,exclude=None,reso
         if used>=item["capacity"]: raise HTTPException(409,"Kapasitas resource sudah penuh")
     return start,end
 
-@admin_router.post("/counseling/requests/{request_id}/assign",status_code=201)
+@admin_router.post("/counseling/requests/{request_id}/assign",status_code=201,tags=["Admin: Counseling"])
 def assign(request_id:UUID,b:AppointmentBody,admin=Depends(admin_access)):
     try:
         with db(admin.id) as conn:
@@ -236,7 +236,7 @@ def assign(request_id:UUID,b:AppointmentBody,admin=Depends(admin_access)):
     except ExclusionViolation: raise HTTPException(409,"Jadwal bertumpang tindih dengan janji aktif")
     return {"appointment":row}
 
-@admin_router.get("/counseling/calendar")
+@admin_router.get("/counseling/calendar",tags=["Admin: Counseling"])
 def calendar(date_from:date,date_to:date,counselor_id:Optional[UUID]=None,state:Optional[str]=Query(None,alias="status"),admin=Depends(admin_access)):
     if date_from>date_to or (date_to-date_from).days>93: raise HTTPException(422,"Rentang kalender tidak valid")
     cid=str(counselor_id) if counselor_id else None
@@ -255,13 +255,13 @@ def calendar(date_from:date,date_to:date,counselor_id:Optional[UUID]=None,state:
                  (date_to,date_from,cid,cid),user_id=admin.id)
     return {"appointments":rows,"blocked_periods":blocks}
 
-@admin_router.get("/counselors")
+@admin_router.get("/counselors",tags=["Admin: Counselors"])
 def counselors(admin=Depends(admin_access)):
     rows=query("select u.user_id,u.name,u.email,cp.title,cp.specialization,coalesce(cp.active,true) active from users u "
                "left join counselor_profiles cp on cp.user_id=u.user_id where u.role='konselor' order by u.name",user_id=admin.id)
     return {"counselors":rows,"total":len(rows)}
 
-@admin_router.put("/counselors/{counselor_id}/profile")
+@admin_router.put("/counselors/{counselor_id}/profile",tags=["Admin: Counselors"])
 def counselor_update(counselor_id:UUID,b:CounselorBody,admin=Depends(admin_access)):
     if not b.active and query("select 1 from counseling_appointments where counselor_id=%s and status in ('confirmed','rescheduled') and starts_at>now() limit 1",(str(counselor_id),),user_id=admin.id):
         raise HTTPException(409,"Konselor masih memiliki janji aktif di masa mendatang")
@@ -271,7 +271,7 @@ def counselor_update(counselor_id:UUID,b:CounselorBody,admin=Depends(admin_acces
     if not rows: raise HTTPException(404,"Konselor tidak ditemukan")
     return {"counselor":rows[0]}
 
-@admin_router.get("/counseling/availability")
+@admin_router.get("/counseling/availability",tags=["Admin: Counseling"])
 def availability(counselor_id:Optional[UUID]=None,admin=Depends(admin_access)):
     cid=str(counselor_id) if counselor_id else None
     rows=query("select counselor_availability_rule_id,counselor_id,day_of_week,start_time,end_time,timezone,effective_from,effective_to,active "
@@ -279,7 +279,7 @@ def availability(counselor_id:Optional[UUID]=None,admin=Depends(admin_access)):
                (cid,cid),user_id=admin.id)
     return {"availability":rows,"total":len(rows)}
 
-@admin_router.post("/counseling/availability",status_code=201)
+@admin_router.post("/counseling/availability",status_code=201,tags=["Admin: Counseling"])
 def availability_create(b:AvailabilityBody,admin=Depends(admin_access)):
     if b.end_time<=b.start_time: raise HTTPException(422,"Jam selesai harus setelah jam mulai")
     if not query("select 1 from users where user_id=%s and role='konselor'",(str(b.counselor_id),),user_id=admin.id):
@@ -294,7 +294,7 @@ def availability_create(b:AvailabilityBody,admin=Depends(admin_access)):
     except ExclusionViolation: raise HTTPException(409,"Ketersediaan bertumpang tindih")
     return {"availability":row}
 
-@admin_router.post("/counseling/blocked-periods",status_code=201)
+@admin_router.post("/counseling/blocked-periods",status_code=201,tags=["Admin: Counseling"])
 def block_create(b:BlockBody,admin=Depends(admin_access)):
     start,end=utc(b.starts_at),utc(b.ends_at)
     if end<=start: raise HTTPException(422,"Waktu selesai harus setelah waktu mulai")
@@ -312,7 +312,7 @@ def block_create(b:BlockBody,admin=Depends(admin_access)):
                          (counselor,start,end,clean(b.reason),admin.id)).fetchone()
     return {"blocked_period":row}
 
-@admin_router.post("/counseling/notes",status_code=201)
+@admin_router.post("/counseling/notes",status_code=201,tags=["Admin: Counseling"])
 def note_create(b:NoteBody,admin=Depends(admin_access)):
     if (b.counseling_request_id is None)==(b.counseling_appointment_id is None): raise HTTPException(422,"Pilih tepat satu permintaan atau janji temu")
     row=query("insert into counseling_admin_notes(counseling_request_id,counseling_appointment_id,author_user_id,note_text) values(%s,%s,%s,%s) "
@@ -320,7 +320,7 @@ def note_create(b:NoteBody,admin=Depends(admin_access)):
               (str(b.counseling_request_id) if b.counseling_request_id else None,str(b.counseling_appointment_id) if b.counseling_appointment_id else None,admin.id,b.note_text.strip()),user_id=admin.id)[0]
     return {"note":row}
 
-@admin_router.post("/reports/audits",status_code=201)
+@admin_router.post("/reports/audits",status_code=201,tags=["Admin: Reports"])
 def audit_create(b:AuditBody,admin=Depends(admin_access)):
     if b.date_from>b.date_to: raise HTTPException(422,"Tanggal awal harus sebelum tanggal akhir")
     scope={"faculty_ids":[str(value) for value in b.faculty_ids],"academic_unit_ids":[str(value) for value in b.academic_unit_ids]}
@@ -330,7 +330,7 @@ def audit_create(b:AuditBody,admin=Depends(admin_access)):
     return {"audit":row}
 
 
-@admin_router.patch("/counseling/appointments/{counseling_appointment_id}")
+@admin_router.patch("/counseling/appointments/{counseling_appointment_id}",tags=["Admin: Counseling"])
 def appointment_update(counseling_appointment_id:UUID,b:AppointmentPatch,admin=Depends(admin_access)):
     try:
         with db(admin.id) as conn:
@@ -352,20 +352,20 @@ def appointment_update(counseling_appointment_id:UUID,b:AppointmentPatch,admin=D
     except ExclusionViolation: raise HTTPException(409,"Jadwal bertumpang tindih dengan janji aktif")
     return {"appointment":row}
 
-@admin_router.delete("/counseling/availability/{rule_id}")
+@admin_router.delete("/counseling/availability/{rule_id}",tags=["Admin: Counseling"])
 def availability_deactivate(rule_id:UUID,admin=Depends(admin_access)):
     rows=query("update counselor_availability_rules set active=false where counselor_availability_rule_id=%s returning counselor_availability_rule_id",(str(rule_id),),user_id=admin.id)
     if not rows: raise HTTPException(404,"Aturan ketersediaan tidak ditemukan")
     return {"message":"Aturan ketersediaan dinonaktifkan"}
 
-@admin_router.delete("/counseling/blocked-periods/{block_id}")
+@admin_router.delete("/counseling/blocked-periods/{block_id}",tags=["Admin: Counseling"])
 def block_delete(block_id:UUID,admin=Depends(admin_access)):
     rows=query("delete from counselor_blocked_periods where counselor_blocked_period_id=%s returning counselor_blocked_period_id",(str(block_id),),user_id=admin.id)
     if not rows: raise HTTPException(404,"Waktu blokir tidak ditemukan")
     return {"message":"Waktu blokir dihapus"}
 
 
-@admin_router.get("/students")
+@admin_router.get("/students",tags=["Admin: Students"])
 def students(search:str="",faculty_id:Optional[UUID]=None,academic_unit_id:Optional[UUID]=None,
              page:int=Query(1,ge=1),page_size:int=Query(30,ge=1,le=100),admin=Depends(admin_access)):
     fid=str(faculty_id) if faculty_id else None; uid=str(academic_unit_id) if academic_unit_id else None
@@ -381,7 +381,7 @@ def students(search:str="",faculty_id:Optional[UUID]=None,academic_unit_id:Optio
                " order by u.created_at desc limit %s offset %s",p+(page_size,(page-1)*page_size),user_id=admin.id)
     return {"students":rows,"total":total,"page":page,"page_size":page_size}
 
-@admin_router.get("/analytics/scoped")
+@admin_router.get("/analytics/scoped",tags=["Admin: Analytics"])
 def scoped_analytics(date_from:date,date_to:date,faculty_id:List[UUID]=Query(default=[]),academic_unit_id:List[UUID]=Query(default=[]),admin=Depends(admin_access)):
     if date_from>date_to: raise HTTPException(422,"Tanggal awal harus sebelum tanggal akhir")
     fid=[str(value) for value in dict.fromkeys(faculty_id)] or None; uid=[str(value) for value in dict.fromkeys(academic_unit_id)] or None
@@ -410,7 +410,7 @@ def scoped_analytics(date_from:date,date_to:date,faculty_id:List[UUID]=Query(def
             "assessment_trend":trend,"academic_breakdown":academic,
             "booking_total":sum(x["count"] for x in bookings),"booking_status":bookings}
 
-@admin_router.get("/reports/data")
+@admin_router.get("/reports/data",tags=["Admin: Reports"])
 def report_data(date_from:date,date_to:date,mode:Literal["aggregate","confidential"]="aggregate",
                  faculty_id:List[UUID]=Query(default=[]),academic_unit_id:List[UUID]=Query(default=[]),admin=Depends(admin_access)):
     aggregate=scoped_analytics(date_from,date_to,faculty_id,academic_unit_id,admin)

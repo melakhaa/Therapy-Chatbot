@@ -5,7 +5,8 @@ from typing import Optional, Literal
 from auth import get_current_user, require_role
 from core.db import query
 
-router = APIRouter(tags=["Jadwal Konsultasi"])
+jadwal_router = APIRouter(tags=["Jadwal (legacy)"])
+booking_router = APIRouter(tags=["Booking (legacy)"])
 
 
 class BuatJadwalRequest(BaseModel):
@@ -27,7 +28,7 @@ class UpdateJadwalRequest(BaseModel):
     status: Literal["available", "booked", "completed", "cancelled"]
 
 
-@router.post("/jadwal", status_code=status.HTTP_201_CREATED)
+@jadwal_router.post("/jadwal", status_code=status.HTTP_201_CREATED)
 def buat_jadwal(
     request: BuatJadwalRequest,
     user=Depends(require_role("konselor", "admin")),
@@ -43,7 +44,7 @@ def buat_jadwal(
     return {"jadwal": rows[0], "message": "Jadwal berhasil dibuat"}
 
 
-@router.get("/jadwal")
+@jadwal_router.get("/jadwal")
 def lihat_jadwal_tersedia(user=Depends(get_current_user)):
     rows = query(
         "select counseling_slot_id, counselor_id, date, start_time, end_time, status "
@@ -53,7 +54,7 @@ def lihat_jadwal_tersedia(user=Depends(get_current_user)):
     return {"jadwal": rows}
 
 
-@router.get("/jadwal/saya")
+@jadwal_router.get("/jadwal/saya")
 def lihat_jadwal_saya(user=Depends(require_role("konselor", "admin"))):
     rows = query(
         "select counseling_slot_id, date, start_time, end_time, status "
@@ -64,7 +65,7 @@ def lihat_jadwal_saya(user=Depends(require_role("konselor", "admin"))):
     return {"jadwal": rows}
 
 
-@router.patch("/jadwal/{counseling_slot_id}")
+@jadwal_router.patch("/jadwal/{counseling_slot_id}")
 def update_status_jadwal(
     counseling_slot_id: str,
     request: UpdateJadwalRequest,
@@ -81,7 +82,7 @@ def update_status_jadwal(
     return {"message": "Status jadwal diperbarui"}
 
 
-@router.post("/booking", status_code=status.HTTP_201_CREATED)
+@booking_router.post("/booking", status_code=status.HTTP_201_CREATED)
 def buat_booking(request: BookingRequest, user=Depends(get_current_user)):
     jadwal = query(
         "select status from counseling_slots where counseling_slot_id = %s",
@@ -122,7 +123,7 @@ def _embed_jadwal(row: dict) -> dict:
     }
 
 
-@router.get("/booking/saya")
+@booking_router.get("/booking/saya")
 def lihat_booking_saya(user=Depends(get_current_user)):
     rows = query(
         "select b.counseling_booking_id, b.counseling_slot_id, b.status, b.notes, b.created_at, "
@@ -135,7 +136,7 @@ def lihat_booking_saya(user=Depends(get_current_user)):
     return {"bookings": [_embed_jadwal(r) for r in rows]}
 
 
-@router.get("/booking/masuk")
+@booking_router.get("/booking/masuk")
 def lihat_booking_masuk(user=Depends(require_role("konselor", "admin"))):
     rows = query(
         "select b.counseling_booking_id, b.counseling_slot_id, b.status, b.notes, b.created_at, "
@@ -148,7 +149,7 @@ def lihat_booking_masuk(user=Depends(require_role("konselor", "admin"))):
     return {"bookings": [_embed_jadwal(r) for r in rows]}
 
 
-@router.patch("/booking/{counseling_booking_id}")
+@booking_router.patch("/booking/{counseling_booking_id}")
 def update_status_booking(
     counseling_booking_id: str,
     request: UpdateBookingRequest,

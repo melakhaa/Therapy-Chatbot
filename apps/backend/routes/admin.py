@@ -7,12 +7,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from auth import require_role
 from core.db import query
 
-router = APIRouter(prefix="/admin", tags=["Admin"])
+router = APIRouter(prefix="/admin")
 operator_access = require_role("konselor", "admin", "pemangku_jabatan")
 directory_access = require_role("admin", "pemangku_jabatan")
 
 
-@router.get("/assessments")
+@router.get("/assessments", tags=["Admin: Assessments"])
 def list_assessments(
     search: str = Query("", max_length=100),
     severity: Optional[Literal["minimal", "mild", "moderate", "severe"]] = None,
@@ -65,7 +65,7 @@ def list_assessments(
     return {"assessments": rows, "total": total, "page": page, "page_size": page_size}
 
 
-@router.get("/users/{user_id}")
+@router.get("/users/{user_id}", tags=["Admin: Users"])
 def user_detail(user_id: UUID, operator=Depends(directory_access)):
     rows = query(
         "select u.user_id,u.name,u.email,u.nim,u.role,u.created_at,sap.faculty_id,f.name as faculty_name,"
@@ -80,7 +80,7 @@ def user_detail(user_id: UUID, operator=Depends(directory_access)):
     return {"user": rows[0]}
 
 
-@router.get("/users/{user_id}/assessments")
+@router.get("/users/{user_id}/assessments", tags=["Admin: Users"])
 def user_assessments(
     user_id: UUID, page: int = Query(1, ge=1, le=2147483647),
     page_size: int = Query(20, ge=1, le=100), operator=Depends(operator_access),
@@ -97,7 +97,7 @@ def user_assessments(
     return {"assessments": rows, "total": total, "page": page, "page_size": page_size}
 
 
-@router.get("/users/{user_id}/bookings")
+@router.get("/users/{user_id}/bookings", tags=["Admin: Users"])
 def user_bookings(
     user_id: UUID, page: int = Query(1, ge=1, le=2147483647),
     page_size: int = Query(20, ge=1, le=100), operator=Depends(operator_access),

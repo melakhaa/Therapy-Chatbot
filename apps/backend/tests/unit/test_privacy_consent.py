@@ -28,7 +28,8 @@ STUDENT = "22222222-2222-4222-8222-222222222222"
 WHEN = "2026-10-16T02:00:00+00:00"
 
 app = FastAPI()
-app.include_router(account.router)
+app.include_router(account.auth_router)
+app.include_router(account.accounts_router)
 client = TestClient(app)
 
 
