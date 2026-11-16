@@ -53,12 +53,24 @@ Perubahan yang menghasilkan angka itu:
 6. Streaming — timeout client Ollama 60 → 300 detik (jawaban nyata 81–181 detik di mesin CPU
    referensi) dan exception generasi dicatat beserta rute.
 
+**Bias yang harus dibaca bersama angka di atas.** Tidak ada satu pun set yang bersih:
+
+- `regression` dipakai untuk mengkalibrasi `top_k`, agregasi, threshold, dan utterance.
+  Angka 100% di set itu adalah angka set latih, bukan generalisasi.
+- `heldout_v1` dipakai untuk analisis error: frasa krisis, utterance RAG, dan utterance
+  provenance ditambah setelah melihat kegagalannya.
+- `heldout_v2` juga dipakai: frasa "menyudahi semuanya" ditambah dan utterance "melukai
+  keluarga" dikeluarkan setelah melihat kegagalannya. Jadi v2 **bukan** held-out bersih.
+- Fixture, label, dan oracle relevansi ditulis oleh agen, bukan peninjau independen.
+- Oracle retrieval berbasis frasa: jawaban benar dengan kata lain dihitung meleset, dan
+  potongan yang memuat frasa tanpa menjawab dihitung kena.
+- Sampel kecil: 15 kasus retrieval (13/15 ≈ 62–96% pada CI 95%), 5 kasus luar domain,
+  4 kasus generasi. Satu mesin, satu model, satu putaran.
+
 **Yang sengaja tidak dikerjakan:** gate latensi <40 detik (Tahap 4), review independen label
 fixture oleh peninjau manusia, review grounding isi jawaban, uji load, dan uji outage proses
-terpisah. Dataset `regression` dipakai untuk kalibrasi dan `heldout_v1` dipakai sekali untuk
-analisis error, jadi keduanya bukan bukti generalisasi murni; `heldout_v2` adalah set paling
-bersih yang tersedia. Dua miss retrieval yang tersisa (dampak depresi sedang, penanganan
-self-stigma) berakar pada isi tabel yang padat dan peringkat 8, bukan pada batas chunking.
+terpisah. Dua miss retrieval yang tersisa (dampak depresi sedang, penanganan self-stigma)
+berakar pada isi tabel yang padat dan peringkat 8, bukan pada batas chunking.
 
 ## 1. Baseline dan bukti
 
