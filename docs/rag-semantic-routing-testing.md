@@ -15,8 +15,9 @@ at the bottom of this page.
 | Integration: retrieval quality | `rag_retrieval_eval.py` (inside the same command) | Ollama + Postgres + stored corpus |
 
 `npm run test:integration` runs all of them in that order. Each evaluator skips **loudly with
-exit 2** when its own dependency is missing (Ollama down, model not pulled, corpus empty); the
-shell runner reports the skip and continues. A gate failure exits 1 and stops the run.
+exit 2** when a dependency check fails (Ollama down, embedding model not pulled, DB unreachable);
+the shell runner reports the skip and continues. The retrieval evaluator currently does not
+explicitly detect an empty corpus in preflight; do not treat its preflight as a corpus check. A gate failure exits 1 and stops the run.
 
 ## 2. Setup
 
@@ -53,10 +54,11 @@ done
 
 | File | Tests | What it pins |
 | --- | ---: | --- |
-| `test_rag_citation.py` | 6 | Citation reaching the prompt, filename fallback, missing/null/multi-source metadata, prompt order, neighbour slice in `retrieve_docs` |
+| `test_rag_citation.py` | 7 | Citation reaching the prompt, filename fallback, retrieved instructions kept out of the system role, neighbour slices |
 | `test_embed_chunking.py` | 6 | 500/50 chunk contract, empty input, DOCX paragraph/table order, no ingestion on import |
 | `test_provenance.py` | 4 | Corpus-based fixed reply, "AI, not a psychologist" claim, empty-corpus fallback, sample utterances |
-| `test_guardrail.py` | 12 | Crisis normalization (explicit, slang/leet, implicit), no false positive on everyday phrases, profanity strip keeping medical terms |
+| `test_guardrail.py` | 16 | Crisis normalization, intent/action/target patterns, paired farewell cues, conservative negation policy, profanity preserving medical terms |
+| `test_chat_policy.py` | 8 | Fixed internal-instruction/personal-medical/private-data refusals, crisis priority over supplied routes, normal generation, diagnosis-report negative controls, fixed provenance and empty-context responses |
 | `test_chat_history.py` | 6 | Prompt budget, crisis rows filtered in SQL, ordering, unanswered-turn handling |
 | `test_chat_stream.py` | 5 | SSE framing, `[DONE]`, error frame without `[DONE]`, persistence failures |
 | `test_chat_sessions.py` | 5 | Session scoping, previews, encrypted persistence |
@@ -131,7 +133,20 @@ venv/bin/python tests/integration/rag_router_eval.py
 venv/bin/python tests/integration/rag_retrieval_eval.py
 ```
 
-Both accept `--fixtures <file>`:
+Both accept `--fixtures <file>`. The default integration runner also executes the
+`*_cases_remediation.json` regression sets. Prompt-injection generation runs separately:
+
+```bash
+venv/bin/python tests/integration/chat_adversarial_eval.py --output /tmp/sajiwa-adversarial.json
+```
+
+This runner records full synthetic answers. Exit 0 means only its automated checks passed;
+rows marked `review_required` still require review. Historical single-turn attacks use real
+chat dispatch. Multi-turn and document attacks use real prompt assembly/model generation with
+synthetic history or a substituted DB boundary; they do not prove HTTP persistence or RLS.
+
+Other evaluator commands:
+
 
 ```bash
 venv/bin/python tests/integration/rag_router_eval.py \
@@ -147,9 +162,12 @@ Exit codes: `0` all gates pass, `1` a gate failed, `2` dependencies unavailable 
 | File | Role | Rule |
 | --- | --- | --- |
 | `fixtures/rag_router_cases.json` | `regression` (100 messages, 8 paraphrase groups) + `heldout_v1`/`heldout_v2` | Used for calibration. Its numbers are **training-set** numbers. |
-| `fixtures/rag_router_cases_frozen.json` | 100 messages + 8 paraphrase groups, written before any run | Run it to see the honest number. Do **not** tune on it; if you must, say so and write a new frozen set. |
+| `fixtures/rag_router_cases_frozen.json` | Originally frozen, then used for two crisis fixes and subsequent regression checks | **Not untouched anymore.** Its initial result was 94%; 96% was after fixes. |
 | `fixtures/rag_retrieval_cases.json` | 15 in-domain + 5 out-of-domain | Same rule; phrase oracle must exist in the source DOCX. |
-| `fixtures/rag_retrieval_cases_frozen.json` | Same shape, written before any run | Same rule. |
+| `fixtures/rag_retrieval_cases_frozen.json` | Same shape, initially written before execution | Subsequently included in retrieval threshold calibration; now regression evidence. |
+| `fixtures/rag_router_cases_remediation.json` | 17 November: 100 messages + 8 paraphrase groups | Initial accuracy 77%; now used for remediation, **not independent evaluation**. One original question overlapped an older fixture. |
+| `fixtures/rag_retrieval_cases_remediation.json` | New wording, existing source-verified phrase oracles | Initially 12/15 hits and one OOD leak; now threshold-calibration regression. |
+| `fixtures/chat_adversarial_cases.json` | Eight historical + eight newer attacks, one history and one document injection | Regression, with manual answer review; not a universal injection defence test. |
 
 Fixtures are checked in, so a change is visible in history. `--fixtures` exists so the frozen
 set can be run without touching the regression file.
@@ -182,7 +200,10 @@ a run green. Record the date, commit and configuration whenever you quote a numb
 
 ## 8. Current results (16 November 2026)
 
-| Check | Regression (tuned) | Frozen (untouched, run once) |
+Historical results below (16 November), **not current independent evidence**. The column
+previously described as untouched was run again after fixes; that description was incorrect.
+
+| Check | Regression (tuned) | Previously frozen, then used for fixes |
 | --- | ---: | ---: |
 | Router macro precision / recall | 100% / 100% | **96,1% / 96,0%** |
 | Router accuracy | 100% | **96,0%** |
@@ -198,12 +219,14 @@ both pass on that date.
 
 ## 9. Known gaps
 
-- **Prompt injection:** attacks that ask the model to repeat its system prompt verbatim, or to
-  translate the instructions, still leak them (2 of 8). The response text is the only defence
-  today; a server-side check would be a behaviour change, not a test.
+- **Prompt injection:** historical repetition/translation attacks leaked instructions (2/8).
+  Direct internal-instruction requests now have a fixed refusal before generation, after the
+  crisis gate. This is a narrow pattern check, not protection against all paraphrases, encoded
+  attacks or multi-turn attacks. Retrieved text is now a user-role data message, not system
+  instructions. Model compliance still needs live adversarial testing and answer review.
 - **Negation:** a message that quotes or negates a crisis phrase ("aku nggak akan bunuh diri")
-  still shows the crisis card. The project accepts this bias on purpose; changing it needs a
-  reviewed policy, not a test tweak.
+  still shows the crisis card. This conservative policy is retained pending counselor review;
+  false positives can interrupt support and create staff alerts, so they are not harmless.
 - **Educational crisis questions:** "kapan pasien dengan ide bunuh diri perlu dirawat?" is
   routed to guardrail for the same reason.
 - **Generation latency:** the <40 s target is not enforced. On the CPU-only reference machine a
@@ -214,3 +237,55 @@ both pass on that date.
   independent review, the retrieval oracle is phrase-based, and samples are small (15 retrieval
   cases ≈ 62–96% at 95% CI). Treat the percentages as regression evidence, not a generalisation
   claim.
+
+## 10. Remediation measurements (17 November 2026)
+
+Full evidence, reproduction commands and remaining failures:
+[remediation results](rag-semantic-routing-testing-results.md).
+
+The 17 November initial run used 100 classification questions and 40 paraphrases, generated
+by the session model, not DeepSeek. It had no exact utterance overlap, but one question matched
+an older evaluation fixture. Classification accuracy was **77%**, crisis recall **21/25**,
+provenance recall **9/25**, and paraphrase groups **7/8**. Retrieval had **12/15** phrase hits
+and **4/5** OOD queries returned no context. These fixtures are now explicitly regression data.
+
+Changes were made after failing tests at the agreed seams:
+
+- Crisis slang normalization and bounded intent/action/target patterns, with negative controls;
+  paired farewell cues retain the existing fixed crisis response and its safety question.
+- Separate identity/source utterances from conversational greetings; unchanged route thresholds.
+- Retrieval threshold **0.35**, chosen across all three existing retrieval sets, not a one-query
+  special case. No re-ingestion, reranker or chunking change; remaining semantic misses persist.
+- Retrieved text is user-role data rather than system instructions. Direct requests for internal
+  instructions, personal diagnosis/prescribing, or other users' records return fixed refusals
+  before generation. These narrow patterns do not replace RLS or prevent every paraphrase.
+
+| Measurement | Before | After (same regression set, tuned) |
+| --- | ---: | ---: |
+| Router accuracy | 77% | 99% |
+| Crisis recall | 21/25 | 25/25 |
+| Provenance recall | 9/25 | 25/25 |
+| Paraphrase groups correct/consistent | 7/8 | 8/8 |
+| Retrieval phrase Hit Rate@5 | 12/15 | 12/15 |
+| OOD with empty retrieval | 4/5 | 5/5 |
+
+The original router regression remains 100%; the older `frozen` set is now 97% (regression,
+not independent evidence). Retrieval phrase hits remain 13/15, 13/15, 12/15 across the three
+sets; all 15 OOD queries are empty. The test gate remains ≥80%, not lowered.
+
+A **new post-remediation set** (`rag_router_cases_holdout_20261117.json`, 40 questions and four
+3-phrase groups) was frozen before execution. It scored **39/40 (97.5%)**, macro P **97.73%**,
+macro R **97.5%**, and 4/4 paraphrase groups. **One crisis case still missed**: intent to jump
+onto railway tracks. No routing fix used that result. The evaluator's macro gates exit 0,
+but this does **not** satisfy the all-crises-detected safety requirement. This small set was
+written by the same agent, not independent clinical reviewers.
+
+Reproduce the supplementary router check:
+
+```bash
+venv/bin/python tests/integration/rag_router_eval.py \
+  --fixtures tests/integration/fixtures/rag_router_cases_holdout_20261117.json
+```
+
+Negation/quotation suppression is deliberately deferred until counselor review. No claim of
+production safety or general injection resistance follows from the passing regression gates.

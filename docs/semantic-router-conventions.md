@@ -16,7 +16,10 @@ user message
            └─ "rag"            → retrieve_docs() → LLM answer   rag.py
 ```
 
-After the crisis gate, `core.chat_stream` calls `strip_profanity()` (guardrail.py):
+After the crisis gate, `core.chat_stream` refuses direct requests to expose internal
+instructions with a fixed reply. This narrow pattern check is not a complete injection defence.
+A supplied `route=` cannot override deterministic crisis detection. Then it calls
+`strip_profanity()` (guardrail.py):
 curses-only input returns the fixed `PROFANITY_REPLY`, otherwise the stripped message
 goes to the model. Crisis always wins — a profanity-laced crisis message still gets
 `HARDCODED_RESPONSE`.
@@ -65,8 +68,10 @@ Rules:
 
 ## Crisis detection is NOT left to the router
 
-`guardrail.is_crisis()` is a normalized keyword check that runs **before** the embedding
-match. All four route decisions in `routes/chat.py` import `semantic_router` from
+`guardrail.is_crisis()` uses normalized phrases and bounded intent/action/target patterns
+**before** the embedding match. Slang `bundir` folds to `bunuh diri`; farewell text is only an
+additional signal when paired with a wish that others no longer need to care for the speaker.
+These are heuristics, not clinical risk assessment. All four route decisions in `routes/chat.py` import `semantic_router` from
 `core.py`, which is the wrapper function — so the keyword net cannot be bypassed.
 
 The router alone is not a safety boundary. In testing it missed:
@@ -80,8 +85,9 @@ nothing written to `guardrail_logs`. Embedding distance is not a safety property
 
 Rules when touching this:
 
-- New crisis wording goes in **both** `CRISIS_PHRASES` in `guardrail.py` and the
-  `guardrail_route` utterances. Write each phrase once in its canonical form —
+- Add deterministic coverage first (normalization, a phrase, or a bounded pattern). Avoid
+  copying every failing sentence into fuzzy utterances: that can pull ordinary distress into
+  guardrail. Validate positive and negative cases. Write phrases in canonical form —
   `_normalize()` folds leet/alay spelling (`bunuh d1r1` → `bunuh diri`), letter
   elongation (`matiii` → `mati`), and slang (`gw`→`aku`, `gak`→`tidak`, `idup`→`hidup`,
   `udah`→`sudah`, `pengen`→`ingin`) before matching, so `CRISIS_PHRASES` should not
@@ -89,8 +95,9 @@ Rules when touching this:
   map entry.
 - Utterances help the fuzzy matcher with paraphrases — those still want colloquial
   wording.
-- Bias toward matching. A false positive shows a student the hotline card — harmless.
-  A false negative means a student in crisis is talking to an LLM.
+- Bias toward matching until a reviewed negation/quotation policy exists. False positives
+  can interrupt support and create staff alerts; they are not cost-free. A false negative
+  means a student in crisis may reach ordinary generation.
 - Profanity is **not** a route — `PROFANITY` tokens (Indonesian + Javanese only) are
   stripped in `strip_profanity()`, with `_FILLER` dropped alongside so curses-only
   input collapses to `""` and gets `PROFANITY_REPLY`. English cursing is deliberately
