@@ -36,6 +36,21 @@ provenance_route = Route(
         "rujukan apa yang kamu gunakan untuk menjawab",
         "kamu terapis?",
         "kamu punya lisensi profesi?",
+        "kamu siapa?",
+        # Identity, credentials, lived experience and sources are not generative claims.
+        "siapa yang membuat Sajiwa",
+        "apakah balasan ini ditulis manusia atau program",
+        "apakah Sajiwa robot kecerdasan buatan",
+        "apa nama dan tugas asisten ini",
+        "kamu manusia yang bekerja sebagai konselor?",
+        "bisakah kamu menggantikan psikolog profesional",
+        "apakah kamu memiliki sertifikat untuk mendiagnosis",
+        "apakah kamu mempunyai pengalaman pribadi seperti manusia",
+        "apakah kamu benar benar pernah mengalami perasaan manusia",
+        "apakah informasi ini dari Kementerian Kesehatan",
+        "saya sedang berbicara dengan chatbot atau manusia",
+        "apakah bot yang mengetik balasan chat ini",
+        "siapa nama AI yang membalas chat saya",
     ],
 )
 

@@ -8,6 +8,7 @@ from services.chatbot.guardrail import (
     is_crisis,
     strip_profanity,
     PROFANITY_REPLY,
+    policy_reply,
 )
 from services.chatbot.conversational import conversational_route, build_messages as conversational_messages
 from services.chatbot.history import load_history
@@ -76,10 +77,18 @@ def chat_stream(
 
     `route` is accepted so callers that already routed do not pay for it twice.
     """
-    route = route or (semantic_router(user_message).name or "conversational")
+    # A caller-supplied route is an optimization, never permission to bypass safety.
+    route = "guardrail" if is_crisis(user_message) else (
+        route or (semantic_router(user_message).name or "conversational")
+    )
 
     if route == "guardrail":
         yield HARDCODED_RESPONSE
+        return
+
+    refusal = policy_reply(user_message)
+    if refusal:
+        yield refusal
         return
 
     # Deterministic: asked where its knowledge comes from, the model invented sources and a

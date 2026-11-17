@@ -9,8 +9,8 @@ from core.db import query
 # to the LLM. Safety must not depend on embedding distance, so every message is
 # checked against this list first (core.semantic_router) and only then routed.
 #
-# Bias is deliberate: a false positive shows a student the hotline card, which is
-# harmless. A false negative means a student in crisis talks to an LLM.
+# Conservative until negation/quotation policy is clinically reviewed: false positives
+# interrupt support, but false negatives can send someone in crisis to ordinary generation.
 CRISIS_PHRASES = (
     # ending life
     "bunuh diri", "bunuhdiri", "bunuh diriku", "membunuh diriku", "bunuh diri ku",
@@ -56,7 +56,7 @@ _LEET = str.maketrans("134570", "ieasto")
 
 # Slang → formal, keyed on the run-collapsed form (see _normalize order).
 _SLANG = {
-    "idup": "hidup",
+    "idup": "hidup", "bundir": "bunuh diri",
     "gw": "aku", "gue": "aku", "gua": "aku", "aq": "aku",
     "ga": "tidak", "gak": "tidak", "nga": "tidak", "ngak": "tidak",
     "mokad": "mati", "modar": "mati",
@@ -77,13 +77,25 @@ def _normalize(text: str) -> str:
 
 _NORMALIZED_CRISIS = tuple(_normalize(p) for p in CRISIS_PHRASES)
 
+# Match the action's immediate target, not an unrelated person later in the sentence.
+_HARM_INTENT = re.compile(
+    r"\b(?:ingin|mau|berniat|berencana|akan)\s+"
+    r"(?:mengiris|memotong|melukai|menyakiti|menusuk|menyerang)\s+"
+    r"(?:pergelangan\s+)?"
+    r"(?:tangan|lengan|tubuh|diri|dosen|teman|orang|ibu|ayah|adik|kakak)"
+    r"(?:ku|mu|nya)?\b"
+)
+
 
 def is_crisis(text: str) -> bool:
-    """True if the message clearly signals self-harm, suicide, or harm to others."""
+    """Conservatively flag possible self-harm or harm to others; not a clinical assessment."""
     if not text:
         return False
     normalized = _normalize(text)
-    return any(phrase in normalized for phrase in _NORMALIZED_CRISIS)
+    return (any(phrase in normalized for phrase in _NORMALIZED_CRISIS)
+            or bool(_HARM_INTENT.search(normalized))
+            or (bool(re.search(r"\btidak (?:akan )?perlu mengurusku lagi\b", normalized))
+                and bool(re.search(r"\b(?:pesan perpisahan|surat terakhir)\b", normalized))))
 
 
 # ── Profanity (Indonesian + Javanese only) ────────────────────────────────────
@@ -109,6 +121,45 @@ _FILLER = frozenset({
 })
 
 _DROP = frozenset(PROFANITY) | _FILLER
+
+# Narrow defence for direct extraction requests, not a general injection detector.
+INTERNAL_INSTRUCTION_REQUEST = re.compile(
+    r"\b(?:system\s+prompt|prompt\s+(?:sistem|internal|tersembunyi)|"
+    r"instruksi\s+(?:sistem|pengembang|internal)(?:mu|nya)?|"
+    r"(?:system|developer)\s+instructions?)\b|"
+    r"\b(?:ulangi|salin|ulang|repeat).{0,100}(?:teks|pesan|text).{0,80}di\s+atas\b",
+    re.IGNORECASE,
+)
+INTERNAL_INSTRUCTION_REPLY = (
+    "Maaf, aku tidak dapat membagikan atau mengubah instruksi internal. "
+    "Aku bisa membantu membahas kesehatan mentalmu."
+)
+
+PERSONAL_MEDICAL_REPLY = (
+    "Aku tidak dapat menetapkan diagnosis atau meresepkan obat untukmu. "
+    "Silakan berkonsultasi dengan dokter atau psikiater untuk pemeriksaan dan pengobatan yang sesuai."
+)
+PRIVATE_DATA_REPLY = (
+    "Aku tidak dapat membagikan data atau percakapan pengguna lain. "
+    "Aku bisa mendengarkan cerita yang ingin kamu bagikan sendiri."
+)
+
+
+def policy_reply(text: str) -> str | None:
+    """Narrow fixed refusals; data authorization must still be enforced by the server."""
+    text = " ".join(text.lower().split())
+    if INTERNAL_INSTRUCTION_REQUEST.search(text):
+        return INTERNAL_INSTRUCTION_REPLY
+    if (re.search(r"\b(?:diagnosis|diagnosa|resep|resepkan|dosis)\b", text)
+            and re.search(r"\b(?:aku|saya|untukku|untukmu|pribadiku)\b", text)
+            and (re.search(r"\b(?:berikan|beri|tetapkan|tulis|tuliskan|buatkan|resepkan|berapa)\b", text)
+                 or re.search(r"\b(?:diagnosis|diagnosa)\s+(?:aku|saya)\b", text))):
+        return PERSONAL_MEDICAL_REPLY
+    if re.search(r"\b(?:data|nama|email|curhat|riwayat|percakapan)\b.{0,100}"
+                 r"\b(?:mahasiswa|pengguna|pasien|orang)\s+lain\b", text):
+        return PRIVATE_DATA_REPLY
+    return None
+
 
 PROFANITY_REPLY = "Maaf, aku tidak paham maksudmu. Kamu ingin bercerita tentang sesuatu?"
 

@@ -78,6 +78,31 @@ class CrisisDetectionTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertTrue(is_crisis(text))
 
+    def test_detects_suicide_abbreviation_without_matching_word_fragments(self):
+        for text in ["Aku pengen bundir sebelum hasil sidang keluar.", "gw kepikiran bUnd1r"]:
+            with self.subTest(text=text):
+                self.assertTrue(is_crisis(text))
+        self.assertFalse(is_crisis("nama foldernya bundirectory"))
+
+    def test_detects_intent_action_and_person_or_body_target(self):
+        for text in [
+            "Aku ingin mengiris pergelangan tanganku malam ini.",
+            "Aku berniat menyakiti dosenku secara fisik besok.",
+            "Gue berencana melukai teman sekamar besok.",
+            "Saya mau memotong lengan saya.",
+        ]:
+            with self.subTest(text=text):
+                self.assertTrue(is_crisis(text))
+        for text in [
+            "aku ingin mengiris bawang untuk makan malam",
+            "aku berencana memotong rambut besok",
+            "aku takut menyakiti perasaan dosenku",
+            "aku ingin membantu teman yang terluka",
+            "aku mau mengiris bawang lalu menemui dosenku",
+        ]:
+            with self.subTest(text=text):
+                self.assertFalse(is_crisis(text))
+
     def test_ignores_case_and_punctuation(self):
         for text in ["SAYA MAU BUNUH DIRI", "Saya Mau Bunuh Diri!!!", "sAyA mAu BuNuH dIrI"]:
             with self.subTest(text=text):
@@ -113,6 +138,24 @@ class CrisisDetectionTests(unittest.TestCase):
         ]:
             with self.subTest(text=text):
                 self.assertTrue(is_crisis(text))
+
+    def test_farewell_with_a_wish_to_be_gone_gets_a_safety_check(self):
+        for text in [
+            "Besok kalian tidak akan perlu mengurusku lagi, aku sudah menulis pesan perpisahan.",
+            "Aku menulis surat terakhir. Kalian tidak perlu mengurusku lagi.",
+        ]:
+            with self.subTest(text=text):
+                self.assertTrue(is_crisis(text))
+        for text in [
+            "Aku menulis pesan perpisahan untuk teman yang pindah kampus.",
+            "Besok kalian tidak perlu mengurusku lagi karena aku sudah sembuh.",
+        ]:
+            with self.subTest(text=text):
+                self.assertFalse(is_crisis(text))
+
+    def test_negation_does_not_disable_a_danger_signal(self):
+        self.assertTrue(is_crisis("aku tidak tahan lagi dan ingin mati"))
+        self.assertTrue(is_crisis("aku tidak ingin bunuh diri"))
 
     def test_ordinary_exhaustion_is_not_a_crisis(self):
         for text in ["aku capek banget", "aku capek ngerjain tugas", "lagi sedih hari ini"]:
