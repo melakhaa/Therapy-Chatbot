@@ -1,9 +1,8 @@
 # Running the RAG and semantic-routing tests
 
 How to run the checks that guard the chatbot's routing, crisis gate, retrieval, citations and
-ingestion — and what their results do and do not prove. Historical C500 results stay in
-[C500](C500_Sajiwa_Pengujian_Produk.md); the current measured numbers and the remaining gaps are
-at the bottom of this page.
+ingestion — and what their results do and do not prove. The current measured numbers and the
+remaining gaps are at the bottom of this page.
 
 ## 1. What exists
 
