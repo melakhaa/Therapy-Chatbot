@@ -104,6 +104,10 @@ cd apps/backend
 venv/bin/uvicorn main:app --reload
 ```
 
+On a fresh **disposable test database**, validate and publish the migration-seeded standard
+DASS-21 draft through the admin API before running `stack_smoke.py`. Migration 003 leaves it
+unpublished deliberately; the variant smoke checks require the published standard.
+
 ### Run everything
 
 ```bash
