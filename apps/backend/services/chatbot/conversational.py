@@ -30,16 +30,8 @@ ATURAN KETAT YANG HARUS KAMU PATUHI:
 4. Gaya Bahasa: Tetap profesional. Jangan membalas dengan "Haha" kecuali konteksnya benar-benar pantas.
 5. Sumber: jika ditanya dari mana informasi berasal, sebutkan hanya sumber yang sudah disebut dalam percakapan ini. Jangan pernah mengarang judul buku, lembaga, atau situs."""
 
-def build_messages(user_message: str, history: list | None = None) -> list:
-    """The prompt for one turn: persona, then prior turns, then the new message.
-
-    Generation itself lives in core.chat_stream — one path for both /chat and /chat/stream.
-    """
-    return [
-        SystemMessage(content=SYSTEM_PROMPT),
-        *(history or []),
-        HumanMessage(content=user_message),
-    ]
+def build_messages(user_message: str) -> list:
+    return [SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=user_message)]
 
 
 if __name__ == "__main__":

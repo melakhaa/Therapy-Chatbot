@@ -1,6 +1,6 @@
 # Plan: Replace local chat generation with DeepSeek V4.1 Flash
 
-**Branch:** `replace-local-llm-with-deepseek` · **Status:** Plan only; no runtime changes.
+**Branch:** `replace-local-llm-with-deepseek` · **Status:** Implemented; live staging and privacy approval pending.
 
 ## Target and scope
 
@@ -8,12 +8,25 @@ Use DeepSeek’s first-party `POST https://api.deepseek.com/chat/completions` wi
 
 Replace `ChatOllama` for conversational and RAG answer generation only. Keep Ollama running `nomic-embed-text-v2-moe` for semantic routing, retrieval, and document ingestion. No embedding changes, re-indexing, or database changes are needed for the generation swap itself. Keep the Sajiwa persona, Bahasa Indonesia responses, local safety and policy decisions, and the existing chat API success shapes. No provider abstraction, automatic model fallback, web tools, or file uploads.
 
-## Before implementation
+## Setup and release prerequisites
+
+Edit the existing, Git-ignored `apps/backend/.env` (use `.env.example` only as a template):
+
+```dotenv
+DEEPSEEK_API_KEY=your_staging_key_here
+DEEPSEEK_ALLOW_CHAT_EGRESS=0
+DEEPSEEK_RAG_SOURCES=
+```
+
+Set egress to `1` only in isolated synthetic staging or after privacy approval. For staging RAG,
+list the exact `metadata.source` values of reviewed documents, comma-separated; blank shares no
+references. Restart FastAPI after editing the file. Leave `DEEPSEEK_ALLOW_CHAT_EGRESS=0` on any
+unapproved deployment even if a key is present.
 
 - [ ] Get a [DeepSeek API key](https://platform.deepseek.com/api_keys) and fund a staging account. Confirm backend HTTPS egress to `api.deepseek.com`, account model access (`GET /models` and one synthetic completion), rates/concurrency, and a budget for the pilot. Put `DEEPSEEK_API_KEY` in the ignored `apps/backend/.env` for local use and the deployment secret store elsewhere; document only a blank value in `.env.example`. Never use `EXPO_PUBLIC_*` or send the key to the app.
 - [ ] Get privacy/security approval **before sending any real student data**. Encrypted database storage does not protect the decrypted text sent to DeepSeek. Confirm whether the service is approved for student mental-health content, including retention/deletion, training use, prompt caching and isolation, processing region and cross-border transfers, and what disclosures or consent are required. Also confirm which RAG documents are licensed and approved to leave the backend. Until then, use synthetic text and synthetic or approved public fixtures only.
 - [ ] Agree what may leave the backend. Start with the minimum approved current message and, for RAG, the minimum approved excerpts with citation labels. Do not send prior chat by default; if approved, explicitly bound and redact any history and exclude pre-approval and crisis turns. Do not include student/session identifiers, account metadata, journals, assessment answers, or crisis logs. Free text can still identify a student; define and test redaction and when to withhold a request. The current [mobile consent sheet](../apps/mobile/components/ui/ConsentSheet.tsx) and [consent endpoint](../apps/backend/routes/account.py) track one unversioned acceptance; do not treat it as authorization for third-party processing. If revised consent is required, implement and test a backend check before provider calls (including existing accounts) before release. Never gate the local crisis reply on provider consent.
-- [ ] Baseline synthetic conversational and RAG examples on the local model: Bahasa Indonesia quality, citation accuracy, safe refusals, time to first visible text and total latency. Agree on staging acceptance thresholds and on the delayed-first-text trade-off described below.
+- [ ] Compare the local baseline below with staging. Agree on thresholds for quality, refusals, latency and spend, and on the delayed-first-text trade-off.
 
 ## Implementation order
 
@@ -24,10 +37,23 @@ Follow the repo’s [test-first rules](testing-conventions.md#test-driven-develo
 3. **Prove fixed paths stay local.** Test crisis (including a caller-supplied alternate route), provenance, policy refusals, profanity-only input and RAG with no context with the provider disabled or failing. Assert zero outbound generation calls for those paths, no crisis-turn text in outbound history, and unchanged hotline text and crisis logging. Test successful conversational and cited RAG responses, consent/no-consent where applicable, outages, incomplete responses, and provider refusals. Verify rejected or incomplete answers are never displayed or persisted. Keep history encryption, session ownership and RLS unchanged.
 4. **Update setup and validation.** Adjust `apps/backend/.env.example`, declare the chosen HTTP client directly in `requirements.txt` if it is not already listed, and update the setup/convention docs (`README.md`, `docs/development-conventions.md`, `docs/ollama-conventions.md`, and test docs). Keep `langchain-ollama` and `ollama` for embeddings. Remove generation-only Ollama setup from the normal path. Update the chat smoke and `chat_adversarial_eval.py` for the new prerequisites and report fields (it currently reads `llm.temperature` and `llm.num_ctx`); routing and retrieval evaluators stay local. Mark live chat-generation checks as opt-in and report any skipped checks explicitly.
 
+## Verification so far
+
+- `npm test` passed. The loopback [DeepSeek simulation](../apps/backend/tests/integration/deepseek_simulation.py)
+  passed for both routes, including refusal, malformed/empty response, rate limit, and an overall
+  timeout despite keep-alive. It uses a fake key and stubbed DB/embeddings. The stand-in follows
+  the provider docs; the Postman CLI install timed out, so no hosted workspace mock was used.
+- Ollama router gates ran with the standard and remediation fixtures and passed. The full
+  Postgres/retrieval/RLS run and live DeepSeek evaluation remain unverified here.
+- Local baseline (old `llama3-8b-instruct:Q4_K_M`, two synthetic prompts, no real student data):
+  conversation **53.0 s** to first text / **78.4 s** total; RAG with a synthetic excerpt
+  **20.3 s** / **34.0 s**, with the expected opening citation. This is not a benchmark or a
+  clinical quality review.
+
 ## Release gates and rollback
 
 - [ ] Run `npm test`, then `npm run test:integration` with Postgres, the backend and local Ollama/embeddings running. Confirm routing, retrieval and RLS checks actually ran. Exercise upstream successes and failures through the FastAPI routes against a simulated HTTP service; a skipped live check is not a pass.
 - [ ] With a staging key, run synthetic conversation, RAG and adversarial checks (including manual review for Indonesian tone, grounded citations, and no personalized diagnosis/prescription). On mobile, verify the typing indicator waits for visible text, errors clear it, and the crisis card still appears promptly without cloud generation.
-- [ ] After privacy approval, start with a limited deployment. Track time to first visible text, completion time, filtered/error rates and token spend without collecting chat text. If cost, latency, safety or answer quality misses the agreed thresholds, roll back to the previous backend release and disable the DeepSeek key/egress for that deployment. Keep the local generation artifact/config available until the pilot passes; do not silently fail over per request.
+- [ ] Review local crisis false negatives before any student traffic leaves the backend (including the [recorded holdout miss](rag-semantic-routing-testing-results.md#4-new-holdout-frozen-before-execution)). After safety and privacy approval, start with a limited deployment. Track time to first visible text, completion time, filtered/error rates and token spend without collecting chat text. If cost, latency, safety or answer quality misses the agreed thresholds, roll back to the previous backend release and disable the DeepSeek key/egress for that deployment. Keep the local generation artifact/config available until the pilot passes; do not silently fail over per request.
 
 Provider references: [Quickstart](https://api-docs.deepseek.com/), [Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion), [Content Safety](https://api-docs.deepseek.com/guides/safety), [Error Codes](https://api-docs.deepseek.com/quick_start/error_codes), [Rate Limits](https://api-docs.deepseek.com/quick_start/rate_limit).

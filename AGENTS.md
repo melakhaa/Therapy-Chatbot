@@ -5,8 +5,8 @@ Expo app (AI chat, stress detection, PHQ-9/GAD-7/SRQ + the versioned DASS-21 ins
 journaling); counselors/admins use a Next.js dashboard (risk monitoring, analytics, booking,
 instrument authoring) in the separate `melakhaa/sajiwa-dashboard` repository. This
 npm-workspace monorepo holds the mobile app, the FastAPI backend (Python 3.12), and the
-shared TypeScript packages; Docker runs PostgreSQL 17 + pgvector, Ollama provides the local
-LLM/embeddings.
+shared TypeScript packages; Docker runs PostgreSQL 17 + pgvector, Ollama computes local
+embeddings, and DeepSeek generates chat replies when egress is enabled.
 
 **Work test-first.** Every change to behaviour starts with a failing test, at the lowest
 applicable tier, at one of the agreed seams. The `tdd` skill (`.agents/skills/tdd/`) is
@@ -37,7 +37,7 @@ Each app, package, and `db/` also has a local `AGENTS.md` — read it when worki
 - Python / FastAPI / Pydantic → [docs/python-conventions.md](docs/python-conventions.md), [docs/fastapi-conventions.md](docs/fastapi-conventions.md), [docs/pydantic-conventions.md](docs/pydantic-conventions.md)
 - Backend enablement (instrument review, counseling resources, hotlines) → [docs/backend-enablement.md](docs/backend-enablement.md)
 - PostgreSQL, RLS, schema, pgvector → [docs/postgresql-conventions.md](docs/postgresql-conventions.md)
-- AI: routing / LangChain adapter / Ollama → [docs/semantic-router-conventions.md](docs/semantic-router-conventions.md), [docs/ollama-conventions.md](docs/ollama-conventions.md)
+- AI: local routing / embeddings / DeepSeek → [docs/semantic-router-conventions.md](docs/semantic-router-conventions.md), [docs/ollama-conventions.md](docs/ollama-conventions.md)
 - TypeScript / React / React Native / Expo / routing / UI → [docs/typescript-conventions.md](docs/typescript-conventions.md), [docs/react-conventions.md](docs/react-conventions.md), [docs/react-native-conventions.md](docs/react-native-conventions.md), [docs/expo-conventions.md](docs/expo-conventions.md), [docs/expo-router-conventions.md](docs/expo-router-conventions.md), [docs/react-native-ui-conventions.md](docs/react-native-ui-conventions.md)
 - npm workspaces / shared packages → [docs/npm-workspaces-conventions.md](docs/npm-workspaces-conventions.md)
 - Docker / local infra → [docs/docker-conventions.md](docs/docker-conventions.md)

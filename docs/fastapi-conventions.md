@@ -68,14 +68,16 @@ under [semantic-router-conventions.md](semantic-router-conventions.md) and
 - Errors: `raise HTTPException(status_code=..., detail="Bahasa Indonesia message")`.
 - Responses: plain dicts, `snake_case` keys; insert endpoints return the created row or
   `{entity, message}`. Always cast IDs with `str(user.id)`.
-- Streaming endpoint `POST /chat/stream` is real SSE: a metadata frame (`{route, is_high_risk}`)
-  first, then `{"token": ...}` frames as the model emits them, then `data: [DONE]`. The user
-  message is saved before generation and the reply after it completes — a truncated answer never
-  enters history, but the question survives an app kill.
+- `POST /chat/stream` sends SSE: metadata (`{route, is_high_risk}`) first, then a
+  `{"token": ...}` frame containing the complete reply, then `data: [DONE]`. Provider text is
+  withheld until the completion passes safety and citation checks. On generation failure, send
+  `{"error": "generation_failed"}` without `[DONE]`. With a session ID, the user message is
+  saved first; the assistant reply is only saved on success.
 - `POST /chat` returns `{response, route, is_high_risk}` and persists the turn when a `session_id`
   is supplied; `GET /chat/history?session_id=` returns the caller's own decrypted transcript —
   the newest 50 messages, oldest first.
-  Both `/chat` and `/chat/stream` generate through `core.chat_stream`, so they cannot drift.
+  Both generate through `core.chat_stream`. `POST /chat` returns a generic `503` on generation
+  failure and does not save that turn.
 - `POST /chat/report` backs the crisis sheet's "kabari tim" button: it writes an unread
   `guardrail_logs` row (`[LAPORAN PENGGUNA]` prefix) surfaced by the dashboard as a `request`
   attention signal. It stores no message content.

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
@@ -11,6 +11,7 @@ from core.security import decrypt_text, encrypt_text
 from core.db import db, query
 from services.chatbot.core import chat as chat_fn, chat_stream, semantic_router
 from services.chatbot.guardrail import HARDCODED_RESPONSE
+from services.chatbot.llm import GenerationError
 from services.chatbot.rag import retrieve_docs
 
 load_dotenv()
@@ -54,9 +55,10 @@ def _sse(payload: dict) -> str:
     return f"data: {json.dumps(payload)}\n\n"
 
 
-@chat_router.post("/stream")
+@chat_router.post("/stream", response_class=StreamingResponse,
+                  responses={200: {"content": {"text/event-stream": {}}}})
 def stream_chat_response(request: ChatRequest, user=Depends(get_current_user)):
-    """Real SSE: tokens as the model produces them. `[DONE]` terminates the stream."""
+    """Send metadata early, then the completed answer and `[DONE]`."""
     route_result = semantic_router(request.message)
     route = route_result.name or "conversational"
     is_high_risk = route == "guardrail"
@@ -76,20 +78,13 @@ def stream_chat_response(request: ChatRequest, user=Depends(get_current_user)):
 
         parts = []
         try:
-            for chunk in chat_stream(
-                request.message,
-                session_id=request.session_id,
-                user_id=user.id,
-                route=route,
-            ):
+            for chunk in chat_stream(request.message, route=route):
                 parts.append(chunk)
                 yield _sse({"token": chunk})
-        except Exception:
-            # A truncated answer is not a turn: keep it out of history so the next request
-            # re-asks rather than continuing from half a reply. Log which route died: a
-            # bare traceback made a 60s client timeout look like any other failure.
-            logging.exception("chat generation failed (route=%s, session_id=%s)",
-                              route, request.session_id)
+        except Exception as error:
+            # Never log provider bodies, prompts or identifiers on generation failures.
+            reason = str(error) if isinstance(error, GenerationError) else "unexpected_error"
+            logging.error("chat generation failed (route=%s, reason=%s)", route, reason)
             yield _sse({"error": "generation_failed"})
             return
 
@@ -168,7 +163,7 @@ def report_to_team(request: ReportRequest, user=Depends(get_current_user)):
     return {"status": "reported"}
 
 
-@chat_router.post("")
+@chat_router.post("", responses={503: {"description": "Balasan Sajiwa tidak tersedia"}})
 def chat_unified(request: ChatRequest, user=Depends(get_current_user)):
     route_result = semantic_router(request.message)
     route = route_result.name or "conversational"
@@ -177,13 +172,12 @@ def chat_unified(request: ChatRequest, user=Depends(get_current_user)):
     if is_high_risk:
         response_text = HARDCODED_RESPONSE
     else:
-        # Routed above, so chat() must not route again; it only loads history and generates.
-        response_text = chat_fn(
-            request.message,
-            session_id=request.session_id,
-            user_id=user.id,
-            route=route,
-        )
+        # Pass the route once; chat generation has no access to session identity or history.
+        try:
+            response_text = chat_fn(request.message, route=route)
+        except GenerationError as error:
+            logging.error("chat generation failed (route=%s, reason=%s)", route, error)
+            raise HTTPException(503, "Sajiwa sedang tidak bisa dihubungi.") from None
 
     if request.session_id:
         with db(user.id) as conn:

@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+import os
+import re
 
 from semantic_router import SemanticRouter
 from semantic_router.encoders import OllamaEncoder
@@ -11,12 +13,12 @@ from services.chatbot.guardrail import (
     policy_reply,
 )
 from services.chatbot.conversational import conversational_route, build_messages as conversational_messages
-from services.chatbot.history import load_history
-from services.chatbot.llm import llm
+import services.chatbot.llm as llm
 from services.chatbot.provenance import provenance_route, provenance_reply, PROVENANCE_ROUTE
 from services.chatbot.rag import (
     rag_route,
     build_messages as rag_messages,
+    retrieve_docs,
     NO_CONTEXT_REPLY,
     EMBED_MODEL,
 )
@@ -67,13 +69,18 @@ def semantic_router(message: str) -> RouteResult:
     return _router(message)
 
 
-def chat_stream(
-    user_message: str,
-    session_id: str | None = None,
-    user_id: str | None = None,
-    route: str | None = None,
-):
-    """Yield the reply in chunks. `chat()` is this joined, so the two paths cannot drift.
+MAX_OUTBOUND_CHARS = 4000
+# shortcut: common identifiers only; review residual free-text risks before production egress.
+_IDENTIFIERS = re.compile(
+    r"(?:https?://|www\.)[^\s<>]+|[\w.!#$%&'*+/=?^`{|}~-]+@[\w.-]+\.[a-z]{2,}"
+    r"|\b(?:nim|nik)\s*[:=]?\s*\d[\w-]{3,}\b"
+    r"|(?<!\w)\+?\d(?:[ .()\-]*\d){8,}(?!\w)",
+    re.IGNORECASE,
+)
+
+
+def chat_stream(user_message: str, route: str | None = None):
+    """Yield the completed reply. `chat()` is this joined, so the two paths cannot drift.
 
     `route` is accepted so callers that already routed do not pay for it twice.
     """
@@ -104,28 +111,30 @@ def chat_stream(
         yield PROFANITY_REPLY
         return
 
-    history = load_history(session_id, user_id)
+    # Past chat stays local; session and user identifiers never enter the provider prompt.
+    if len(message) > MAX_OUTBOUND_CHARS:
+        raise llm.GenerationError("message_too_long")
+    outbound_text = _IDENTIFIERS.sub("[disamarkan]", message)
+    if route != "rag":
+        yield llm.generate(conversational_messages(outbound_text))
+        return
 
-    if route == "rag":
-        messages = rag_messages(message, history)
-        if messages is None:
-            yield NO_CONTEXT_REPLY
-            return
-    else:
-        messages = conversational_messages(message, history)
+    sources = {source.strip() for source in os.getenv("DEEPSEEK_RAG_SOURCES", "").split(",") if source.strip()}
+    docs = [doc for doc in (retrieve_docs(message) if sources else [])
+            if (meta := doc["metadata"]) and meta.get("source") in sources and meta.get("citation")]
+    if not docs:
+        yield NO_CONTEXT_REPLY
+        return
 
-    for chunk in llm.stream(messages):
-        if chunk.content:
-            yield chunk.content
+    answer = llm.generate(rag_messages(outbound_text, docs=docs))
+    labels = (doc["metadata"]["citation"] for doc in docs)
+    if not any(answer.lstrip().startswith((f"Menurut {label},", f"Menurut [{label}],")) for label in labels):
+        raise llm.GenerationError("missing_rag_citation")
+    yield answer
 
 
-def chat(
-    user_message: str,
-    session_id: str | None = None,
-    user_id: str | None = None,
-    route: str | None = None,
-) -> str:
-    return "".join(chat_stream(user_message, session_id=session_id, user_id=user_id, route=route))
+def chat(user_message: str, route: str | None = None) -> str:
+    return "".join(chat_stream(user_message, route=route))
 
 if __name__ == "__main__":
     tests = [

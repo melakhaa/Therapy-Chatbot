@@ -38,13 +38,13 @@ to one of them, and a new seam gets added here (with its trade-off) before the t
 | `core/mailer.py` — `send_reset_otp` (smtplib replaced) | unit | the reset mail's recipient and content, the SMTP handshake, the dev log fallback, a failure that never logs the code | real delivery, spam filtering |
 | `services/chatbot/guardrail.py` — `is_crisis`, `strip_profanity` | unit | deterministic crisis detection | model tone and routing |
 | `services/chatbot/rag.py` — `build_messages`, `_source_label`, `retrieve_docs` | unit (stubbed `query` and embedding client) | citation and filename fallback, retrieved text kept out of the system role, neighbour slices | real similarity, whether the model obeys the instruction |
-| `services/chatbot/core.py` — `semantic_router`, `chat_stream` | unit (stubbed `core.db`, encoder and `llm`) | crisis priority even with supplied routes, fixed policy/provenance/no-context replies, ordinary requests still reaching generation | real embedding accuracy, adversarial model behavior |
+| `services/chatbot/core.py` — `semantic_router`, `chat_stream` | unit (stubbed DB, embeddings and HTTP transport) | local safety/policy replies, approved outbound payload, redaction and citations | real embedding accuracy or provider behavior |
 | `scripts/embed.py` — `chunk_text`, `extract_text_docx` | unit (no DB, import must stay side-effect free) | the 500/50 chunk contract, DOCX paragraph/table order, no ingestion at import | chunk quality — measured live by the retrieval evaluator |
 | Router quality evaluator (`tests/integration/rag_router_eval.py`) | integration (real Ollama embeddings) | macro/per-class precision and recall, paraphrase consistency **and** correctness, out-of-domain leakage | model generation, the UI |
 | Retrieval evaluator (`tests/integration/rag_retrieval_eval.py`) | integration (real pgvector corpus) | Hit Rate@5, no-context behaviour, per-query latency, stored vector dimensions | whether the generated answer is grounded |
 | `services/chatbot/provenance.py` — `provenance_reply` | unit | which documents get named, the "AI, not a psychologist, no clients" claim, the empty-corpus fallback | fuzzy routing into this route, model behaviour on a miss |
-| `services/chatbot/` history assembly | unit | prompt budget, crisis filtering, ordering | real model output |
-| The live API over HTTP and `/realtime` (incl. `db/test_rls.sql`) | integration | real SQL, triggers (incl. who is notified of what), change notices, encryption at rest, RLS, Ollama | anything in the UI |
+| Chat API + loopback DeepSeek stand-in | integration (stubbed DB and embeddings) | real provider HTTP calls, deadline, safe SSE/JSON failure, encrypted writes at the DB boundary | real SQL, RLS, hosted model and UI |
+| The live API over HTTP and `/realtime` (incl. `db/test_rls.sql`) | integration | real SQL, triggers, change notices, encryption at rest, RLS, Ollama embeddings | anything in the UI; live DeepSeek requires an explicit opt-in |
 | `nearestSession`, `reminderPlan`, `freshAlerts`, `notificationTips`, `calendarDates`, `packages/utils` exports | unit | time/TZ math, session reminders, which inbox items get a banner, per-brand delivery advice, stress score, reactions | app screens, the OS scheduling and drawing them |
 | Dashboard journeys (`e2e/scenarios`) | e2e | sign-in, routing, a page rendering with real data | everything not asserted |
 
@@ -101,8 +101,8 @@ always.
 allowed for a boundary you do not own (a stubbed `core.db`, a fake fetch). Never fake the
 thing under test.
 
-**Integration** — a real process boundary. Here that is the whole API against real Postgres
-and real Ollama, plus the RLS policies and the migration files. It is allowed to be a
+**Integration** — a real service boundary: the chat API calling a loopback HTTP stand-in for
+DeepSeek, or the full API against real Postgres and Ollama embeddings with RLS and migrations. It is allowed to be a
 script rather than `unittest` cases when the checks share one seeded account and must run
 in order — the live smoke run does, and it reports every failure instead of stopping at
 the first.
@@ -120,6 +120,7 @@ running from its own checkout on port 3000 against this repo's API.
 | Unit (dashboard, separate repo) | `sajiwa-dashboard/{lib,features}/**/*.test.ts` | `npm test` in that repository |
 | Unit (mobile, packages) | `*.test.ts` beside the source | `node --test` + type stripping |
 | Integration (API) | `apps/backend/tests/integration/stack_smoke.py` | `tests/integration/run.sh` |
+| Integration (DeepSeek simulation) | `apps/backend/tests/integration/deepseek_simulation.py` | same script, even without Docker |
 | Integration (RLS) | `db/test_rls.sql` | same script, via `docker exec psql` |
 | E2E (dashboard) | `e2e/scenarios/*.mjs` | `e2e/run.mjs` → `betterwright run` |
 

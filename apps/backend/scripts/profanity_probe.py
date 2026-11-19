@@ -1,4 +1,4 @@
-"""Does the generation model handle swearing gracefully on its own? (no app-level filter)
+"""How does the chat pipeline handle synthetic profanity probes? Requires staging config.
 
 Sends profane messages through the real persona prompt and classifies the reply:
   OK       -> empathetic, stays on topic
@@ -11,7 +11,10 @@ import re
 import sys
 import os
 
+from dotenv import load_dotenv
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+load_dotenv()
 os.environ.setdefault("JWT_SECRET", "isolated-test-key")
 
 from services.chatbot.core import chat  # noqa: E402 — end-to-end through the real pipeline

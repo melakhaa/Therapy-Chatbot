@@ -62,9 +62,17 @@ python -c "import os,base64; print(base64.urlsafe_b64encode(os.urandom(32)).deco
 - The `guardrail` semantic route always returns a fixed crisis response and logs to
   `guardrail_logs`; never regenerate or reword it via an LLM. See
   [semantic-router-conventions.md](semantic-router-conventions.md).
-- Crisis turns are excluded from LLM prompt history (`load_history`) as well as from the current
-  turn's routing — a crisis message must never reach the model by either path.
+- Detected crisis messages never reach DeepSeek; no prior turns are sent at all.
 - Moderate/severe assessments also write to `guardrail_logs` (`source='assessment'`).
+
+## Hosted chat generation
+
+- Keep `DEEPSEEK_ALLOW_CHAT_EGRESS=0` outside isolated synthetic staging until the
+  [privacy and safety gates](deepseek-migration-plan.md#release-gates-and-rollback) are met.
+  The existing consent receipt does not authorize third-party processing.
+- Only the current message and excerpts from explicitly approved RAG sources are eligible.
+  Basic redaction is not anonymization. Never send account/session metadata or chat history;
+  never log provider raw payloads, replies, errors, or authorization headers.
 
 ## Clinical data trust boundary
 
@@ -84,6 +92,7 @@ DATABASE_URL=postgresql://sajiwa_app:sajiwa_app@localhost:5432/sajiwa
 JWT_SECRET=                # signs auth tokens
 ENCRYPTION_KEY=            # Fernet key
 ALLOWED_ORIGINS=           # comma-separated CORS origins (defaults to *)
+DEEPSEEK_API_KEY=          # backend secret only
 ```
 
 Mobile `.env` (`apps/mobile/.env`) exposes only `EXPO_PUBLIC_*`. Auth and all data go through the

@@ -24,8 +24,8 @@ curses-only input returns the fixed `PROFANITY_REPLY`, otherwise the stripped me
 goes to the model. Crisis always wins — a profanity-laced crisis message still gets
 `HARDCODED_RESPONSE`.
 
-`core.py` builds the single router and exposes `chat_stream(user_message, session_id=None,
-user_id=None, route=None)`, with `chat(...)` as that generator joined. Callers that already routed
+`core.py` builds the single router and exposes `chat_stream(user_message, route=None)`,
+with `chat(...)` as that generator joined. Session identity and history stay in the API layer. Callers that already routed
 (`routes/chat.py` does, for the guardrail decision) pass `route=` so the message is not embedded
 twice; `route=None` routes internally. The HTTP layer turns the generator into SSE — see
 [fastapi-conventions.md](fastapi-conventions.md).
@@ -101,8 +101,8 @@ Rules when touching this:
 - Profanity is **not** a route — `PROFANITY` tokens (Indonesian + Javanese only) are
   stripped in `strip_profanity()`, with `_FILLER` dropped alongside so curses-only
   input collapses to `""` and gets `PROFANITY_REPLY`. English cursing is deliberately
-  absent: llama3.2 absorbs it on its own (measured — `scripts/profanity_probe.py`),
-  while it mirrors ID/JV curses back at the student. Add new tokens to `PROFANITY`,
+  absent based on historical local-model behavior; recheck DeepSeek on synthetic probes
+  (`scripts/profanity_probe.py`) before release. Add new tokens to `PROFANITY`,
   whole-token matching only.
 - Keep the battery in `apps/backend/tests/integration/stack_smoke.py` green; it asserts every crisis phrasing is
   flagged, that the reply is the fixed hotline text, and that ordinary distress still

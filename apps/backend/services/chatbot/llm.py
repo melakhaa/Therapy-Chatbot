@@ -1,22 +1,79 @@
+"""Backend-only DeepSeek generation; routing and embeddings stay local."""
+import asyncio
+import logging
 import os
+import time
 
-from langchain_ollama import ChatOllama
+import httpx
 
-# Single client for every generation call (conversational.py, rag.py). Defaults are all
-# deliberate: num_ctx bounds prompt growth now that history is prepended, the keep-alive
-# avoids reloading the model per request, and the httpx timeout stops a dead Ollama from
-# parking a threadpool worker forever.
-#
-# 300s, not 60s: on the CPU-only reference machine (Ryzen 5 7520U, 8B Q4_K_M) a RAG answer
-# measured 81-181s, so a 60s read timeout aborted the stream mid-answer and surfaced as
-# `generation_failed`. The response-time target is tracked separately; a slow machine must
-# not turn a long answer into an error. Raise it only if the measured ceiling grows.
-# The team's fine-tuned 8B is the default; OLLAMA_CHAT_MODEL=llama3.2:3b is the lighter
-# fallback when RAM is short, at a clear cost in coherence in Bahasa Indonesia.
-llm = ChatOllama(
-    model=os.getenv("OLLAMA_CHAT_MODEL", "llama3-8b-instruct:Q4_K_M"),
-    temperature=float(os.getenv("OLLAMA_TEMPERATURE", "0.6")),
-    num_ctx=int(os.getenv("OLLAMA_NUM_CTX", "4096")),
-    keep_alive="10m",
-    client_kwargs={"timeout": float(os.getenv("OLLAMA_TIMEOUT", "300"))},
-)
+MODEL = "deepseek-flash"
+CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions"
+MAX_TOKENS = 768
+DEADLINE_SECONDS = 45
+HTTP_TIMEOUT = httpx.Timeout(30, connect=5)
+ROLES = {"system": "system", "human": "user", "ai": "assistant"}
+
+logger = logging.getLogger(__name__)
+
+
+class GenerationError(RuntimeError):
+    """Only sanitized, application-owned categories are safe to log."""
+
+
+async def _complete(messages: list, api_key: str) -> str:
+    started = time.monotonic()
+    try:
+        # Read timeouts alone reset when the provider sends keep-alive whitespace.
+        async with asyncio.timeout(DEADLINE_SECONDS), httpx.AsyncClient(
+            timeout=HTTP_TIMEOUT, trust_env=False,
+        ) as client:
+            response = await client.post(
+                CHAT_COMPLETIONS_URL,
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={
+                    "model": MODEL,
+                    "messages": [{"role": ROLES[m.type], "content": m.content} for m in messages],
+                    "stream": False,
+                    "thinking": {"type": "disabled"},
+                    "safety_check": {"level": "high"},
+                    "max_tokens": MAX_TOKENS,
+                },
+            )
+    except (TimeoutError, httpx.TimeoutException):
+        raise GenerationError("timeout") from None
+    except httpx.HTTPError:
+        raise GenerationError("transport_error") from None
+
+    if response.status_code != 200:
+        raise GenerationError(f"upstream_http_{response.status_code}")
+
+    try:
+        payload = response.json()
+        choice = payload["choices"][0]
+        finish_reason = choice["finish_reason"]
+        content = choice["message"]["content"]
+    except (ValueError, TypeError, KeyError, IndexError):
+        raise GenerationError("invalid_response") from None
+
+    if finish_reason == "content_filter":
+        raise GenerationError("content_filter")
+    if finish_reason != "stop" or not isinstance(content, str) or not content.strip():
+        raise GenerationError("incomplete_response")
+
+    usage = payload.get("usage")
+    usage = usage if isinstance(usage, dict) else {}
+    tokens = [usage.get(key) for key in ("prompt_tokens", "completion_tokens")]
+    logger.info("deepseek completed in %.2fs (prompt_tokens=%s, completion_tokens=%s)",
+                time.monotonic() - started,
+                *(value if type(value) is int else None for value in tokens))
+    return content
+
+
+def generate(messages: list) -> str:
+    if os.getenv("DEEPSEEK_ALLOW_CHAT_EGRESS") != "1":
+        raise GenerationError("egress_disabled")
+    api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
+    if not api_key:
+        raise GenerationError("missing_api_key")
+    # Both FastAPI chat handlers call this synchronously from worker threads.
+    return asyncio.run(_complete(messages, api_key))

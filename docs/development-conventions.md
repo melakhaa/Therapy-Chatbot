@@ -45,7 +45,9 @@ cd apps/backend && venv/bin/python scripts/seed_dev_users.py
 cd apps/backend && venv/bin/python scripts/embed.py
 ```
 
-Also start `ollama serve` for chat/embeddings ([ollama-conventions.md](ollama-conventions.md)).
+Start `ollama serve` and pull `nomic-embed-text-v2-moe` for local embeddings. Chat generation
+uses DeepSeek only. Leave egress off unless testing with synthetic data in isolated staging or
+production egress has been approved; see [setup and rollout](deepseek-migration-plan.md).
 
 ## Tests
 
@@ -54,12 +56,12 @@ Three tiers — unit, integration, e2e — with one command each. Rules, locatio
 
 ```bash
 npm test                  # unit tier: every workspace + backend, no stack required
-npm run test:integration  # integration tier: live API, Postgres, RLS self-check
+npm run test:integration  # local DeepSeek simulation + live API/Postgres/RLS if available
 npm run test:e2e          # e2e tier: betterwright drives the dashboard in a browser
 ```
 
-The two live tiers skip loudly and exit 0 when their stack is down, so `npm test` stays the
- only command that must always be green. No CI runs any of them — run the tiers your change
+Live stack checks skip loudly when their prerequisites are unavailable; the loopback
+integration simulation still runs. No CI runs any of them — run the tiers your change
  touches before opening a PR. New behaviour starts with a failing test at an agreed seam:
  [testing-conventions.md](testing-conventions.md#test-driven-development-is-required).
 

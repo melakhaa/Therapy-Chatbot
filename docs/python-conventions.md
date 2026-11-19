@@ -27,9 +27,8 @@ import (`embed.py`, `test_rag_performance.py`) so direct `python scripts/x.py` i
 
 - Declared in `apps/backend/requirements.txt`, lower-bound pinned (`>=`): `fastapi`, `uvicorn[standard]`,
   `pydantic[email]`, `python-dotenv`, `psycopg[binary,pool]`, `PyJWT`, `bcrypt`, `semantic-router`,
-  `langchain-ollama`, `langchain-core`, `python-docx`, `ollama`, `cryptography`.
-- `httpx` (needed by FastAPI's `TestClient`) is **not** in `requirements.txt` — install it ad hoc to run
-  `tests/`.
+  `langchain-ollama`, `langchain-core`, `python-docx`, `ollama`, `cryptography`, and `httpx`.
+- `httpx` handles the DeepSeek request and supports FastAPI route tests.
 - No `pyproject.toml` / no formatter config; keep edits consistent with surrounding style.
 
 ## Conventions

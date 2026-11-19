@@ -1,11 +1,14 @@
 #!/usr/bin/env sh
-# Integration tier: the API against the real stack (Postgres, Ollama, uvicorn).
+# Integration tier: the API against Postgres, local Ollama embeddings and uvicorn.
+# Live DeepSeek generation is opt-in via SAJIWA_TEST_DEEPSEEK=1 on synthetic staging.
 #
 #   npm run test:integration          (from the repo root)
 #
-# Skips loudly when the stack is not up, so a unit-only run is never blocked by it.
+# When the full stack is not up, only the local provider simulation runs.
 set -e
 cd "$(dirname "$0")/../.."
+
+venv/bin/python tests/integration/deepseek_simulation.py
 
 if ! docker info >/dev/null 2>&1; then
   echo "SKIP integration: docker is not running (RLS self-check and live API not exercised)"

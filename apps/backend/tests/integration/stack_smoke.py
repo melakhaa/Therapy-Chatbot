@@ -2,7 +2,8 @@
 
 Starts nothing: expects `docker compose up -d` and uvicorn to already be running.
 Exercises auth, accounts, assessments, journals, jadwal/booking, dashboard, chat
-(real Ollama), and RLS isolation between two students, then deletes everything it
+(local Ollama embeddings; optional DeepSeek generation), and RLS isolation between two
+students, then deletes everything it
 created. It is a script rather than unittest cases because the checks share one
 seeded student and must run in order; it reports every failure instead of stopping
 at the first one.
@@ -12,6 +13,8 @@ at the first one.
 
 Env overrides: `API_BASE`, `SMOKE_DB_URL` (superuser URL, used only to seed the
 first admin and to verify DB state — the API itself always uses sajiwa_app).
+Set `SAJIWA_TEST_DEEPSEEK=1` only against an isolated, configured staging backend with
+synthetic accounts and synthetic or approved reference documents.
 Exits 0 with a SKIP line when the stack is not up, so a unit run is never blocked
 by it, and 1 when any check fails.
 """
@@ -22,6 +25,7 @@ from websockets.sync.client import connect as ws_connect
 
 BASE = os.getenv("API_BASE", "http://localhost:8000")
 DB = os.getenv("SMOKE_DB_URL", "postgresql://sajiwa:sajiwa@localhost:5432/sajiwa")
+TEST_DEEPSEEK = os.getenv("SAJIWA_TEST_DEEPSEEK") == "1"
 FAILS = []
 SFX = uuid.uuid4().hex[:8]
 
@@ -56,8 +60,7 @@ def check(name, cond, detail=""):
 def call_stream(path, body, token=None, timeout=180):
     """POST and consume SSE frame by frame.
 
-    Returns (status, frames, first_token_ms, total_ms). The timings are what distinguish real
-    streaming from a finished response chopped up after the fact.
+    Returns (status, frames, first visible text in ms, total ms).
     """
     req = urllib.request.Request(BASE + path, method="POST")
     req.add_header("Content-Type", "application/json")
@@ -322,18 +325,22 @@ check("dashboard data shape", ok, (s, r))
 s, r = call("GET", "/dashboard/data", token=stu_tok)
 check("mahasiswa blocked from dashboard", s == 403, (s, r))
 
-print("== chat (Ollama) ==")
+print("== chat and local guardrail ==")
 s, r = call("POST", "/chat", {"message": "saya mau bunuh diri", "session_id": f"chat-{SFX}"}, stu_tok)
 check("guardrail returns crisis response", s == 200 and r["is_high_risk"] and "119" in r["response"], (s, r))
 
-s, r = call("POST", "/chat", {"message": "halo aku lagi sedih hari ini", "session_id": f"chat-{SFX}"}, stu_tok)
-check("conversational reply", s == 200 and len(r["response"]) > 10 and not r["is_high_risk"], (s, r))
+if TEST_DEEPSEEK:
+    s, r = call("POST", "/chat", {"message": "halo aku lagi sedih hari ini", "session_id": f"chat-{SFX}"}, stu_tok)
+    check("DeepSeek conversational reply", s == 200 and len(r["response"]) > 10 and not r["is_high_risk"], (s, r))
+else:
+    print("SKIP live DeepSeek generation: opt in with SAJIWA_TEST_DEEPSEEK=1 on isolated staging")
 
 s, r = call("POST", "/rag/context", {"message": "apa itu depresi?"}, stu_tok)
 check("RAG endpoint responds", s == 200 and "context" in r, (s, r))
 
 rows = sql("select content, route_used from messages where session_id = %s", (f"chat-{SFX}",))
-check("chat persisted to messages", len(rows) >= 4, len(rows))
+expected_messages = 4 if TEST_DEEPSEEK else 2
+check("chat persisted to messages", len(rows) == expected_messages, len(rows))
 check("chat stored encrypted, not plaintext",
       all(not c.startswith("saya mau bunuh diri") and c.startswith("gAAAAA") for c, _ in rows),
       [c[:12] for c, _ in rows])
@@ -345,7 +352,7 @@ check("chat session row created and owned by the student",
 s, r = call("GET", f"/chat/history?session_id=chat-{SFX}", token=stu_tok)
 msgs = r.get("messages", [])
 check("history endpoint returns the decrypted transcript",
-      s == 200 and len(msgs) >= 4 and msgs[0]["role"] == "user"
+      s == 200 and len(msgs) == expected_messages and msgs[0]["role"] == "user"
       and any(m["text"] == "saya mau bunuh diri" for m in msgs), (s, msgs[:2]))
 check("history is oldest-first",
       all(msgs[i]["created_at"] <= msgs[i + 1]["created_at"] for i in range(len(msgs) - 1)),
@@ -375,23 +382,21 @@ check("crisis log stored encrypted, not plaintext",
       and "bunuh diri" not in guard[0][0], guard)
 
 print("== chat streaming ==")
-s, frames, first_ms, total_ms = call_stream(
-    "/chat/stream",
-    {"message": "jelaskan singkat apa itu depresi dan gejalanya", "session_id": f"stream-{SFX}"},
-    stu_tok,
-)
-tokens = [f["token"] for f in frames if isinstance(f, dict) and f.get("token")]
-meta = frames[0] if frames and isinstance(frames[0], dict) else {}
-check("stream opens with a metadata frame",
-      s == 200 and "is_high_risk" in meta and meta.get("route"), (s, meta))
-check("stream sends many token frames, not one blob", len(tokens) > 5, len(tokens))
-check("stream terminates with [DONE]", bool(frames) and frames[-1] == "[DONE]",
-      frames[-1] if frames else None)
-check("tokens keep arriving after the first",
-      first_ms is not None and total_ms and (total_ms - first_ms) > 1000,
-      f"first={first_ms}ms total={total_ms}ms")
-rows = sql("select count(*) from messages where session_id = %s", (f"stream-{SFX}",))
-check("streamed turn persisted after completion", rows[0][0] >= 2, rows)
+if TEST_DEEPSEEK:
+    s, frames, first_ms, total_ms = call_stream(
+        "/chat/stream",
+        {"message": "jelaskan singkat apa itu depresi dan gejalanya", "session_id": f"stream-{SFX}"},
+        stu_tok,
+    )
+    meta = frames[0] if frames and isinstance(frames[0], dict) else {}
+    check("stream opens with RAG metadata",
+          s == 200 and meta == {"route": "rag", "is_high_risk": False}, (s, meta))
+    check("stream sends one completed, cited RAG answer",
+          len(frames) == 3 and isinstance(frames[1], dict) and
+          frames[1].get("token", "").lstrip().startswith("Menurut ") and frames[2] == "[DONE]")
+    print(f"  DeepSeek first visible text={first_ms}ms total={total_ms}ms")
+    rows = sql("select count(*) from messages where session_id = %s", (f"stream-{SFX}",))
+    check("streamed turn persisted after completion", rows[0][0] == 2, rows)
 
 s, frames, _, _ = call_stream(
     "/chat/stream", {"message": "saya mau bunuh diri", "session_id": f"sg-{SFX}"}, stu_tok)

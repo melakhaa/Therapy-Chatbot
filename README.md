@@ -49,14 +49,15 @@
 - **PostgreSQL 17 + pgvector**: Database, row-level security, and vector storage (Docker).
 - **psycopg 3**: Parameterized SQL access, no ORM.
 - **Semantic Router**: Decision layer for LLM message routing.
-- **Ollama**: Local LLM generation and embeddings.
+- **Ollama**: Local embeddings for intent routing, RAG retrieval, and ingestion.
+- **DeepSeek V4.1 Flash** (`deepseek-flash`): Backend-only chat generation; disabled until explicitly enabled.
 
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) (v24 LTS)
 - [Python](https://www.python.org/) (v3.12 — required, the AI stack has no 3.13/3.14 wheels)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Required for local PostgreSQL)
-- [Ollama](https://ollama.com/) (For local LLM + embeddings)
+- [Ollama](https://ollama.com/) with `nomic-embed-text-v2-moe` (`ollama pull nomic-embed-text-v2-moe`)
 
 ## Installation
 
@@ -85,6 +86,11 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 *Fill `JWT_SECRET` and `ENCRYPTION_KEY` in `.env` (generation commands are in the file).*
+
+Start `ollama serve` if it is not already running. No local chat model is needed.
+For isolated synthetic staging only, add a staging `DEEPSEEK_API_KEY` to the backend `.env`
+and set `DEEPSEEK_ALLOW_CHAT_EGRESS=1`. Leave it off for real student traffic until approved;
+see the [migration plan](docs/deepseek-migration-plan.md) for privacy and RAG requirements.
 
 Seed local dev accounts (idempotent — the first admin can't be created through the API):
 
@@ -156,7 +162,7 @@ Therapy-Chatbot/
 |---------|-------------|
 | `npm install` | Install all workspace dependencies |
 | `npm test` | Unit tier: every workspace + backend, no stack required |
-| `npm run test:integration` | Integration tier: live API, Postgres, RLS self-check |
+| `npm run test:integration` | Loopback DeepSeek simulation, then live API/Postgres/RLS if available |
 | `npm run test:e2e` | E2E tier: betterwright drives the dashboard in a browser |
 | `docker compose up -d` | Start local PostgreSQL + pgAdmin |
 | `docker compose down` | Stop local services |
@@ -168,6 +174,6 @@ Dashboard commands (`npm run dev`, `npm test`, `npm run typecheck`, `npm run lin
 that dashboard at `http://localhost:3000` and this backend at `http://localhost:8000`.
 
 Tests run in three tiers. `npm test` needs nothing running and is the one command that must
-always be green; the other two skip loudly when their stack is down. **Write the test first** —
+always be green; the live checks skip loudly when their stack is down. **Write the test first** —
 the `tdd` skill (`.agents/skills/tdd/`) is mandatory here. Tiers and the
 red → green loop: [docs/testing-conventions.md](docs/testing-conventions.md).

@@ -1,53 +1,36 @@
-# Ollama & LangChain conventions
+# Chat generation and local embeddings
 
-All generation and embeddings run **locally via Ollama**, reached through **LangChain as a thin
-LLM/message adapter** (`langchain-core` messages, `langchain-ollama` clients) plus the raw `ollama`
-client for ingestion. There are **no chains, agents, retrievers, or vector-store abstractions** —
-RAG retrieval is hand-written SQL against PostgreSQL + pgvector. No hosted LLM provider.
+Ollama runs **local embeddings only**. DeepSeek handles answer generation when explicitly
+enabled. Prompts still use `langchain-core` messages; RAG retrieval is SQL on PostgreSQL + pgvector.
 
 ## Models
 
 | Purpose | Model | Client |
 |---------|-------|--------|
 | Intent routing | `nomic-embed-text-v2-moe` | `semantic_router.encoders.OllamaEncoder` |
-| Chat generation | `llama3-8b-instruct:Q4_K_M` (team fine-tune; `OLLAMA_CHAT_MODEL=llama3.2:3b` when RAM is short) | `langchain_ollama.ChatOllama` |
+| Chat generation | DeepSeek V4.1 Flash (`deepseek-flash`) | `httpx` in `services/chatbot/llm.py` |
 | RAG query embeddings | `nomic-embed-text-v2-moe` | `langchain_ollama.OllamaEmbeddings` (`embed_query`) |
 | Document ingestion embeddings | `nomic-embed-text-v2-moe` | `ollama.embed(...)` |
 
 ## Generation
 
-One shared client, `services/chatbot/llm.py` — import it, never construct another `ChatOllama`.
-Prompt building and generation are separate: `build_messages()` lives in `conversational.py`
-(persona) or `rag.py` (retrieved context, or `None` → `NO_CONTEXT_REPLY`), and `core.chat_stream`
-is the only caller that generates. `/chat` is that generator joined; `/chat/stream` forwards it as
-SSE — so the two endpoints cannot answer differently.
+`core.chat_stream` dispatches the fixed replies first, then calls `llm.generate()` for eligible
+turns. Both chat endpoints use it. The backend uses a non-streaming completion with thinking
+disabled, safety review enabled, 768 output tokens, and a 45-second overall deadline. The SSE
+endpoint still sends routing metadata first but does not show answer text until review completes.
+Missing cloud config does not disable local fixed replies or unrelated endpoints.
 
-```python
-from langchain_core.messages import HumanMessage, SystemMessage
-from services.chatbot.llm import llm
-
-messages = [SystemMessage(content=system), *history, HumanMessage(content=user)]
-for chunk in llm.stream(messages):      # what core.chat_stream does
-    yield chunk.content
-```
-
-- Use `llm.stream(...)`, not `invoke` — one token path, not two that can drift apart.
-- Instructions always go in a `SystemMessage`, never a `HumanMessage`: shared roles are the easy
-  prompt-injection path.
-- Do not introduce LCEL chains or LangGraph; keep calls direct and generation stateless per call.
-- `llm.py` pins `num_ctx`, `keep_alive`, and an httpx timeout, all overridable via
-  `OLLAMA_NUM_CTX` / `OLLAMA_TEMPERATURE` / `OLLAMA_TIMEOUT`. A fresh client silently loses them.
-- Never send guardrail (crisis) messages to the LLM — see
-  [semantic-router-conventions.md](semantic-router-conventions.md).
-
-## Conversation memory
-
-"Memory" is the last `HISTORY_TURNS` rows re-read per request by
-`services/chatbot/history.py` (`load_history`) and prepended oldest-first — never assembled by
-hand, no Redis needed. Three load-bearing rules there: `route_used is distinct from 'guardrail'`
-(crisis turns must never reach the LLM by the history path); a trailing unanswered user turn is
-dropped, so a killed stream's question is not sent twice when it is retried; and the
-`HISTORY_CHAR_CAP` bound keeps the prompt under `num_ctx`.
+- Put persona and policy instructions in the system role. Keep the current message and any
+  approved reference data in the user role.
+- Past turns stay in the encrypted transcript and are never used as DeepSeek prompt history.
+  Only the current turn (at most 4,000 characters, with basic identifier redaction) and eligible
+  RAG excerpts are sent. Redaction is not anonymization.
+- `DEEPSEEK_RAG_SOURCES` is an explicit comma-separated allowlist of reviewed `metadata.source`
+  values. A cloud RAG prompt only uses hits with one of those names and a non-empty citation.
+  An empty allowlist or no qualifying hit gives the fixed no-context reply. Review source
+  content again before replacing an approved file under the same name.
+- Get privacy approval before using real student data. See the
+  [migration plan](deepseek-migration-plan.md) and [security rules](security-conventions.md).
 
 ## RAG ingestion & retrieval
 
@@ -73,8 +56,8 @@ The measured gates are `tests/integration/rag_retrieval_eval.py`.
   falls back to its filename — add the entry when you add the file.
 - `build_messages` prefixes each chunk with `[<citation>]` in a separate **user-role data
   message**, not in the system message. `RAG_SYSTEM_PROMPT` says to ignore instructions in
-  retrieved text/history and requires the answer to open with the citation. That is what makes a follow-up "sumbernya dari mana?" answerable from
-  conversation history. Changing a citation is metadata-only: backfill with
+  retrieved text. Cloud answers must open with `Menurut <citation>,` (optionally bracketed);
+  the backend rejects a missing or unknown citation. Changing a citation is metadata-only: backfill with
   `update documents set metadata = metadata || jsonb_build_object('citation', …)` — no
   re-embed, because the vectors do not change.
 - Deletion during ingestion is gated by migration 012's `documents_replace_for_ingest`
@@ -108,10 +91,5 @@ zero-vector fallback would route everything to one route while looking healthy. 
 ```bash
 ollama serve
 ollama pull nomic-embed-text-v2-moe
-# Generation model is imported from a GGUF, not pulled: HF stores it on Xet and
-# `ollama pull hf.co/...` aborts with "blocked redirect to a different host".
-curl -L -o ~/models/local_model.Q4_K_M.gguf \
-  https://huggingface.co/SekarBestNY/llama-3-8b-instruct-gguf/resolve/main/local_model.Q4_K_M.gguf
-printf 'FROM %s\n' ~/models/local_model.Q4_K_M.gguf > ~/models/Modelfile
-ollama create llama3-8b-instruct:Q4_K_M -f ~/models/Modelfile
+# No local chat generation model is needed on this branch.
 ```

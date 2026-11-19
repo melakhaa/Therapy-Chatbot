@@ -45,6 +45,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from auth import AuthUser, get_current_user  # noqa: E402
 from routes import chat as chat_route  # noqa: E402
+from services.chatbot.llm import GenerationError  # noqa: E402
 
 
 def _client() -> TestClient:
@@ -110,7 +111,7 @@ class ChatStreamTests(unittest.TestCase):
 
     def test_generation_error_sends_an_error_frame_and_no_done(self):
         def broken(*args, **kwargs):
-            raise RuntimeError("ollama read timeout")
+            raise GenerationError("timeout")
 
         with unittest.mock.patch.object(chat_route, "chat_stream", broken):
             with self.assertLogs(level="ERROR"):
@@ -120,6 +121,15 @@ class ChatStreamTests(unittest.TestCase):
         self.assertIn('"error": "generation_failed"', body)
         self.assertNotIn("[DONE]", body)
         self.assertNotIn('"token"', body)
+
+    def test_chat_provider_error_returns_generic_unavailable_without_persisting(self):
+        with unittest.mock.patch.object(chat_route, "chat_fn", side_effect=GenerationError("upstream_http_402")), \
+             unittest.mock.patch.object(chat_route, "_persist_turn") as persist, \
+             self.assertLogs(level="ERROR"):
+            response = _client().post("/chat", json={"message": "aku lagi sedih", "session_id": "sess-1"})
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json(), {"detail": "Sajiwa sedang tidak bisa dihubungi."})
+        persist.assert_not_called()
 
     def test_no_session_id_skips_persistence_entirely(self):
         def boom(*args):

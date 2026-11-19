@@ -9,6 +9,7 @@ remaining gaps are at the bottom of this page.
 | Tier | Runner | Needs |
 | --- | --- | --- |
 | Unit | `npm test` (or the per-file commands below) | Python 3.12 venv only |
+| Integration: DeepSeek simulation | `npm run test:integration` → `deepseek_simulation.py` | Python + loopback only |
 | Integration: API + DB + RLS | `npm run test:integration` → `stack_smoke.py`, `db/test_rls.sql` | Docker (Postgres), uvicorn, Ollama |
 | Integration: router quality | `rag_router_eval.py` (inside the same command) | Ollama + embedding model |
 | Integration: retrieval quality | `rag_retrieval_eval.py` (inside the same command) | Ollama + Postgres + stored corpus |
@@ -46,7 +47,7 @@ The files that matter for this area, run individually from `apps/backend`:
 
 ```bash
 for test in test_rag_citation test_embed_chunking test_provenance test_guardrail \
-            test_chat_history test_chat_stream test_chat_sessions; do
+            test_chat_policy test_chat_stream test_chat_sessions; do
   venv/bin/python -m unittest discover -s tests/unit -p "${test}.py" -v || exit 1
 done
 ```
@@ -57,9 +58,8 @@ done
 | `test_embed_chunking.py` | 6 | 500/50 chunk contract, empty input, DOCX paragraph/table order, no ingestion on import |
 | `test_provenance.py` | 4 | Corpus-based fixed reply, "AI, not a psychologist" claim, empty-corpus fallback, sample utterances |
 | `test_guardrail.py` | 16 | Crisis normalization, intent/action/target patterns, paired farewell cues, conservative negation policy, profanity preserving medical terms |
-| `test_chat_policy.py` | 8 | Fixed internal-instruction/personal-medical/private-data refusals, crisis priority over supplied routes, normal generation, diagnosis-report negative controls, fixed provenance and empty-context responses |
-| `test_chat_history.py` | 6 | Prompt budget, crisis rows filtered in SQL, ordering, unanswered-turn handling |
-| `test_chat_stream.py` | 5 | SSE framing, `[DONE]`, error frame without `[DONE]`, persistence failures |
+| `test_chat_policy.py` | 13 | Fixed policy, crisis, provenance and no-context replies; cloud opt-in, minimum payload, redaction and citation checks |
+| `test_chat_stream.py` | 6 | SSE framing and failures, generic `/chat` unavailable response, persistence behavior |
 | `test_chat_sessions.py` | 5 | Session scoping, previews, encrypted persistence |
 
 These do not measure embedding accuracy, retrieval quality, generated-answer grounding, or the
@@ -84,12 +84,10 @@ ollama serve
 ollama pull nomic-embed-text-v2-moe   # router + retrieval embeddings
 ```
 
-Generation model (needed by `stack_smoke.py`'s chat checks, not by the two evaluators):
-
-```bash
-# Team fine-tune is imported from GGUF, not pulled — see ollama-conventions.md
-ollama list   # expect llama3-8b-instruct:Q4_K_M (or set OLLAMA_CHAT_MODEL)
-```
+No local generation model is needed. Live DeepSeek generation is optional. Configure a
+staging key, enable egress and allowlist only synthetic or approved reference documents as
+described in the [migration plan](deepseek-migration-plan.md). Run
+`SAJIWA_TEST_DEEPSEEK=1 npm run test:integration` only against that isolated stack.
 
 Ingest the corpus **once** if `documents` is empty:
 
@@ -115,14 +113,14 @@ npm run test:integration
 
 That executes, in order:
 
-1. `apps/backend/tests/integration/stack_smoke.py` — API over HTTP, real SQL/triggers/RLS,
-   chat, crisis battery, streaming, report-to-team, cleanup.
-2. `tests/integration/rag_router_eval.py` — router quality gates.
-3. `tests/integration/rag_retrieval_eval.py` — retrieval gates against the stored corpus.
+1. `tests/integration/deepseek_simulation.py` — real provider HTTP against a loopback stand-in,
+   including timeouts, refusals, and incomplete responses. No network egress or real key.
+2. `tests/integration/stack_smoke.py` — API over HTTP, real SQL, crisis battery, report-to-team,
+   and cleanup. Generation checks require the opt-in above.
+3. `tests/integration/rag_router_eval.py` and `rag_retrieval_eval.py` — local quality gates.
 4. `db/test_rls.sql` — RLS/auth self-check (one transaction, rolled back).
 
-If Docker is down the whole tier prints `SKIP integration: …` and exits 0 — a skip is not a
-pass.
+If Docker is unavailable, only the simulation runs; the full-stack skip is not a pass.
 
 ### Run the evaluators alone
 
@@ -140,9 +138,10 @@ venv/bin/python tests/integration/chat_adversarial_eval.py --output /tmp/sajiwa-
 ```
 
 This runner records full synthetic answers. Exit 0 means only its automated checks passed;
-rows marked `review_required` still require review. Historical single-turn attacks use real
-chat dispatch. Multi-turn and document attacks use real prompt assembly/model generation with
-synthetic history or a substituted DB boundary; they do not prove HTTP persistence or RLS.
+rows marked `review_required` still require review. Single-turn and synthetic document attacks
+use real dispatch; the fixture with a historical attack sends only its current turn. The
+loopback simulation separately proves the HTTP path does not read or send history. Neither
+proves RLS.
 
 Other evaluator commands:
 
@@ -188,14 +187,13 @@ a run green. Record the date, commit and configuration whenever you quote a numb
 
 ## 7. Reading a failure
 
-- `SKIP … the sajiwa-db container is not up` / `docker is not running` — the tier did nothing.
+- `SKIP … the sajiwa-db container is not up` / `docker is not running` — the full-stack tier did not run.
 - `SKIP router evaluation: Ollama is not reachable` — start Ollama or pull the model.
 - `SKIP retrieval evaluation: database is not reachable` — `DATABASE_URL` or the stack is wrong.
 - `MISS expected=… got=…` — the router put a labelled message on another route; check whether it
   is a crisis miss (safety, fix first) or a quality miss.
 - `GATE FAILED Hit Rate…` — retrieval regressed; check the corpus fingerprint before re-tuning.
-- `generation_failed` in `stack_smoke` — generation, not routing; see the API log (the route and
-  session are now logged with the traceback).
+- `generation_failed` in `stack_smoke` — check the sanitized API error category and route.
 
 ## 8. Current results (16 November 2026)
 
